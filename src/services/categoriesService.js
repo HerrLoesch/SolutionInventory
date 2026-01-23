@@ -1,6 +1,19 @@
 export function getCategoriesData() {
   return [
     {
+      id: 'solution-desc',
+      title: 'Solution Description',
+      desc: 'General information about the solution',
+      isMetadata: true,
+      metadata: {
+        productName: '',
+        company: '',
+        department: '',
+        contactPerson: '',
+        description: ''
+      }
+    },
+    {
       id: 'architecture',
       title: 'Architecture',
       desc: 'Architectural decisions and capabilities',

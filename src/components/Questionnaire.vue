@@ -22,6 +22,51 @@
           <v-card-title><h2>{{ currentCategory.title }}</h2></v-card-title>
           <v-card-subtitle class="px-4">{{ currentCategory.desc }}</v-card-subtitle>
           <v-card-text>
+            <!-- Solution Description Metadata Form -->
+            <div v-if="currentCategory.isMetadata" class="mt-4">
+              <v-row dense>
+                <v-col cols="12">
+                  <v-text-field
+                    label="Softwareprodukt"
+                    v-model="currentCategory.metadata.productName"
+                    clearable
+                  />
+                </v-col>
+                <v-col cols="12">
+                  <v-text-field
+                    label="Unternehmen"
+                    v-model="currentCategory.metadata.company"
+                    clearable
+                  />
+                </v-col>
+                <v-col cols="12">
+                  <v-text-field
+                    label="Abteilung"
+                    v-model="currentCategory.metadata.department"
+                    clearable
+                  />
+                </v-col>
+                <v-col cols="12">
+                  <v-text-field
+                    label="Ansprechpartner"
+                    v-model="currentCategory.metadata.contactPerson"
+                    clearable
+                  />
+                </v-col>
+                <v-col cols="12">
+                  <v-textarea
+                    label="Beschreibung"
+                    v-model="currentCategory.metadata.description"
+                    placeholder="Grobe Beschreibung des Softwareprodukts..."
+                    rows="4"
+                    auto-grow
+                  />
+                </v-col>
+              </v-row>
+            </div>
+
+            <!-- Regular entries for other categories -->
+            <div v-else>
             <div v-for="entry in currentCategory.entries" :key="entry.id" class="mb-6">
               <v-sheet class="pa-3" elevation="1">
                 <div class="d-flex justify-space-between align-start">
@@ -79,6 +124,7 @@
                   </v-btn>
                 </div>
               </v-sheet>
+            </div>
             </div>
           </v-card-text>
           <v-card-actions>
