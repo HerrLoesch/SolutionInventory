@@ -112,7 +112,14 @@ export default {
       { label: 'Retire', description: 'We are actively replacing or removing this.' }
     ]
 
-    function selectCategory(id) { activeCategory.value = id }
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    function selectCategory(id) {
+      activeCategory.value = id
+      scrollToTop()
+    }
 
     function getStatusTooltip(status) {
       const opt = statusOptions.find(s => s.label === status)
@@ -121,12 +128,18 @@ export default {
 
     function nextCategory() {
       const idx = categories.value.findIndex(c => c.id === activeCategory.value)
-      if (idx < categories.value.length - 1) activeCategory.value = categories.value[idx + 1].id
+      if (idx < categories.value.length - 1) {
+        activeCategory.value = categories.value[idx + 1].id
+        scrollToTop()
+      }
     }
 
     function prevCategory() {
       const idx = categories.value.findIndex(c => c.id === activeCategory.value)
-      if (idx > 0) activeCategory.value = categories.value[idx - 1].id
+      if (idx > 0) {
+        activeCategory.value = categories.value[idx - 1].id
+        scrollToTop()
+      }
     }
 
     const hasNext = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) < categories.value.length - 1)
