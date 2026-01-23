@@ -1,0 +1,21 @@
+{
+  "name": "solution-inventory-pwa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test-export": "node scripts/test_export_node.js data/sample_export.json solution_inventory_test.xlsx"
+  },
+  "dependencies": {
+    "vue": "^3.3.4",
+    "vuetify": "^3.3.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "vite": "^4.4.9",
+    "@vitejs/plugin-vue": "^4.0.0",
+    "vite-plugin-pwa": "^0.14.7"
+  }
+}

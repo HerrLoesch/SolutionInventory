@@ -1,0 +1,32 @@
+{
+  "categories": [
+    {
+      "id": "architecture",
+      "title": "Architecture",
+      "entries": [
+        {
+          "id": "a1",
+          "aspect": "Do not edit. This specifies the technical capability or functional area being surveyed.",
+          "examples": "E.g. Monolith, Microservices, Modular Hexagonal",
+          "technology": "Microservices",
+          "status": "Strategic",
+          "comments": "Deployed on Kubernetes; internal docs at /docs/arch"
+        }
+      ]
+    },
+    {
+      "id": "frontend",
+      "title": "Front-End",
+      "entries": [
+        {
+          "id": "f1",
+          "aspect": "Framework / Library used for UI",
+          "examples": "Vue, React, Angular",
+          "technology": "Vue 3 + Vuetify",
+          "status": "Adopted",
+          "comments": "Using Vite; team prefers Composition API"
+        }
+      ]
+    }
+  ]
+}
