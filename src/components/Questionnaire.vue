@@ -326,7 +326,29 @@ export default {
       return null
     }
 
-    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX, statusOptions, getStatusTooltip, addAnswer, deleteAnswer }
+    function exportJSON() {
+      const data = JSON.stringify(categories.value, null, 2)
+      const blob = new Blob([data], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'solution_inventory.json'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    }
+
+    function importJSON(data) {
+      if (Array.isArray(data)) {
+        categories.value = data
+        activeCategory.value = categories.value[0]?.id || ''
+      } else {
+        alert('Ungültiges JSON Format')
+      }
+    }
+
+    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX, statusOptions, getStatusTooltip, addAnswer, deleteAnswer, exportJSON, importJSON }
   }
 }
 </script>
