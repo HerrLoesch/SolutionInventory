@@ -27,37 +27,37 @@
               <v-row dense>
                 <v-col cols="12">
                   <v-text-field
-                    label="Softwareprodukt"
+                    label="Software Product"
                     v-model="currentCategory.metadata.productName"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
-                    label="Unternehmen"
+                    label="Company"
                     v-model="currentCategory.metadata.company"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
-                    label="Abteilung"
+                    label="Department"
                     v-model="currentCategory.metadata.department"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
-                    label="Ansprechpartner"
+                    label="Contact Person"
                     v-model="currentCategory.metadata.contactPerson"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-textarea
-                    label="Beschreibung"
+                    label="Description"
                     v-model="currentCategory.metadata.description"
-                    placeholder="Grobe Beschreibung des Softwareprodukts..."
+                    placeholder="Brief description of the software product..."
                     rows="4"
                     auto-grow
                   />
@@ -72,7 +72,7 @@
                 <div class="d-flex justify-space-between align-start">
                   <div class="flex-grow-1">
                     <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
-                    <div class="text--secondary text-sm mt-1"><strong>Beispiele:</strong> {{ entry.examples }}</div>
+                    <div class="text--secondary text-sm mt-1"><strong>Examples:</strong> {{ entry.examples }}</div>
                   </div>
                 </div>
 
@@ -80,7 +80,7 @@
                 <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                   <v-row dense>
                     <v-col cols="12" md="4">
-                      <v-text-field label="Technologie" v-model="answer.technology" clearable />
+                      <v-text-field label="Technology" v-model="answer.technology" clearable />
                     </v-col>
 
                     <v-col cols="12" md="2">
@@ -100,7 +100,7 @@
                     </v-col>
 
                     <v-col cols="12" md="5">
-                      <v-textarea label="Kommentar" v-model="answer.comments" rows="1" auto-grow />
+                      <v-textarea label="Comment" v-model="answer.comments" rows="1" auto-grow />
                     </v-col>
 
                     <v-col cols="12" md="1" class="d-flex align-center justify-end">
@@ -111,7 +111,7 @@
                         @click="deleteAnswer(entry.id, aIdx)"
                         v-if="entry.answers.length > 1"
                       >
-                        Löschen
+                        Delete
                       </v-btn>
                     </v-col>
                   </v-row>
@@ -120,7 +120,7 @@
                 <!-- Button für neue Antwort -->
                 <div class="mt-3">
                   <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
-                    + Neue Antwort
+                    + Add Answer
                   </v-btn>
                 </div>
               </v-sheet>
@@ -128,9 +128,9 @@
             </div>
           </v-card-text>
           <v-card-actions>
-            <v-btn color="primary" @click="prevCategory" :disabled="!hasPrev">Zurück</v-btn>
+            <v-btn color="primary" @click="prevCategory" :disabled="!hasPrev">Back</v-btn>
             <v-spacer />
-            <v-btn color="primary" @click="nextCategory" :disabled="!hasNext">Weiter</v-btn>
+            <v-btn color="primary" @click="nextCategory" :disabled="!hasNext">Next</v-btn>
           </v-card-actions>
         </v-card>
       </v-col>

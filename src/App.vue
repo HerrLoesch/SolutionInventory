@@ -5,18 +5,18 @@
       <v-spacer />
       
       <v-btn @click="saveJSON" class="mr-2">
-        💾 JSON Speichern
-        <v-tooltip activator="parent" location="bottom">Eingaben als JSON speichern</v-tooltip>
+        💾 Save JSON
+        <v-tooltip activator="parent" location="bottom">Save entries as JSON</v-tooltip>
       </v-btn>
 
       <v-btn @click="importJSON" class="mr-2">
-        📂 JSON Laden
-        <v-tooltip activator="parent" location="bottom">JSON Datei importieren</v-tooltip>
+        📂 Load JSON
+        <v-tooltip activator="parent" location="bottom">Import JSON file</v-tooltip>
       </v-btn>
 
       <v-btn @click="exportData">
         Excel Export
-        <v-tooltip activator="parent" location="bottom">Excel exportieren</v-tooltip>
+        <v-tooltip activator="parent" location="bottom">Export to Excel</v-tooltip>
       </v-btn>
 
       <!-- Hidden file input for import -->
@@ -74,7 +74,7 @@ export default {
             const data = JSON.parse(e.target.result)
             questionnaireRef.value.importJSON(data)
           } catch (err) {
-            alert('Fehler beim Lesen der JSON-Datei: ' + err.message)
+            alert('Error reading JSON file: ' + err.message)
           }
         }
         reader.readAsText(file)
