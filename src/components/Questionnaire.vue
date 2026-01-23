@@ -20,15 +20,15 @@
 
       <v-col cols="12" md="8">
         <v-card>
-          <v-card-title>{{ currentCategory.title }}</v-card-title>
+          <v-card-title><h2>{{ currentCategory.title }}</h2></v-card-title>
           <v-card-subtitle class="px-4">{{ currentCategory.desc }}</v-card-subtitle>
           <v-card-text>
             <div v-for="entry in currentCategory.entries" :key="entry.id" class="mb-6">
               <v-sheet class="pa-3" elevation="1">
-                <div class="d-flex justify-space-between">
-                  <div>
-                    <div class="font-weight-medium">{{ entry.aspect }}</div>
-                    <div class="text--secondary text-sm">{{ entry.examples }}</div>
+                <div class="d-flex justify-space-between align-start">
+                  <div class="flex-grow-1">
+                    <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
+                    <div class="text--secondary text-sm mt-1"><strong>Examples:</strong> {{ entry.examples }}</div>
                   </div>
                 </div>
 
@@ -88,17 +88,65 @@ export default {
         desc: 'Architectural decisions and capabilities',
         entries: [
           {
-            id: 'a1',
-            aspect: 'Do not edit. This specifies the technical capability or functional area being surveyed.',
-            examples: 'E.g. Monolith, Microservices, Modular Hexagonal, Event-driven',
+            id: 'arch-hlp',
+            aspect: 'High-Level Pattern',
+            examples: 'Layered, Hexagonal, Clean Arch, Plugin-Based',
             technology: '',
             status: '',
             comments: ''
           },
           {
-            id: 'a2',
-            aspect: 'Do not edit. Read this question to understand the specific architectural decision, pattern, or tool we are asking about',
-            examples: 'E.g. CQRS, ES, API Gateway, Service Mesh',
+            id: 'arch-eh',
+            aspect: 'Error Handling Strategy',
+            examples: 'Global Handler, Result Pattern, Crash-Report',
+            technology: '',
+            status: '',
+            comments: ''
+          },
+          {
+            id: 'arch-res',
+            aspect: 'Resilience Patterns',
+            examples: 'Retry, Circuit Breaker (Polly), Fallback',
+            technology: '',
+            status: '',
+            comments: ''
+          },
+          {
+            id: 'arch-off',
+            aspect: 'Offline Capability',
+            examples: 'Online-Only, Local-First, Sync-on-Connect',
+            technology: '',
+            status: '',
+            comments: ''
+          },
+          {
+            id: 'arch-dpr',
+            aspect: 'Data Privacy (At Rest)',
+            examples: 'OS Encrypt, App Encrypt (DPAPI), Plaintext',
+            technology: '',
+            status: '',
+            comments: ''
+          },
+          {
+            id: 'arch-dpt',
+            aspect: 'Data Privacy (In Transit)',
+            examples: 'TLS 1.3, mTLS, VPN only',
+            technology: '',
+            status: '',
+            comments: ''
+          },
+          {
+            id: 'arch-audit',
+            aspect: 'Audit & Compliance',
+            examples: 'Full Audit Trail, Critical Ops only',
+            technology: '',
+            status: '',
+            comments: ''
+          },
+          {
+            id: 'arch-dep',
+            aspect: 'Dependency Management',
+            examples: 'Strict Vetting, Allowed List, Free Choice',
             technology: '',
             status: '',
             comments: ''
