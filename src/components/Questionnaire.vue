@@ -192,9 +192,59 @@ export default {
     const hasPrev = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) > 0)
 
     function exportXLSX() {
-      // Flatten entries with multiple answers into rows
+      // Start with metadata rows
       const rows = []
+      
+      // Add Solution Description metadata at the top
+      const metadata = categories.value[0]?.metadata
+      if (metadata) {
+        rows.push({
+          'Category': 'Solution Description',
+          'Question / Aspect': 'Software Product',
+          'Examples & Options': '',
+          'Technology Used': metadata.productName || '',
+          'Status': '',
+          'Comments / Notes': ''
+        })
+        rows.push({
+          'Category': 'Solution Description',
+          'Question / Aspect': 'Company',
+          'Examples & Options': '',
+          'Technology Used': metadata.company || '',
+          'Status': '',
+          'Comments / Notes': ''
+        })
+        rows.push({
+          'Category': 'Solution Description',
+          'Question / Aspect': 'Department',
+          'Examples & Options': '',
+          'Technology Used': metadata.department || '',
+          'Status': '',
+          'Comments / Notes': ''
+        })
+        rows.push({
+          'Category': 'Solution Description',
+          'Question / Aspect': 'Contact Person',
+          'Examples & Options': '',
+          'Technology Used': metadata.contactPerson || '',
+          'Status': '',
+          'Comments / Notes': ''
+        })
+        if (metadata.description) {
+          rows.push({
+            'Category': 'Solution Description',
+            'Question / Aspect': 'Description',
+            'Examples & Options': '',
+            'Technology Used': metadata.description || '',
+            'Status': '',
+            'Comments / Notes': ''
+          })
+        }
+      }
+      
+      // Add regular category entries
       for (const cat of categories.value) {
+        if (cat.isMetadata) continue // Skip metadata category in regular entries
         for (const e of cat.entries) {
           if (e.answers && e.answers.length > 0) {
             for (const ans of e.answers) {
@@ -253,8 +303,9 @@ export default {
       if (Array.isArray(data)) {
         categories.value = data
         activeCategory.value = categories.value[0]?.id || ''
+        scrollToTop()
       } else {
-        alert('Ungültiges JSON Format')
+        alert('Invalid JSON format: Expected array of categories')
       }
     }
 
