@@ -38,7 +38,19 @@
                   </v-col>
 
                   <v-col cols="12" md="3">
-                    <v-select label="Status" :items="statusOptions" v-model="entry.status" clearable />
+                    <v-tooltip :text="getStatusTooltip(entry.status)" location="top">
+                      <template v-slot:activator="{ props }">
+                        <v-select
+                          label="Status"
+                          :items="statusOptions"
+                          item-title="label"
+                          item-value="label"
+                          v-model="entry.status"
+                          clearable
+                          v-bind="props"
+                        />
+                      </template>
+                    </v-tooltip>
                   </v-col>
 
                   <v-col cols="12" md="4">
@@ -174,9 +186,19 @@ export default {
 
     const currentCategory = computed(() => categories.value.find(c => c.id === activeCategory.value))
 
-    const statusOptions = ['Strategic', 'Adopted', 'Experimental', 'Deprecated', 'None']
+    const statusOptions = [
+      { label: 'Adopt', description: 'We use this and recommend it.' },
+      { label: 'Assess', description: 'We are currently evaluating/testing this.' },
+      { label: 'Hold', description: 'We use this, but do not recommend it for new features.' },
+      { label: 'Retire', description: 'We are actively replacing or removing this.' }
+    ]
 
     function selectCategory(id) { activeCategory.value = id }
+
+    function getStatusTooltip(status) {
+      const opt = statusOptions.find(s => s.label === status)
+      return opt ? opt.description : ''
+    }
 
     function nextCategory() {
       const idx = categories.value.findIndex(c => c.id === activeCategory.value)
@@ -209,7 +231,7 @@ export default {
       exportToExcel(rows, 'solution_inventory.xlsx')
     }
 
-    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX }
+    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX, statusOptions, getStatusTooltip }
   }
 }
 </script>
