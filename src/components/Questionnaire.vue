@@ -3,7 +3,6 @@
     <v-row>
       <v-col cols="12" md="4">
         <v-list two-line>
-          <v-subheader>Kategorien</v-subheader>
           <v-list-item
             v-for="cat in categories"
             :key="cat.id"
@@ -35,11 +34,11 @@
                 <!-- Antworten pro Entry -->
                 <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                   <v-row dense>
-                    <v-col cols="12" md="5">
+                    <v-col cols="12" md="4">
                       <v-text-field label="Technologie" v-model="answer.technology" clearable />
                     </v-col>
 
-                    <v-col cols="12" md="3">
+                    <v-col cols="12" md="2">
                       <v-tooltip :text="getStatusTooltip(answer.status)" location="top">
                         <template v-slot:activator="{ props }">
                           <v-select
@@ -55,19 +54,20 @@
                       </v-tooltip>
                     </v-col>
 
-                    <v-col cols="12" md="3">
+                    <v-col cols="12" md="5">
                       <v-textarea label="Kommentar" v-model="answer.comments" rows="1" auto-grow />
                     </v-col>
 
                     <v-col cols="12" md="1" class="d-flex align-center justify-end">
                       <v-btn
-                        icon="mdi-delete"
                         size="small"
                         color="error"
                         variant="text"
                         @click="deleteAnswer(entry.id, aIdx)"
                         v-if="entry.answers.length > 1"
-                      />
+                      >
+                        Löschen
+                      </v-btn>
                     </v-col>
                   </v-row>
                 </div>
@@ -75,8 +75,7 @@
                 <!-- Button für neue Antwort -->
                 <div class="mt-3">
                   <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
-                    <v-icon small class="mr-1">mdi-plus</v-icon>
-                    Neue Antwort
+                    + Neue Antwort
                   </v-btn>
                 </div>
               </v-sheet>

@@ -3,8 +3,8 @@
     <v-app-bar color="primary" dark>
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
       <v-spacer />
-      <v-btn icon @click="exportData">
-        <v-icon>mdi-file-excel</v-icon>
+      <v-btn @click="exportData">
+        Excel Export
         <v-tooltip activator="parent" location="bottom">Excel exportieren</v-tooltip>
       </v-btn>
     </v-app-bar>
