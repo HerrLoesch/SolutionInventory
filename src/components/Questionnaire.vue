@@ -28,35 +28,57 @@
                 <div class="d-flex justify-space-between align-start">
                   <div class="flex-grow-1">
                     <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
-                    <div class="text--secondary text-sm mt-1"><strong>Examples:</strong> {{ entry.examples }}</div>
+                    <div class="text--secondary text-sm mt-1"><strong>Beispiele:</strong> {{ entry.examples }}</div>
                   </div>
                 </div>
 
-                <v-row class="mt-4" dense>
-                  <v-col cols="12" md="5">
-                    <v-text-field label="Technology Used" v-model="entry.technology" clearable />
-                  </v-col>
+                <!-- Antworten pro Entry -->
+                <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
+                  <v-row dense>
+                    <v-col cols="12" md="5">
+                      <v-text-field label="Technologie" v-model="answer.technology" clearable />
+                    </v-col>
 
-                  <v-col cols="12" md="3">
-                    <v-tooltip :text="getStatusTooltip(entry.status)" location="top">
-                      <template v-slot:activator="{ props }">
-                        <v-select
-                          label="Status"
-                          :items="statusOptions"
-                          item-title="label"
-                          item-value="label"
-                          v-model="entry.status"
-                          clearable
-                          v-bind="props"
-                        />
-                      </template>
-                    </v-tooltip>
-                  </v-col>
+                    <v-col cols="12" md="3">
+                      <v-tooltip :text="getStatusTooltip(answer.status)" location="top">
+                        <template v-slot:activator="{ props }">
+                          <v-select
+                            label="Status"
+                            :items="statusOptions"
+                            item-title="label"
+                            item-value="label"
+                            v-model="answer.status"
+                            clearable
+                            v-bind="props"
+                          />
+                        </template>
+                      </v-tooltip>
+                    </v-col>
 
-                  <v-col cols="12" md="4">
-                    <v-textarea label="Comments / Notes" v-model="entry.comments" rows="2" auto-grow />
-                  </v-col>
-                </v-row>
+                    <v-col cols="12" md="3">
+                      <v-textarea label="Kommentar" v-model="answer.comments" rows="1" auto-grow />
+                    </v-col>
+
+                    <v-col cols="12" md="1" class="d-flex align-center justify-end">
+                      <v-btn
+                        icon="mdi-delete"
+                        size="small"
+                        color="error"
+                        variant="text"
+                        @click="deleteAnswer(entry.id, aIdx)"
+                        v-if="entry.answers.length > 1"
+                      />
+                    </v-col>
+                  </v-row>
+                </div>
+
+                <!-- Button für neue Antwort -->
+                <div class="mt-3">
+                  <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
+                    <v-icon small class="mr-1">mdi-plus</v-icon>
+                    Neue Antwort
+                  </v-btn>
+                </div>
               </v-sheet>
             </div>
           </v-card-text>
@@ -90,65 +112,65 @@ export default {
             id: 'arch-hlp',
             aspect: 'High-Level Pattern',
             examples: 'Layered, Hexagonal, Clean Arch, Plugin-Based',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-eh',
             aspect: 'Error Handling Strategy',
             examples: 'Global Handler, Result Pattern, Crash-Report',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-res',
             aspect: 'Resilience Patterns',
             examples: 'Retry, Circuit Breaker (Polly), Fallback',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-off',
             aspect: 'Offline Capability',
             examples: 'Online-Only, Local-First, Sync-on-Connect',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-dpr',
             aspect: 'Data Privacy (At Rest)',
             examples: 'OS Encrypt, App Encrypt (DPAPI), Plaintext',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-dpt',
             aspect: 'Data Privacy (In Transit)',
             examples: 'TLS 1.3, mTLS, VPN only',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-audit',
             aspect: 'Audit & Compliance',
             examples: 'Full Audit Trail, Critical Ops only',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           },
           {
             id: 'arch-dep',
             aspect: 'Dependency Management',
             examples: 'Strict Vetting, Allowed List, Free Choice',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           }
         ]
       },
@@ -161,9 +183,9 @@ export default {
             id: 'f1',
             aspect: 'Framework / Library used for UI',
             examples: 'Vue, React, Angular, Svelte, Plain HTML/CSS/JS',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           }
         ]
       },
@@ -176,9 +198,9 @@ export default {
             id: 'b1',
             aspect: 'Primary backend framework / runtime',
             examples: 'Node.js (Express/Nest), Java (Spring), .NET, Go, Python (Django/Flask)',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           }
         ]
       },
@@ -191,9 +213,9 @@ export default {
             id: 'o1',
             aspect: 'Authentication / Authorization',
             examples: 'OAuth2, OIDC, Keycloak, LDAP, SAML, Custom',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           }
         ]
       },
@@ -206,9 +228,9 @@ export default {
             id: 'd1',
             aspect: 'Primary datastore',
             examples: 'Postgres, MySQL, MongoDB, Cassandra, Redis',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           }
         ]
       },
@@ -221,9 +243,9 @@ export default {
             id: 'h1',
             aspect: 'Hardware / IO interfaces used',
             examples: 'Modbus, CAN, GPIO, Serial, USB, Custom protocols',
-            technology: '',
-            status: '',
-            comments: ''
+            answers: [
+              { technology: '', status: '', comments: '' }
+            ]
           }
         ]
       }
@@ -261,24 +283,51 @@ export default {
     const hasPrev = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) > 0)
 
     function exportXLSX() {
-      // Flatten entries into rows following requested column order
+      // Flatten entries with multiple answers into rows
       const rows = []
       for (const cat of categories.value) {
         for (const e of cat.entries) {
-          rows.push({
-            'Category': cat.title,
-            'Question / Aspect': e.aspect,
-            'Examples & Options': e.examples,
-            'Technology Used': e.technology || '',
-            'Status': e.status || '',
-            'Comments / Notes': e.comments || ''
-          })
+          if (e.answers && e.answers.length > 0) {
+            for (const ans of e.answers) {
+              rows.push({
+                'Category': cat.title,
+                'Question / Aspect': e.aspect,
+                'Examples & Options': e.examples,
+                'Technology Used': ans.technology || '',
+                'Status': ans.status || '',
+                'Comments / Notes': ans.comments || ''
+              })
+            }
+          }
         }
       }
       exportToExcel(rows, 'solution_inventory.xlsx')
     }
 
-    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX, statusOptions, getStatusTooltip }
+    function addAnswer(entryId) {
+      const entry = findEntry(entryId)
+      if (entry) {
+        entry.answers = [...entry.answers, { technology: '', status: '', comments: '' }]
+      }
+    }
+
+    function deleteAnswer(entryId, answerIdx) {
+      const entry = findEntry(entryId)
+      if (entry && entry.answers.length > 1) {
+        entry.answers = entry.answers.filter((_, idx) => idx !== answerIdx)
+      }
+    }
+
+    function findEntry(entryId) {
+      for (const cat of categories.value) {
+        for (const e of cat.entries) {
+          if (e.id === entryId) return e
+        }
+      }
+      return null
+    }
+
+    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX, statusOptions, getStatusTooltip, addAnswer, deleteAnswer }
   }
 }
 </script>
