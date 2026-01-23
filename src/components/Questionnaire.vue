@@ -64,7 +64,6 @@
             <v-btn color="primary" @click="prevCategory" :disabled="!hasPrev">Zurück</v-btn>
             <v-spacer />
             <v-btn color="primary" @click="nextCategory" :disabled="!hasNext">Weiter</v-btn>
-            <v-btn color="success" @click="exportXLSX">Excel export (.xlsx)</v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
