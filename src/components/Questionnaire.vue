@@ -236,7 +236,8 @@ export default {
     }
 
     function exportJSON() {
-      const data = JSON.stringify(props.categories, null, 2)
+      const exportData = { categories: props.categories }
+      const data = JSON.stringify(exportData, null, 2)
       const blob = new Blob([data], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

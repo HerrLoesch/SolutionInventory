@@ -20,6 +20,11 @@
         <v-tooltip activator="parent" location="bottom">Import JSON file</v-tooltip>
       </v-btn>
 
+      <v-btn @click="loadSample" class="mr-2">
+        📋 Load Sample
+        <v-tooltip activator="parent" location="bottom">Load sample data</v-tooltip>
+      </v-btn>
+
       <!-- Hidden file input for import -->
       <input
         ref="fileInput"
@@ -51,6 +56,7 @@ import { ref } from 'vue'
 import Questionnaire from './components/Questionnaire.vue'
 import Summary from './components/Summary.vue'
 import { getCategoriesData } from './services/categoriesService'
+import sampleData from '../data/sample_export.json'
 
 export default {
   components: { Questionnaire, Summary },
@@ -83,8 +89,13 @@ export default {
         reader.onload = (e) => {
           try {
             const data = JSON.parse(e.target.result)
-            questionnaireRef.value.importJSON(data)
-            categories.value = data
+            // Support both formats: array or object with categories property
+            const categoriesData = Array.isArray(data) ? data : data.categories
+            if (!categoriesData) {
+              throw new Error('Invalid format: Expected categories array or object with categories property')
+            }
+            questionnaireRef.value.importJSON(categoriesData)
+            categories.value = categoriesData
           } catch (err) {
             alert('Error reading JSON file: ' + err.message)
           }
@@ -95,7 +106,14 @@ export default {
       event.target.value = ''
     }
 
-    return { questionnaireRef, activeTab, categories, updateCategories, saveJSON, importJSON, handleFileUpload, fileInput }
+    function loadSample() {
+      if (questionnaireRef.value) {
+        questionnaireRef.value.importJSON(sampleData.categories)
+        categories.value = sampleData.categories
+      }
+    }
+
+    return { questionnaireRef, activeTab, categories, updateCategories, saveJSON, importJSON, handleFileUpload, loadSample, fileInput }
   }
 }
 </script>

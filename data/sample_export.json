@@ -1,16 +1,73 @@
 {
   "categories": [
     {
+      "id": "solution-desc",
+      "title": "Solution Description",
+      "isMetadata": true,
+      "metadata": {
+        "productName": "Industrial Control System Pro",
+        "company": "ACME Manufacturing Solutions GmbH",
+        "department": "Engineering & Automation",
+        "contactPerson": "Max Mustermann (m.mustermann@acme.com)",
+        "description": "A comprehensive industrial automation and control system for managing production lines, sensor data acquisition, and real-time monitoring. The system integrates with various hardware devices and provides a modern web-based interface for operators and administrators."
+      }
+    },
+    {
       "id": "architecture",
       "title": "Architecture",
       "entries": [
         {
-          "id": "a1",
-          "aspect": "Do not edit. This specifies the technical capability or functional area being surveyed.",
-          "examples": "E.g. Monolith, Microservices, Modular Hexagonal",
-          "technology": "Microservices",
-          "status": "Strategic",
-          "comments": "Deployed on Kubernetes; internal docs at /docs/arch"
+          "id": "arch-hlp",
+          "aspect": "High-Level Pattern",
+          "examples": "Layered, Hexagonal, Clean Arch, Plugin-Based",
+          "answers": [
+            {
+              "technology": "Hexagonal Architecture",
+              "status": "Adopt",
+              "comments": "Core business logic isolated from infrastructure; enables easier testing and maintainability"
+            }
+          ]
+        },
+        {
+          "id": "arch-eh",
+          "aspect": "Error Handling Strategy",
+          "examples": "Global Handler, Result Pattern, Crash-Report",
+          "answers": [
+            {
+              "technology": "Result Pattern",
+              "status": "Adopt",
+              "comments": "Using Result<T> type for explicit error handling in domain logic"
+            },
+            {
+              "technology": "Global Exception Handler",
+              "status": "Adopt",
+              "comments": "Catches unhandled exceptions and logs them to monitoring system"
+            }
+          ]
+        },
+        {
+          "id": "arch-res",
+          "aspect": "Resilience Patterns",
+          "examples": "Retry, Circuit Breaker (Polly), Fallback",
+          "answers": [
+            {
+              "technology": "Polly",
+              "status": "Adopt",
+              "comments": "Circuit breaker and retry policies for external service calls"
+            }
+          ]
+        },
+        {
+          "id": "arch-dpt",
+          "aspect": "Data Privacy (In Transit)",
+          "examples": "TLS 1.3, mTLS, VPN only",
+          "answers": [
+            {
+              "technology": "TLS 1.3",
+              "status": "Adopt",
+              "comments": "All external communication encrypted with TLS 1.3"
+            }
+          ]
         }
       ]
     },
@@ -19,12 +76,386 @@
       "title": "Front-End",
       "entries": [
         {
-          "id": "f1",
-          "aspect": "Framework / Library used for UI",
-          "examples": "Vue, React, Angular",
-          "technology": "Vue 3 + Vuetify",
-          "status": "Adopted",
-          "comments": "Using Vite; team prefers Composition API"
+          "id": "fe-apptype",
+          "aspect": "App Type & Stack",
+          "examples": "Angular, React, WPF, Qt, Electron",
+          "answers": [
+            {
+              "technology": "Vue 3 + Vuetify",
+              "status": "Adopt",
+              "comments": "Modern web UI with Composition API; responsive design for tablets"
+            }
+          ]
+        },
+        {
+          "id": "fe-state",
+          "aspect": "State Management",
+          "examples": "NgRx, Redux, MVVM, Local State",
+          "answers": [
+            {
+              "technology": "Pinia",
+              "status": "Adopt",
+              "comments": "Vue 3 state management; replaced Vuex in 2024"
+            }
+          ]
+        },
+        {
+          "id": "fe-complib",
+          "aspect": "Component Library",
+          "examples": "Syncfusion, Material, In-House, Native",
+          "answers": [
+            {
+              "technology": "Vuetify 3",
+              "status": "Adopt",
+              "comments": "Material Design components; good TypeScript support"
+            }
+          ]
+        },
+        {
+          "id": "fe-unittest",
+          "aspect": "Unit Testing",
+          "examples": "Jest, Jasmine, Karma, Vitest",
+          "answers": [
+            {
+              "technology": "Vitest",
+              "status": "Adopt",
+              "comments": "Fast testing framework compatible with Vite build system"
+            }
+          ]
+        },
+        {
+          "id": "fe-build",
+          "aspect": "Build System",
+          "examples": "Nx, Webpack, Vite, Angular CLI",
+          "answers": [
+            {
+              "technology": "Vite",
+              "status": "Adopt",
+              "comments": "Fast HMR and build times; excellent DX"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "backend",
+      "title": "Back-End",
+      "entries": [
+        {
+          "id": "be-runtime",
+          "aspect": "Runtime Environment",
+          "examples": ".NET Core, JVM, Node.js, C++",
+          "answers": [
+            {
+              "technology": ".NET 8",
+              "status": "Adopt",
+              "comments": "Main backend runtime; upgraded from .NET 6 in Q4 2024"
+            },
+            {
+              "technology": "C++",
+              "status": "Hold",
+              "comments": "Legacy hardware interface modules still in C++; planned migration"
+            }
+          ]
+        },
+        {
+          "id": "be-api",
+          "aspect": "API / Interface",
+          "examples": "REST, GraphQL, gRPC, WCF",
+          "answers": [
+            {
+              "technology": "REST API (ASP.NET Core)",
+              "status": "Adopt",
+              "comments": "OpenAPI/Swagger documentation; versioned endpoints"
+            },
+            {
+              "technology": "gRPC",
+              "status": "Assess",
+              "comments": "Evaluating for internal service-to-service communication"
+            }
+          ]
+        },
+        {
+          "id": "be-dal",
+          "aspect": "Data Access (DAL)",
+          "examples": "EF Core, Dapper, Hibernate, SQL",
+          "answers": [
+            {
+              "technology": "Entity Framework Core",
+              "status": "Adopt",
+              "comments": "ORM for main database; code-first migrations"
+            },
+            {
+              "technology": "Dapper",
+              "status": "Adopt",
+              "comments": "Used for high-performance read-heavy queries"
+            }
+          ]
+        },
+        {
+          "id": "be-unittest",
+          "aspect": "Unit Testing",
+          "examples": "xUnit, NUnit, MsTest, JUnit",
+          "answers": [
+            {
+              "technology": "xUnit",
+              "status": "Adopt",
+              "comments": "Standard unit testing framework; good parallelization"
+            }
+          ]
+        },
+        {
+          "id": "be-logging",
+          "aspect": "Logging",
+          "examples": "NLog, Serilog, Log4j",
+          "answers": [
+            {
+              "technology": "Serilog",
+              "status": "Adopt",
+              "comments": "Structured logging with Seq sink for centralized logs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ops-security",
+      "title": "Ops & Security",
+      "entries": [
+        {
+          "id": "ops-deploy",
+          "aspect": "Deployment Artifact",
+          "examples": "Docker Image, MSI/Exe Installer, Portable Zip, Helm Chart",
+          "answers": [
+            {
+              "technology": "Docker Image",
+              "status": "Adopt",
+              "comments": "Multi-stage builds; published to internal registry"
+            },
+            {
+              "technology": "Helm Chart",
+              "status": "Adopt",
+              "comments": "K8s deployment configuration; values per environment"
+            }
+          ]
+        },
+        {
+          "id": "ops-config",
+          "aspect": "Configuration Mgmt",
+          "examples": "appsettings.json, Env Vars, Registry, Central Config DB",
+          "answers": [
+            {
+              "technology": "Environment Variables",
+              "status": "Adopt",
+              "comments": "12-factor app style; injected via K8s ConfigMaps/Secrets"
+            }
+          ]
+        },
+        {
+          "id": "ops-telemetry",
+          "aspect": "Telemetry / Crash Reports",
+          "examples": "Automated (Sentry/AppCenter), User Prompt, None (Offline)",
+          "answers": [
+            {
+              "technology": "Application Insights",
+              "status": "Adopt",
+              "comments": "Azure monitoring for exceptions, metrics, and traces"
+            }
+          ]
+        },
+        {
+          "id": "ops-auth",
+          "aspect": "Authentication",
+          "examples": "SAML2, OIDC, Windows Auth, LDAP",
+          "answers": [
+            {
+              "technology": "OIDC (OpenID Connect)",
+              "status": "Adopt",
+              "comments": "Integration with customer identity providers; Azure AD primary"
+            }
+          ]
+        },
+        {
+          "id": "ops-secrets",
+          "aspect": "Secret Management",
+          "examples": "Env Vars, Vault, Credential Store",
+          "answers": [
+            {
+              "technology": "Azure Key Vault",
+              "status": "Adopt",
+              "comments": "Centralized secret storage; accessed via managed identity"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "infra-data",
+      "title": "Infrastructure & Data",
+      "entries": [
+        {
+          "id": "infra-database",
+          "aspect": "Database Engine",
+          "examples": "Oracle, Postgres, SQL Server",
+          "answers": [
+            {
+              "technology": "PostgreSQL 15",
+              "status": "Adopt",
+              "comments": "Main application database; hosted on Azure Database for PostgreSQL"
+            },
+            {
+              "technology": "TimescaleDB",
+              "status": "Adopt",
+              "comments": "Time-series extension for PostgreSQL; sensor data storage"
+            }
+          ]
+        },
+        {
+          "id": "infra-schema",
+          "aspect": "Schema Migration",
+          "examples": "Liquibase, Flyway, EF Migrations",
+          "answers": [
+            {
+              "technology": "EF Core Migrations",
+              "status": "Adopt",
+              "comments": "Database schema versioning; applied during deployment"
+            }
+          ]
+        },
+        {
+          "id": "infra-orchestration",
+          "aspect": "Orchestration",
+          "examples": "K8s, Docker Compose, Windows Service",
+          "answers": [
+            {
+              "technology": "Kubernetes (AKS)",
+              "status": "Adopt",
+              "comments": "Azure Kubernetes Service; production and staging clusters"
+            },
+            {
+              "technology": "Docker Compose",
+              "status": "Adopt",
+              "comments": "Local development environment setup"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hardware-io",
+      "title": "Hardware & IO",
+      "entries": [
+        {
+          "id": "hw-communication",
+          "aspect": "Communication Patterns",
+          "examples": "Polling, Interrupt, Event-Driven",
+          "answers": [
+            {
+              "technology": "Event-Driven (OPC UA)",
+              "status": "Adopt",
+              "comments": "Subscribe to data changes; reduces network traffic"
+            },
+            {
+              "technology": "Polling (Modbus)",
+              "status": "Hold",
+              "comments": "Legacy PLCs still require polling; considering upgrade"
+            }
+          ]
+        },
+        {
+          "id": "hw-buffering",
+          "aspect": "Data Buffering",
+          "examples": "Ring-Buffer, FIFO, Double-Buffering",
+          "answers": [
+            {
+              "technology": "Ring-Buffer",
+              "status": "Adopt",
+              "comments": "High-frequency sensor data buffering; lock-free implementation"
+            }
+          ]
+        },
+        {
+          "id": "hw-realtime",
+          "aspect": "Real-time Requirements",
+          "examples": "Hard Realtime, Soft Realtime, Best Effort",
+          "answers": [
+            {
+              "technology": "Soft Realtime",
+              "status": "Adopt",
+              "comments": "Control loop latency < 100ms; monitoring alerts if exceeded"
+            }
+          ]
+        },
+        {
+          "id": "hw-driver",
+          "aspect": "Driver Abstraction",
+          "examples": "Vendor API, Native Driver (DLL), SCPI",
+          "answers": [
+            {
+              "technology": "OPC UA Client SDK",
+              "status": "Adopt",
+              "comments": "Unified communication with industrial equipment"
+            },
+            {
+              "technology": "Vendor DLLs",
+              "status": "Retire",
+              "comments": "Old proprietary drivers being phased out for OPC UA"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "qa-testing",
+      "title": "General QA & Testing",
+      "entries": [
+        {
+          "id": "qa-testcase",
+          "aspect": "Test Case Management",
+          "examples": "Azure DevOps, Xray (jira)",
+          "answers": [
+            {
+              "technology": "Azure DevOps Test Plans",
+              "status": "Adopt",
+              "comments": "Integrated with work items and CI/CD pipelines"
+            }
+          ]
+        },
+        {
+          "id": "qa-traceability",
+          "aspect": "Traceability",
+          "examples": "Built-in Link (ADO/Jira), Polarion",
+          "answers": [
+            {
+              "technology": "Azure DevOps Links",
+              "status": "Adopt",
+              "comments": "Requirements linked to test cases and code commits"
+            }
+          ]
+        },
+        {
+          "id": "qa-e2e",
+          "aspect": "E2E Testing",
+          "examples": "Cypress, Playwright, Selenium, Ranorex",
+          "answers": [
+            {
+              "technology": "Playwright",
+              "status": "Adopt",
+              "comments": "Cross-browser E2E tests; runs in CI pipeline"
+            }
+          ]
+        },
+        {
+          "id": "qa-performance",
+          "aspect": "Performance Testing",
+          "examples": "Benchmark.Net, JMeter, Gatling, k6",
+          "answers": [
+            {
+              "technology": "k6",
+              "status": "Assess",
+              "comments": "API load testing; evaluating integration into CI"
+            }
+          ]
         }
       ]
     }
