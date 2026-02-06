@@ -139,16 +139,26 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
-import { getCategoriesData } from '../services/categoriesService'
+import { ref, computed, watch } from 'vue'
 
 export default {
-  setup () {
-    const categories = ref(getCategoriesData())
+  props: {
+    categories: {
+      type: Array,
+      required: true
+    }
+  },
+  emits: ['update-categories'],
+  setup (props, { emit }) {
+    const activeCategory = ref(props.categories[0].id)
 
-    const activeCategory = ref(categories.value[0].id)
+    watch(() => props.categories, (newCategories) => {
+      if (newCategories.length > 0 && !newCategories.find(c => c.id === activeCategory.value)) {
+        activeCategory.value = newCategories[0].id
+      }
+    })
 
-    const currentCategory = computed(() => categories.value.find(c => c.id === activeCategory.value))
+    const currentCategory = computed(() => props.categories.find(c => c.id === activeCategory.value))
 
     const statusOptions = [
       { label: 'Adopt', description: 'We use this and recommend it.' },
@@ -172,29 +182,30 @@ export default {
     }
 
     function nextCategory() {
-      const idx = categories.value.findIndex(c => c.id === activeCategory.value)
-      if (idx < categories.value.length - 1) {
-        activeCategory.value = categories.value[idx + 1].id
+      const idx = props.categories.findIndex(c => c.id === activeCategory.value)
+      if (idx < props.categories.length - 1) {
+        activeCategory.value = props.categories[idx + 1].id
         scrollToTop()
       }
     }
 
     function prevCategory() {
-      const idx = categories.value.findIndex(c => c.id === activeCategory.value)
+      const idx = props.categories.findIndex(c => c.id === activeCategory.value)
       if (idx > 0) {
-        activeCategory.value = categories.value[idx - 1].id
+        activeCategory.value = props.categories[idx - 1].id
         scrollToTop()
       }
     }
 
-    const hasNext = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) < categories.value.length - 1)
-    const hasPrev = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) > 0)
+    const hasNext = computed(() => props.categories.findIndex(c => c.id === activeCategory.value) < props.categories.length - 1)
+    const hasPrev = computed(() => props.categories.findIndex(c => c.id === activeCategory.value) > 0)
 
     function addAnswer(entryId) {
       const entry = findEntry(entryId)
       console.log('Adding answer to entry:', entryId, entry)
       if (entry) {
         entry.answers = [...entry.answers, { technology: '', status: '', comments: '' }]
+        emit('update-categories', props.categories)
       }
     }
 
@@ -202,14 +213,15 @@ export default {
       const entry = findEntry(entryId)
       if (entry && entry.answers.length > 1) {
         entry.answers = entry.answers.filter((_, idx) => idx !== answerIdx)
+        emit('update-categories', props.categories)
       }
     }
 
     function findEntry(entryId) {
       console.log('Finding entry with ID:', entryId)
-      console.log('Categories:', categories.value)
+      console.log('Categories:', props.categories)
 
-      for (const cat of categories.value) {
+      for (const cat of props.categories) {
         console.log('Checking category:', cat.id)
         
         if (!cat.entries) continue // Skip categories without entries
@@ -224,7 +236,7 @@ export default {
     }
 
     function exportJSON() {
-      const data = JSON.stringify(categories.value, null, 2)
+      const data = JSON.stringify(props.categories, null, 2)
       const blob = new Blob([data], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -238,15 +250,15 @@ export default {
 
     function importJSON(data) {
       if (Array.isArray(data)) {
-        categories.value = data
-        activeCategory.value = categories.value[0]?.id || ''
+        emit('update-categories', data)
+        activeCategory.value = data[0]?.id || ''
         scrollToTop()
       } else {
         alert('Invalid JSON format: Expected array of categories')
       }
     }
 
-    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, statusOptions, getStatusTooltip, addAnswer, deleteAnswer, exportJSON, importJSON }
+    return { activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, statusOptions, getStatusTooltip, addAnswer, deleteAnswer, exportJSON, importJSON }
   }
 }
 </script>

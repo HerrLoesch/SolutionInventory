@@ -2,6 +2,12 @@
   <v-app>
     <v-app-bar color="primary" dark>
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
+      
+      <v-tabs v-model="activeTab" class="ml-6">
+        <v-tab value="questionnaire">Questionnaire</v-tab>
+        <v-tab value="summary">Summary</v-tab>
+      </v-tabs>
+
       <v-spacer />
       
       <v-btn @click="saveJSON" class="mr-2">
@@ -26,7 +32,15 @@
 
     <v-main>
       <v-container class="pa-4">
-        <Questionnaire ref="questionnaireRef" />
+        <v-window v-model="activeTab">
+          <v-window-item value="questionnaire">
+            <Questionnaire ref="questionnaireRef" :categories="categories" @update-categories="updateCategories" />
+          </v-window-item>
+
+          <v-window-item value="summary">
+            <Summary :categories="categories" />
+          </v-window-item>
+        </v-window>
       </v-container>
     </v-main>
   </v-app>
@@ -35,12 +49,20 @@
 <script>
 import { ref } from 'vue'
 import Questionnaire from './components/Questionnaire.vue'
+import Summary from './components/Summary.vue'
+import { getCategoriesData } from './services/categoriesService'
 
 export default {
-  components: { Questionnaire },
+  components: { Questionnaire, Summary },
   setup() {
     const questionnaireRef = ref(null)
     const fileInput = ref(null)
+    const activeTab = ref('questionnaire')
+    const categories = ref(getCategoriesData())
+
+    function updateCategories(newCategories) {
+      categories.value = newCategories
+    }
 
     function saveJSON() {
       if (questionnaireRef.value) {
@@ -62,6 +84,7 @@ export default {
           try {
             const data = JSON.parse(e.target.result)
             questionnaireRef.value.importJSON(data)
+            categories.value = data
           } catch (err) {
             alert('Error reading JSON file: ' + err.message)
           }
@@ -72,7 +95,7 @@ export default {
       event.target.value = ''
     }
 
-    return { questionnaireRef, saveJSON, importJSON, handleFileUpload, fileInput }
+    return { questionnaireRef, activeTab, categories, updateCategories, saveJSON, importJSON, handleFileUpload, fileInput }
   }
 }
 </script>
