@@ -1,9 +1,9 @@
 # Product Requirements Document - Solution Inventory PWA
 
-## Executive Summary
+## 1. Executive Summary
 Solution Inventory PWA is a progressive web application designed to help organizations document, manage, and track the technology solutions, architectural patterns, and software components used across their systems. The application provides a structured, guided questionnaire interface that ensures comprehensive and standardized documentation of technology decisions.
 
-## 1. Product Vision
+## 2. Product Vision
 
 ### 1.1 Purpose
 To create a centralized, accessible platform for documenting technology landscapes through a guided questionnaire interface, enabling organizations to:
@@ -27,11 +27,11 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Data Sharing**: JSON import/export for team collaboration and data backup
 - **Easy Collaboration**: Export and import documentation for team sharing
 
-## 2. Feature Requirements
+## 3. Feature Requirements
 
-### 2.1 Core Features (MVP)
+### 3.1 Core Features (MVP)
 
-#### 2.1.1 Category-Based Questionnaire
+#### 3.1.1 Category-Based Questionnaire
 - **Requirement**: Application presents technology documentation through organized categories
 - **Categories**:
   1. Solution Description (metadata about the solution)
@@ -48,7 +48,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - Active category is highlighted
   - Clicking category navigates to it and scrolls to top
 
-#### 2.1.2 Solution Description (Metadata)
+#### 3.1.2 Solution Description (Metadata)
 - **Requirement**: Users can enter solution metadata
 - **Fields**:
   - Software Product (text input)
@@ -61,7 +61,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - Metadata persists while user navigates between categories
   - Included in all exports
 
-#### 2.1.3 Questionnaire Entries with Answers
+#### 3.1.3 Questionnaire Entries with Answers
 - **Requirement**: Each category contains multiple aspects/questions with answer capability
 - **Entry Structure**:
   - Aspect title (question)
@@ -79,7 +79,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - **Hold**: "We use this, but do not recommend it for new features."
   - **Retire**: "We are actively replacing or removing this."
 
-#### 2.1.4 Answer Management
+#### 3.1.4 Answer Management
 - **Add Answer**: Users can add multiple technology answers per aspect
   - Button: "+ Add Answer"
   - Behavior: New blank answer row appears below existing answers
@@ -92,7 +92,7 @@ To create a centralized, accessible platform for documenting technology landscap
   
 - **Edit Answer**: All answer fields are inline-editable
 
-#### 2.1.5 Navigation
+#### 3.1.5 Navigation
 - **Category Navigation**:
   - Back button: Navigate to previous category (disabled on first)
   - Next button: Navigate to next category (disabled on last)
@@ -104,7 +104,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - Current category persists in state
   - User position (answered/unanswered questions) remembered
 
-#### 2.1.6 Data Export
+#### 3.1.6 Data Export
 
 **JSON Export**
 - Function: `exportJSON()`
@@ -113,7 +113,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - Filename**: `solution_inventory.json`
 - **Use Case**: Data backup, transfer between systems, version control, sharing with teams
 
-#### 2.1.7 Data Import
+#### 3.1.7 Data Import
 - Function: `importJSON(data)`
 - Accepts: JSON file with valid category array format
 - Behavior:
@@ -125,36 +125,36 @@ To create a centralized, accessible platform for documenting technology landscap
   
 - **Use Case**: Load saved data, sharing documentation, team collaboration
 
-### 2.2 Non-Functional Requirements
+### 3.2 Non-Functional Requirements
 
-#### 2.2.1 Usability
+#### 3.2.1 Usability
 - **Responsive Design**: Works on desktop, tablet, and mobile
 - **Accessibility**: WCAG 2.1 AA compliance
 - **Performance**: Page load < 2 seconds on 4G connection
 - **Learning Curve**: Intuitive interface requiring minimal training
 
-#### 2.2.2 Reliability
+#### 3.2.2 Reliability
 - **Data Persistence**: In-memory persistence during session
 - **Error Recovery**: Graceful handling of invalid inputs
 - **Browser Compatibility**: Chrome, Firefox, Safari (latest 2 versions)
 
-#### 2.2.3 PWA Capabilities
+#### 3.2.3 PWA Capabilities
 - **Offline Support**: Browse existing data without connection
 - **Service Worker**: Automatic updates and caching
 - **Installable**: Add to homescreen capability
 - **App Shell**: Fast initial load, instant return visits
 
-#### 2.2.4 Performance
+#### 3.2.4 Performance
 - **Initial Load**: < 3 seconds on 4G
 - **Category Switch**: < 100ms
 - **Bundle Size**: < 500KB gzipped
 
-#### 2.2.5 Data Privacy
+#### 3.2.5 Data Privacy
 - **Client-Side Processing**: No data sent to servers (MVP)
 - **No Authentication**: Current version allows unrestricted access
 - **Data Control**: User responsible for exported data handling
 
-## 3. User Stories
+## 4. User Stories
 
 ### User Story 1: Document Company Technology Stack
 **As a** Technology Architect  
@@ -181,7 +181,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - Minimum 1 answer required per question
 
 ### User Story 3: Share Technology Documentation
-**As a** Project Manager  
+**As a** developer 
 **I want to** export technology documentation as JSON  
 **So that** I can share with stakeholders and archive for compliance
 
@@ -192,7 +192,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - Maintains data structure for re-import
 
 ### User Story 4: Import Previously Saved Documentation
-**As a** Team Member  
+**As a** developer
 **I want to** load previously saved JSON documentation  
 **So that** I can continue work from a saved state or use a template
 
@@ -202,18 +202,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - Invalid files show error message
 - Valid import overwrites current data
 
-### User Story 5: Track Technology Lifecycle Status
-**As a** CTO  
-**I want to** mark each technology with its lifecycle status (Adopt/Assess/Hold/Retire)  
-**So that** teams know our recommendations for using each technology
-
-**Acceptance Criteria**:
-- Status dropdown visible on each answer
-- 4 options available: Adopt, Assess, Hold, Retire
-- Tooltip explains each status
-- Status included in exports
-
-## 4. Product Scope
+## 5. Product Scope
 
 ### In Scope
 - Web-based questionnaire interface
@@ -237,7 +226,8 @@ To create a centralized, accessible platform for documenting technology landscap
 - Version control / history
 - Comments/discussions on answers
 
-## 5. Success Metrics
+
+## 6. Success Metrics
 
 - **Adoption**: > 80% of target users complete at least one full documentation cycle
 - **Completeness**: Average > 70% of questions answered per user
@@ -246,7 +236,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Satisfaction**: > 4/5 ratings on usability
 - **Data Quality**: No exported data loss or corruption incidents
 
-## 6. Constraints
+## 7. Constraints
 
 - **Timeline**: MVP ready for deployment
 - **Budget**: Minimal infrastructure costs (static hosting)
@@ -254,7 +244,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Browser Support**: IE not supported (ES2020+ required)
 - **Data Size**: Designed for typical datasets (< 100 entries, < 500 answers)
 
-## 7. Assumptions
+## 8. Assumptions
 
 - Users have modern browsers with ES2020+ support
 - Users can manage their own data exports (no backend persistence)
@@ -262,12 +252,11 @@ To create a centralized, accessible platform for documenting technology landscap
 - Users are familiar with questionnaire/form interfaces
 - Network connectivity available during initial load (offline after caching)
 
-## 8. Dependencies
+## 9. Dependencies
 
 ### Technical Dependencies
 - Vue 3.3.4+
 - Vuetify 3.3.0+
-- XLSX library 0.18.5+
 - Vite 4.4.9+
 - Vite PWA Plugin 0.14.7+
 
@@ -275,7 +264,7 @@ To create a centralized, accessible platform for documenting technology landscap
 - Browser Service Worker API support (for PWA)
 - local storage availability (future enhancement)
 
-## 9. Risks & Mitigation
+## 10. Risks & Mitigation
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|-----------|
@@ -285,31 +274,20 @@ To create a centralized, accessible platform for documenting technology landscap
 | Performance issues with large datasets | Low | Medium | Pagination or virtual scrolling |
 | Browser incompatibility | Low | Medium | Cross-browser testing, version detection |
 
-## 10. Future Enhancements (Post-MVP)
+## 11. Future Enhancements (Post-MVP)
 
 ### Phase 2 Features
-- Backend database for persistent storage
-- User authentication and team accounts
-- Real-time collaborative editing
-- Role-based access control (viewer, editor, admin)
+- Integration with technology radar
 - Advanced search and filtering
-- Comparison between different solutions
-- Revision history and change tracking
-- Comments and discussions on answers
 - Bulk import from external sources
-- API for third-party integrations
 
 ### Phase 3 Features
 - Custom category templates
-- Organization-specific question sets
-- Mobile native apps (iOS/Android)
-- Integration with technology radar
-- Automated reporting and dashboards
-- Stakeholder portal for read-only access
-- Approval workflows
-- Compliance tracking
+- Backend database for persistent storage
+- Comparison between different solutions
+- Revision history and change tracking
 
-## 11. Glossary
+## 12. Glossary
 
 - **Aspect**: A specific question or topic within a category
 - **Category**: A grouped set of related aspects (Architecture, Front-End, etc.)
