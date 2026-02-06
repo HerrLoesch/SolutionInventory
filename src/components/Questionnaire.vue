@@ -140,7 +140,6 @@
 
 <script>
 import { ref, computed } from 'vue'
-import { exportToExcel } from '../utils/exportExcel'
 import { getCategoriesData } from '../services/categoriesService'
 
 export default {
@@ -190,78 +189,6 @@ export default {
 
     const hasNext = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) < categories.value.length - 1)
     const hasPrev = computed(() => categories.value.findIndex(c => c.id === activeCategory.value) > 0)
-
-    function exportXLSX() {
-      // Start with metadata rows
-      const rows = []
-      
-      // Add Solution Description metadata at the top
-      const metadata = categories.value[0]?.metadata
-      if (metadata) {
-        rows.push({
-          'Category': 'Solution Description',
-          'Question / Aspect': 'Software Product',
-          'Examples & Options': '',
-          'Technology Used': metadata.productName || '',
-          'Status': '',
-          'Comments / Notes': ''
-        })
-        rows.push({
-          'Category': 'Solution Description',
-          'Question / Aspect': 'Company',
-          'Examples & Options': '',
-          'Technology Used': metadata.company || '',
-          'Status': '',
-          'Comments / Notes': ''
-        })
-        rows.push({
-          'Category': 'Solution Description',
-          'Question / Aspect': 'Department',
-          'Examples & Options': '',
-          'Technology Used': metadata.department || '',
-          'Status': '',
-          'Comments / Notes': ''
-        })
-        rows.push({
-          'Category': 'Solution Description',
-          'Question / Aspect': 'Contact Person',
-          'Examples & Options': '',
-          'Technology Used': metadata.contactPerson || '',
-          'Status': '',
-          'Comments / Notes': ''
-        })
-        if (metadata.description) {
-          rows.push({
-            'Category': 'Solution Description',
-            'Question / Aspect': 'Description',
-            'Examples & Options': '',
-            'Technology Used': metadata.description || '',
-            'Status': '',
-            'Comments / Notes': ''
-          })
-        }
-      }
-      
-      // Add regular category entries
-      for (const cat of categories.value) {
-        if (cat.isMetadata) continue // Skip metadata category in regular entries
-        for (const e of cat.entries) {
-          if (e.answers && e.answers.length > 0) {
-            for (const ans of e.answers) {
-              rows.push({
-                'Category': cat.title,
-                'Question / Aspect': e.aspect,
-                'Examples & Options': e.examples,
-                'Technology Used': ans.technology || '',
-                'Status': ans.status || '',
-                'Comments / Notes': ans.comments || ''
-              })
-            }
-          }
-        }
-      }
-      exportToExcel(rows, 'solution_inventory.xlsx')
-    }
 
     function addAnswer(entryId) {
       const entry = findEntry(entryId)
@@ -319,7 +246,7 @@ export default {
       }
     }
 
-    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, exportXLSX, statusOptions, getStatusTooltip, addAnswer, deleteAnswer, exportJSON, importJSON }
+    return { categories, activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, statusOptions, getStatusTooltip, addAnswer, deleteAnswer, exportJSON, importJSON }
   }
 }
 </script>

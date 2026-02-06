@@ -14,11 +14,6 @@
         <v-tooltip activator="parent" location="bottom">Import JSON file</v-tooltip>
       </v-btn>
 
-      <v-btn @click="exportData">
-        Excel Export
-        <v-tooltip activator="parent" location="bottom">Export to Excel</v-tooltip>
-      </v-btn>
-
       <!-- Hidden file input for import -->
       <input
         ref="fileInput"
@@ -46,12 +41,6 @@ export default {
   setup() {
     const questionnaireRef = ref(null)
     const fileInput = ref(null)
-
-    function exportData() {
-      if (questionnaireRef.value) {
-        questionnaireRef.value.exportXLSX()
-      }
-    }
 
     function saveJSON() {
       if (questionnaireRef.value) {
@@ -83,7 +72,7 @@ export default {
       event.target.value = ''
     }
 
-    return { questionnaireRef, exportData, saveJSON, importJSON, handleFileUpload, fileInput }
+    return { questionnaireRef, saveJSON, importJSON, handleFileUpload, fileInput }
   }
 }
 </script>
