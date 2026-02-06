@@ -265,6 +265,7 @@ export default {
 
     function addAnswer(entryId) {
       const entry = findEntry(entryId)
+      console.log('Adding answer to entry:', entryId, entry)
       if (entry) {
         entry.answers = [...entry.answers, { technology: '', status: '', comments: '' }]
       }
@@ -278,8 +279,17 @@ export default {
     }
 
     function findEntry(entryId) {
+      console.log('Finding entry with ID:', entryId)
+      console.log('Categories:', categories.value)
+
       for (const cat of categories.value) {
+        console.log('Checking category:', cat.id)
+        
+        if (!cat.entries) continue // Skip categories without entries
+
         for (const e of cat.entries) {
+          console.log('Checking entry:', e.id)
+          
           if (e.id === entryId) return e
         }
       }
