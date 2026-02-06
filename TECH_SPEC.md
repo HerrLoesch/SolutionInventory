@@ -24,8 +24,6 @@
 │  (categoriesService.js)             │
 └──────────────────────┬──────────────┘
 ┌──────────────────────▼──────────────┐
-│          Utility Layer              │
-│  (exportExcel, exportExcelNode)     │
 └─────────────────────────────────────┘
 ```
 
@@ -35,8 +33,7 @@
 ```json
 {
   "vue": "^3.3.4",           // Progressive JavaScript framework
-  "vuetify": "^3.3.0",       // Material Design component library
-  "xlsx": "^0.18.5"          // Excel file generation and parsing
+  "vuetify": "^3.3.0"        // Material Design component library
 }
 ```
 
@@ -54,33 +51,24 @@
 ### Core Files
 - **src/App.vue**: Root Vue component, component wrapper
 - **src/main.js**: Application entry point, Vue instance creation, Vuetify initialization
-- **src/components/Questionnaire.vue**: Main UI component (328 lines)
+- **src/components/Questionnaire.vue**: Main UI component
   - Manages category selection
   - Renders questionnaire entries
   - Handles answer input/edit/delete operations
-  - Provides export/import functionality
+  - Provides JSON export/import functionality
 
 ### Services
-- **src/services/categoriesService.js** (427 lines)
+- **src/services/categoriesService.js**
   - Exports `getCategoriesData()` function
   - Returns complete category data structure
   - Categories covered:
     - Solution Description (metadata)
     - Architecture (8 aspects)
-    - Front-End (TBD from service)
-    - Back-End (TBD from service)
-    - Data & Persistence (TBD from service)
-    - Development & Quality (TBD from service)
-    - Infrastructure (TBD from service)
-
-### Utilities
-- **src/utils/exportExcel.js**: Browser-based XLSX export
-  - Function: `exportToExcel(data, filename)`
-  - Uses XLSX library for client-side generation
-  
-- **src/utils/exportExcelNode.js**: Node.js server-side export
-  - Used in test script: `scripts/test_export_node.js`
-  - Supports command-line export functionality
+    - Front-End
+    - Back-End
+    - Data & Persistence
+    - Development & Quality
+    - Infrastructure
 
 ## 4. Data Model
 
@@ -161,7 +149,6 @@ const hasPrev = computed(() => /* ... */)
 - `addAnswer(entryId)`: Add new answer to entry
 - `deleteAnswer(entryId, answerIdx)`: Remove answer from entry
 - `findEntry(entryId)`: Helper to locate entry by ID (includes null-check for entries property)
-- `exportXLSX()`: Export data to Excel format with headers
 - `exportJSON()`: Export data as downloadable JSON file
 - `importJSON(data)`: Import data from JSON array
 
@@ -195,24 +182,9 @@ const hasPrev = computed(() => /* ... */)
 
 ## 7. Export Specifications
 
-### Excel Export Format
-Columns:
-- Category (category title)
-- Question / Aspect (entry aspect)
-- Examples & Options (entry examples)
-- Technology Used (answer technology)
-- Status (answer status)
-- Comments / Notes (answer comments)
-
-Rows structure:
-1. Metadata entries from Solution Description category
-2. Regular category entries with multiple rows per entry if multiple answers exist
-
-File naming: `solution_inventory.xlsx`
-
 ### JSON Export Format
 - Complete categories array structure
-- Preserves all metadata and entries
+- Preserves all metadata, entries, and answers
 - Human-readable with 2-space indentation
 - File naming: `solution_inventory.json`
 
@@ -253,14 +225,7 @@ npm run preview  # Preview production build locally
 - Lazy category switching (computed property)
 - Progressive rendering with v-for keys
 
-## 11. Testing
-
-### Manual Testing
-- `npm run test-export`: Tests Excel export with sample data
-- Sample test data: `data/sample_export.json`
-- Test script: `scripts/test_export_node.js`
-
-## 12. Future Technical Considerations
+## 11. Future Technical Considerations
 
 - Backend API integration point (currently all in-memory)
 - Database persistence (MongoDB, PostgreSQL, etc.)

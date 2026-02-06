@@ -20,7 +20,7 @@ The application provides a structured questionnaire-based interface for document
 - **Runtime**: Node.js with npm
 - **Styling**: Scoped CSS in Vue components
 - **State Management**: Vue 3 reactive refs and computed properties
-- **Export**: XLSX format (Excel files) and JSON
+- **Export**: JSON format
 
 ## Project Structure
 ```
@@ -32,8 +32,6 @@ The application provides a structured questionnaire-based interface for document
   ├── services/
   │   └── categoriesService.js   # Category data and structure
   └── utils/
-      ├── exportExcel.js         # Browser-based Excel export
-      └── exportExcelNode.js     # Node.js server-side Excel export
 /public                          # Static assets
 /data
   └── sample_export.json        # Sample data for testing
@@ -44,9 +42,8 @@ The application provides a structured questionnaire-based interface for document
 2. **Question/Answer Format**: Each category contains multiple aspects with answer fields
 3. **Status Tracking**: Answers can be marked with: Adopt, Assess, Hold, Retire
 4. **Multiple Answers**: Users can add multiple technology answers per aspect
-5. **Export Functionality**: Export collected data to Excel or JSON formats
-6. **Import Functionality**: Import previously saved JSON data
-7. **PWA Support**: Progressive web app capabilities via Vite PWA plugin
+5. **Data Export/Import**: Export and import technology documentation as JSON files
+6. **PWA Support**: Progressive web app capabilities via Vite PWA plugin
 
 ## Data Model
 ### Category Structure
@@ -91,7 +88,6 @@ The application provides a structured questionnaire-based interface for document
 - `npm run dev` - Start development server with Vite hot reload
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
-- `npm run test-export` - Test Excel export with sample data
 
 ## Code Patterns
 - **Reactive State**: Using `ref()` for mutable state

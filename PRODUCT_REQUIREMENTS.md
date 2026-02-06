@@ -24,8 +24,8 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Structured Documentation**: Guided questions ensure consistent, complete documentation
 - **Accessibility**: Web-based application accessible across devices
 - **Offline-Capable**: PWA technology enables offline usage
-- **Export Flexibility**: Multiple export formats (Excel, JSON) for analysis and reporting
-- **Easy Data Sharing**: JSON import/export for team collaboration
+- **Data Sharing**: JSON import/export for team collaboration and data backup
+- **Easy Collaboration**: Export and import documentation for team sharing
 
 ## 2. Feature Requirements
 
@@ -106,30 +106,12 @@ To create a centralized, accessible platform for documenting technology landscap
 
 #### 2.1.6 Data Export
 
-**Excel Export (XLSX)**
-- Function: `exportXLSX()`
-- Format**: Tabular with headers:
-  - Category
-  - Question / Aspect
-  - Examples & Options
-  - Technology Used
-  - Status
-  - Comments / Notes
-  
-- **Content**:
-  - Metadata rows first (Solution Description fields)
-  - Regular entries follow (one row per answer)
-  - If multiple answers per entry, multiple rows created
-  
-- **Filename**: `solution_inventory.xlsx`
-- **Use Case**: Sharing with stakeholders, reporting, archival
-
 **JSON Export**
 - Function: `exportJSON()`
-- Format**: Downloadable JSON file with complete data structure
+- Format**: Downloadable JSON file with complete category structure
 - Preserves: All metadata, entries, answers in original format
-- Filename: `solution_inventory.json`
-- **Use Case**: Data backup, transfer between systems, version control
+- Filename**: `solution_inventory.json`
+- **Use Case**: Data backup, transfer between systems, version control, sharing with teams
 
 #### 2.1.7 Data Import
 - Function: `importJSON(data)`
@@ -165,7 +147,6 @@ To create a centralized, accessible platform for documenting technology landscap
 #### 2.2.4 Performance
 - **Initial Load**: < 3 seconds on 4G
 - **Category Switch**: < 100ms
-- **Export Generation**: < 2 seconds for typical dataset
 - **Bundle Size**: < 500KB gzipped
 
 #### 2.2.5 Data Privacy
@@ -201,12 +182,11 @@ To create a centralized, accessible platform for documenting technology landscap
 
 ### User Story 3: Share Technology Documentation
 **As a** Project Manager  
-**I want to** export technology documentation in standard formats  
+**I want to** export technology documentation as JSON  
 **So that** I can share with stakeholders and archive for compliance
 
 **Acceptance Criteria**:
-- Can export to Excel with proper formatting
-- Can export to JSON format
+- Can export documentation as JSON file
 - File downloads to device
 - Includes all metadata and answers
 - Maintains data structure for re-import
@@ -241,7 +221,6 @@ To create a centralized, accessible platform for documenting technology landscap
 - Solution metadata documentation
 - Multiple answer capability per question
 - Status tracking (Adopt/Assess/Hold/Retire)
-- Excel export (XLSX format)
 - JSON export and import
 - PWA capabilities
 - Responsive design
@@ -342,10 +321,3 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Metadata**: Solution description information (product, company, contact)
 - **Status**: Lifecycle classification of a technology (Adopt/Assess/Hold/Retire)
 
-## 12. Sign-Off
-
-| Role | Name | Date |
-|------|------|------|
-| Product Owner | - | - |
-| Technical Lead | - | - |
-| Project Sponsor | - | - |
