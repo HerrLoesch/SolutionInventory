@@ -120,7 +120,7 @@
                 <!-- Button für neue Antwort -->
                 <div class="mt-3">
                   <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
-                    + Add Solution
+                    + Add Answer
                   </v-btn>
                 </div>
               </v-sheet>

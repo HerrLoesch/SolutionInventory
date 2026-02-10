@@ -6,6 +6,7 @@
       <v-tabs v-model="activeTab" class="ml-6">
         <v-tab value="questionnaire">Questionnaire</v-tab>
         <v-tab value="summary">Summary</v-tab>
+        <v-tab value="config">Configuration</v-tab>
       </v-tabs>
 
       <v-spacer />
@@ -55,6 +56,10 @@
           <v-window-item value="summary">
             <Summary :categories="categories" />
           </v-window-item>
+
+          <v-window-item value="config">
+            <QuestionnaireConfig :categories="categories" @update-categories="updateCategories" />
+          </v-window-item>
         </v-window>
       </v-container>
     </v-main>
@@ -65,6 +70,7 @@
 import { ref, watch, onMounted } from 'vue'
 import Questionnaire from './components/Questionnaire.vue'
 import Summary from './components/Summary.vue'
+import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import { getCategoriesData } from './services/categoriesService'
 import sampleData from '../data/sample_export.json'
 
@@ -72,7 +78,7 @@ const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1
 
 export default {
-  components: { Questionnaire, Summary },
+  components: { Questionnaire, Summary, QuestionnaireConfig },
   setup() {
     const questionnaireRef = ref(null)
     const fileInput = ref(null)
