@@ -1,7 +1,7 @@
   <template>
   <div>
     <v-row>
-      <v-col cols="12" md="4">
+      <v-col cols="12" md="3">
         <v-list two-line>
           <v-list-item
             v-for="cat in categories"
@@ -17,7 +17,7 @@
         </v-list>
       </v-col>
 
-      <v-col cols="12" md="8">
+      <v-col cols="12" md="9">
         <v-card>
           <v-card-title><h2>{{ currentCategory.title }}</h2></v-card-title>
           <v-card-subtitle class="px-4">{{ currentCategory.desc }}</v-card-subtitle>
@@ -80,7 +80,7 @@
                 <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                   <v-row dense>
                     <v-col cols="12" md="4">
-                      <v-text-field label="Technology" v-model="answer.technology" clearable />
+                      <v-text-field label="Solution" v-model="answer.technology" clearable />
                     </v-col>
 
                     <v-col cols="12" md="2">
@@ -92,7 +92,6 @@
                             item-title="label"
                             item-value="label"
                             v-model="answer.status"
-                            clearable
                             v-bind="props"
                           />
                         </template>

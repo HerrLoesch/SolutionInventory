@@ -46,7 +46,7 @@
     </v-app-bar>
 
     <v-main>
-      <v-container class="pa-4">
+      <v-container fluid class="pa-4 main-container">
         <v-window v-model="activeTab">
           <v-window-item value="questionnaire">
             <Questionnaire ref="questionnaireRef" :categories="categories" @update-categories="updateCategories" />
@@ -208,4 +208,9 @@ export default {
 <style>
 /* small global styles */
 body { font-family: Roboto, Arial, sans-serif; }
+
+.main-container {
+  max-width: 1800px;
+  margin: 0 auto;
+}
 </style>
