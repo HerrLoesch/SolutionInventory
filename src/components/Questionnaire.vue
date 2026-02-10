@@ -107,10 +107,11 @@
                         size="small"
                         color="error"
                         variant="text"
+                        icon
                         @click="deleteAnswer(entry.id, aIdx)"
                         v-if="entry.answers.length > 1"
                       >
-                        Delete
+                        <v-icon>mdi-delete</v-icon>
                       </v-btn>
                     </v-col>
                   </v-row>
@@ -119,7 +120,7 @@
                 <!-- Button für neue Antwort -->
                 <div class="mt-3">
                   <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
-                    + Add Answer
+                    + Add Solution
                   </v-btn>
                 </div>
               </v-sheet>
@@ -127,9 +128,13 @@
             </div>
           </v-card-text>
           <v-card-actions>
-            <v-btn color="primary" @click="prevCategory" :disabled="!hasPrev">Back</v-btn>
+            <v-btn icon color="primary" @click="prevCategory" :disabled="!hasPrev">
+              <v-icon>mdi-chevron-left</v-icon>
+            </v-btn>
             <v-spacer />
-            <v-btn color="primary" @click="nextCategory" :disabled="!hasNext">Next</v-btn>
+            <v-btn icon color="primary" @click="nextCategory" :disabled="!hasNext">
+              <v-icon>mdi-chevron-right</v-icon>
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
