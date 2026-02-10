@@ -13,26 +13,30 @@
 
       <!-- Auto-save Indikator -->
       <v-chip v-if="lastSaved" size="x-small" class="mr-2" variant="text">
-        💾 {{ lastSaved }}
+        <v-icon size="small" class="mr-1">mdi-content-save</v-icon>
+        {{ lastSaved }}
       </v-chip>
       
       <v-btn @click="saveJSON" class="mr-2">
-        💾 Save JSON
+        <v-icon>mdi-content-save</v-icon>
+        <span class="ml-2">Save JSON</span>
         <v-tooltip activator="parent" location="bottom">Save entries as JSON</v-tooltip>
       </v-btn>
 
       <v-btn @click="importJSON" class="mr-2">
-        📂 Load JSON
+        <v-icon>mdi-folder-open</v-icon>
+        <span class="ml-2">Load JSON</span>
         <v-tooltip activator="parent" location="bottom">Import JSON file</v-tooltip>
       </v-btn>
 
       <v-btn @click="loadSample" class="mr-2">
-        📋 Load Sample
+        <v-icon>mdi-file-document-outline</v-icon>
+        <span class="ml-2">Load Sample</span>
         <v-tooltip activator="parent" location="bottom">Load sample data</v-tooltip>
       </v-btn>
 
       <v-btn @click="clearStorage" class="mr-2" variant="text" size="small">
-        🗑️
+        <v-icon>mdi-delete</v-icon>
         <v-tooltip activator="parent" location="bottom">Clear saved data</v-tooltip>
       </v-btn>
 

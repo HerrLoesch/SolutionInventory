@@ -30,19 +30,19 @@
         <div class="radar-container">
           <svg :viewBox="`0 0 ${svgSize} ${svgSize}`" class="tech-radar">
             <!-- Background -->
-            <rect width="100%" height="100%" fill="#f5f5f5" />
+            <rect width="100%" height="100%" fill="#FAFAFA" />
 
             <!-- Concentric circles (rings) -->
-            <circle :cx="centerX" :cy="centerY" :r="radiusRetire" fill="none" stroke="#e0e0e0" stroke-width="1" />
-            <circle :cx="centerX" :cy="centerY" :r="radiusHold" fill="none" stroke="#e0e0e0" stroke-width="1" />
-            <circle :cx="centerX" :cy="centerY" :r="radiusAssess" fill="none" stroke="#e0e0e0" stroke-width="1" />
-            <circle :cx="centerX" :cy="centerY" :r="radiusAdopt" fill="none" stroke="#e0e0e0" stroke-width="1" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusRetire" fill="none" stroke="#90A4AE" stroke-width="1.5" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusHold" fill="none" stroke="#90A4AE" stroke-width="1.5" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusAssess" fill="none" stroke="#90A4AE" stroke-width="1.5" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusAdopt" fill="none" stroke="#90A4AE" stroke-width="1.5" />
 
             <!-- Ring backgrounds with transparency -->
-            <circle :cx="centerX" :cy="centerY" :r="radiusAdopt" fill="#4caf50" opacity="0.08" />
-            <circle :cx="centerX" :cy="centerY" :r="radiusAssess" fill="#2196f3" opacity="0.08" />
-            <circle :cx="centerX" :cy="centerY" :r="radiusHold" fill="#ff9800" opacity="0.08" />
-            <circle :cx="centerX" :cy="centerY" :r="radiusRetire" fill="#f44336" opacity="0.08" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusAdopt" fill="#2E7D32" opacity="0.15" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusAssess" fill="#1976D2" opacity="0.15" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusHold" fill="#EF6C00" opacity="0.15" />
+            <circle :cx="centerX" :cy="centerY" :r="radiusRetire" fill="#C62828" opacity="0.15" />
 
             <!-- Ring labels -->
             <text x="50%" :y="centerY - radiusAdopt + 20" text-anchor="middle" class="ring-label">ADOPT</text>
@@ -55,7 +55,7 @@
               :x1="centerX" :y1="centerY"
               :x2="centerX + radiusRetire * Math.cos(angle)"
               :y2="centerY + radiusRetire * Math.sin(angle)"
-              stroke="#e0e0e0" stroke-width="1" />
+              stroke="#90A4AE" stroke-width="1.5" />
 
             <!-- Technology blobs -->
             <g v-for="(tech, idx) in allTechnologies" :key="`tech-${idx}`">
@@ -191,12 +191,12 @@ export default {
 
     function getStatusColor(status) {
       const colors = {
-        'Adopt': '#4caf50',
-        'Assess': '#2196f3',
-        'Hold': '#ff9800',
-        'Retire': '#f44336'
+        'Adopt': '#43A047',
+        'Assess': '#1976D2',
+        'Hold': '#F57C00',
+        'Retire': '#D32F2F'
       }
-      return colors[status] || '#9e9e9e'
+      return colors[status] || '#757575'
     }
 
     function getStatusColorHex(status) {
@@ -235,14 +235,15 @@ export default {
 .tech-radar {
   width: 100%;
   height: auto;
-  border: 1px solid #e0e0e0;
+  border: 2px solid #90A4AE;
   border-radius: 4px;
+  background-color: #FAFAFA;
 }
 
 .ring-label {
   font-size: 12px;
   font-weight: bold;
-  fill: #666;
+  fill: #37474F;
 }
 
 .tech-bubble {
@@ -270,11 +271,11 @@ export default {
 .tech-tooltip {
   position: absolute;
   background: white;
-  border: 1px solid #e0e0e0;
+  border: 2px solid #90A4AE;
   border-radius: 4px;
   padding: 12px;
   font-size: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   z-index: 10;
   max-width: 250px;
   top: 50px;
@@ -296,6 +297,6 @@ export default {
   width: 20px;
   height: 20px;
   border-radius: 3px;
-  border: 1px solid #ddd;
+  border: 2px solid #90A4AE;
 }
 </style>
