@@ -72,6 +72,7 @@
                 <div class="d-flex justify-space-between align-start">
                   <div class="flex-grow-1">
                     <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
+                    <div v-if="entry.description" class="text-body-2 mt-1">{{ entry.description }}</div>
                     <div class="text--secondary text-sm mt-1"><strong>Examples:</strong> {{ entry.examples }}</div>
                   </div>
                   <div class="ml-4" style="min-width: 190px;">
