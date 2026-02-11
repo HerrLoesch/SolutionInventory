@@ -57,9 +57,9 @@
             <Questionnaire ref="questionnaireRef" :categories="categories" @update-categories="updateCategories" />
           </v-window-item>
 
-          <!-- <v-window-item value="summary">
+         <v-window-item value="summary">
             <Summary :categories="categories" />
-          </v-window-item> -->
+          </v-window-item>
 
           <v-window-item value="config">
             <QuestionnaireConfig :categories="categories" @update-categories="updateCategories" />
