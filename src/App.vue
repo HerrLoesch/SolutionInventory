@@ -9,6 +9,11 @@
         <v-tab value="config">Configuration</v-tab>
       </v-tabs>
 
+      <v-btn class="ml-4" @click="wizardOpen = true">
+        <v-icon>mdi-wand</v-icon>
+        <span class="ml-2">Wizzard</span>
+      </v-btn>
+
       <v-spacer />
 
       <!-- Auto-save Indikator -->
@@ -67,6 +72,12 @@
         </v-window>
       </v-container>
     </v-main>
+
+    <WizardDialog
+      v-model="wizardOpen"
+      :categories="categories"
+      @update-categories="updateCategories"
+    />
   </v-app>
 </template>
 
@@ -75,6 +86,7 @@ import { ref, watch, onMounted } from 'vue'
 import Questionnaire from './components/Questionnaire.vue'
 import Summary from './components/Summary.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
+import WizardDialog from './components/WizardDialog.vue'
 import { getCategoriesData } from './services/categoriesService'
 import sampleData from '../data/sample_export.json'
 
@@ -82,13 +94,14 @@ const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1
 
 export default {
-  components: { Questionnaire, Summary, QuestionnaireConfig },
+  components: { Questionnaire, Summary, QuestionnaireConfig, WizardDialog },
   setup() {
     const questionnaireRef = ref(null)
     const fileInput = ref(null)
     const activeTab = ref('questionnaire')
     const categories = ref(getCategoriesData())
     const lastSaved = ref('')
+    const wizardOpen = ref(false)
 
     // LocalStorage Funktionen
     function saveToLocalStorage() {
@@ -203,6 +216,7 @@ export default {
       activeTab, 
       categories,
       lastSaved,
+      wizardOpen,
       updateCategories, 
       saveJSON, 
       importJSON, 
