@@ -73,10 +73,18 @@
                   <div class="flex-grow-1">
                     <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
                     <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
-                    <div class="text--secondary text-sm mt-1">
-                      <strong>Examples: </strong>
-                      <span v-html="renderTextWithLinks(entry.examples)"></span>
-                    </div>
+                      <div v-if="getExampleItems(entry.examples).length" class="text--secondary text-sm mt-1">
+                        <strong>Examples: </strong>
+                        <span v-for="(example, eIdx) in getExampleItems(entry.examples)" :key="`${entry.id}-ex-${eIdx}`">
+                          <v-tooltip v-if="example.description" :text="example.description" location="top">
+                            <template v-slot:activator="{ props }">
+                              <span v-bind="props" class="example-item">{{ example.label }}</span>
+                            </template>
+                          </v-tooltip>
+                          <span v-else class="example-item">{{ example.label }}</span>
+                          <span v-if="eIdx < getExampleItems(entry.examples).length - 1">, </span>
+                        </span>
+                      </div>
                   </div>
                   <div class="ml-4" style="min-width: 190px;">
                     <v-select
@@ -296,6 +304,37 @@ export default {
       return working
     }
 
+    function getExampleItems(examples) {
+      if (!examples) return []
+
+      if (Array.isArray(examples)) {
+        return examples
+          .map((example) => {
+            if (typeof example === 'string') {
+              const label = example.trim()
+              return label ? { label, description: '' } : null
+            }
+            if (example && typeof example === 'object') {
+              const label = String(example.label || '').trim()
+              if (!label) return null
+              return { label, description: example.description || '' }
+            }
+            return null
+          })
+          .filter(Boolean)
+      }
+
+      if (typeof examples === 'string') {
+        return examples
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((label) => ({ label, description: '' }))
+      }
+
+      return []
+    }
+
     function isEntryApplicable(entry) {
       return (entry.applicability || 'applicable') === 'applicable'
     }
@@ -376,8 +415,9 @@ export default {
       hasPrev,
       statusOptions,
       applicabilityOptions,
-      renderTextWithLinks,
       getStatusTooltip,
+      renderTextWithLinks,
+      getExampleItems,
       isEntryApplicable,
       setApplicability,
       addAnswer,
@@ -391,4 +431,8 @@ export default {
 
 <style scoped>
 .font-weight-medium { font-weight: 500; }
+.example-item {
+  cursor: help;
+  text-decoration: underline dotted;
+}
 </style>
