@@ -31,7 +31,20 @@ To create a centralized, accessible platform for documenting technology landscap
 
 ### 3.1 Core Features (MVP)
 
-#### 3.1.1 Category-Based Questionnaire
+#### 3.1.1 Tab-Based Navigation
+- **Requirement**: Application provides three main views accessible via tabs
+- **Tabs**:
+  1. **Questionnaire**: Main data entry interface for technology documentation
+  2. **Summary**: Visual Technology Radar display of all documented technologies
+  3. **Configuration**: Dynamic editor for categories and questionnaire structure
+  
+- **Behavior**: 
+  - Tab navigation in app bar
+  - Active tab highlighted
+  - Content switches instantly without page reload
+  - State preserved when switching between tabs
+
+#### 3.1.2 Category-Based Questionnaire
 - **Requirement**: Application presents technology documentation through organized categories
 - **Categories**:
   1. Solution Description (metadata about the solution)
@@ -48,7 +61,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - Active category is highlighted
   - Clicking category navigates to it and scrolls to top
 
-#### 3.1.2 Solution Description (Metadata)
+#### 3.1.3 Solution Description (Metadata)
 - **Requirement**: Users can enter solution metadata
 - **Fields**:
   - Software Product (text input)
@@ -61,7 +74,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - Metadata persists while user navigates between categories
   - Included in all exports
 
-#### 3.1.3 Questionnaire Entries with Answers
+#### 3.1.4 Questionnaire Entries with Answers
 - **Requirement**: Each category contains multiple aspects/questions with answer capability
 - **Entry Structure**:
   - Aspect title (question)
@@ -79,7 +92,7 @@ To create a centralized, accessible platform for documenting technology landscap
   - **Hold**: "We use this, but do not recommend it for new features."
   - **Retire**: "We are actively replacing or removing this."
 
-#### 3.1.4 Answer Management
+#### 3.1.5 Answer Management
 - **Add Answer**: Users can add multiple technology answers per aspect
   - Button: "+ Add Answer"
   - Behavior: New blank answer row appears below existing answers
@@ -92,7 +105,7 @@ To create a centralized, accessible platform for documenting technology landscap
   
 - **Edit Answer**: All answer fields are inline-editable
 
-#### 3.1.5 Navigation
+#### 3.1.6 Navigation
 - **Category Navigation**:
   - Back button: Navigate to previous category (disabled on first)
   - Next button: Navigate to next category (disabled on last)
@@ -104,26 +117,110 @@ To create a centralized, accessible platform for documenting technology landscap
   - Current category persists in state
   - User position (answered/unanswered questions) remembered
 
-#### 3.1.6 Data Export
+#### 3.1.7 Technology Radar Visualization (Summary Tab)
+- **Requirement**: Visual representation of all documented technologies using radar metaphor
+- **Components**:
+  - Interactive SVG-based radar chart
+  - Four concentric rings representing status: Adopt (innermost), Assess, Hold, Retire (outermost)
+  - Eight radial segments distributing technologies by category
+  - Technology bubbles positioned by status and category
+  - Hover tooltips showing full technology details
+  - Color-coded legend
+  - Metadata summary card at top
+  
+- **Behavior**:
+  - Technologies automatically positioned based on their status
+  - Category determines segment (Architecture, Front-End, Back-End, etc.)
+  - Random offset prevents overlap
+  - Abbreviated labels (4 characters) on bubbles
+  - Full details on hover: name, status, category, aspect, comments
+  - Updates in real-time as user fills questionnaire
+  
+- **Use Case**: High-level overview, presentation to stakeholders, technology landscape assessment
+
+#### 3.1.8 Configuration Editor (Configuration Tab)
+- **Requirement**: Dynamic editor for questionnaire structure without code changes
+- **Category Management**:
+  - Add new categories with custom titles and descriptions
+  - Edit existing category properties
+  - Delete categories (with confirmation)
+  - Toggle metadata category type
+  - Automatic ID generation from titles
+  
+- **Entry Management** (for non-metadata categories):
+  - Add new entries/aspects with custom questions
+  - Edit aspect titles and example text
+  - Delete entries from categories
+  - Automatic ID generation from aspect titles
+  
+- **Behavior**:
+  - Two-panel layout: category list (left) and editor (right)
+  - Changes apply immediately
+  - Synchronized with questionnaire and summary views
+  - Confirmation dialogs for destructive operations
+  
+- **Use Case**: Customize questionnaire for organization needs, adapt to new technology areas, localize questions
+
+#### 3.1.9 Auto-Save with localStorage
+- **Requirement**: Automatic data persistence without user action
+- **Behavior**:
+  - Saves all data to browser localStorage on any change
+  - Deep watch monitors all category/answer modifications
+  - Loads saved data automatically on application start
+  - Displays last saved timestamp in app bar (HH:MM format)
+  - Version control in storage format
+  
+- **Storage Structure**:
+  ```json
+  {
+    "version": 1,
+    "timestamp": "ISO 8601 timestamp",
+    "categories": [/* full data */]
+  }
+  ```
+  
+- **Clear Storage**: User-triggered action with confirmation dialog
+- **Use Case**: Prevent data loss, seamless workflow, no manual saves needed
+
+#### 3.1.10 Sample Data Loading
+- **Requirement**: Quick start with example data
+- **Behavior**:
+  - "Load Sample" button in app bar
+  - Loads pre-configured sample from `data/sample_export.json`
+  - Demonstrates filled questionnaire
+  - Overwrites current data
+  
+- **Use Case**: Training, demo, understanding expected data format
+
+#### 3.1.11 Data Export
 
 **JSON Export**
 - Function: `exportJSON()`
-- Format**: Downloadable JSON file with complete category structure
+- **Format**: Downloadable JSON file with object wrapper and categories property
+- **Structure**:
+  ```json
+  {
+    "categories": [/* all categories */]
+  }
+  ```
 - Preserves: All metadata, entries, answers in original format
-- Filename**: `solution_inventory.json`
+- **Filename**: `solution_inventory.json`
 - **Use Case**: Data backup, transfer between systems, version control, sharing with teams
 
-#### 3.1.7 Data Import
+#### 3.1.12 Data Import
 - Function: `importJSON(data)`
-- Accepts: JSON file with valid category array format
-- Behavior:
+- **Accepts**: JSON file in two formats:
+  - Array format: `[{category1}, {category2}, ...]`
+  - Object format: `{categories: [{category1}, ...]}`
+- **Behavior**:
   - Loads data into application
   - Overwrites existing data
-  - Resets to first category
-  - Validates format (must be array)
+  - Updates localStorage
+  - Validates format (array or object with categories property)
   - Shows alert on invalid format
+  - Updates last saved timestamp
   
-- **Use Case**: Load saved data, sharing documentation, team collaboration
+- **Use Case**: Load saved data, sharing documentation, team collaboration, restore backups
 
 ### 3.2 Non-Functional Requirements
 
@@ -147,12 +244,17 @@ To create a centralized, accessible platform for documenting technology landscap
 #### 3.2.4 Performance
 - **Initial Load**: < 3 seconds on 4G
 - **Category Switch**: < 100ms
+- **Tab Switch**: < 50ms
+- **Radar Rendering**: < 200ms for 100+ technologies
+- **Auto-Save**: Debounced to prevent excessive writes
 - **Bundle Size**: < 500KB gzipped
 
 #### 3.2.5 Data Privacy
-- **Client-Side Processing**: No data sent to servers (MVP)
+- **Client-Side Processing**: No data sent to servers
+- **localStorage Only**: Data stored in browser only
 - **No Authentication**: Current version allows unrestricted access
 - **Data Control**: User responsible for exported data handling
+- **No Tracking**: No analytics or telemetry
 
 ## 4. User Stories
 
@@ -201,30 +303,74 @@ To create a centralized, accessible platform for documenting technology landscap
 - Data loads into application
 - Invalid files show error message
 - Valid import overwrites current data
+- Supports both array and object formats
+
+### User Story 5: Visualize Technology Landscape
+**As a** Technology Architect  
+**I want to** see a visual Technology Radar of all documented technologies  
+**So that** I can present overview to stakeholders and identify patterns
+
+**Acceptance Criteria**:
+- Can switch to Summary tab to view radar
+- Technologies positioned by status (Adopt/Assess/Hold/Retire)
+- Hover shows full technology details
+- Visual updates when data changes
+- Suitable for presentation and screenshots
+
+### User Story 6: Customize Questionnaire Structure
+**As a** Team Lead  
+**I want to** add custom categories and questions to the questionnaire  
+**So that** it reflects our organization's specific technology areas
+
+**Acceptance Criteria**:
+- Can add new category from Configuration tab
+- Can edit category title and description
+- Can add new aspects/questions to categories
+- Can delete categories and entries
+- Changes appear immediately in questionnaire
+- No coding required
+
+### User Story 7: Continuous Work Without Manual Saves
+**As a** Solution Engineer  
+**I want to** have my work automatically saved  
+**So that** I don't lose data if browser closes or crashes
+
+**Acceptance Criteria**:
+- Data saves automatically on every change
+- Last saved time displayed in app bar
+- Data loads automatically on next visit
+- Can clear saved data if needed
+- Works across browser sessions
 
 ## 5. Product Scope
 
 ### In Scope
-- Web-based questionnaire interface
-- 7 pre-defined technology categories with aspects
+- Web-based questionnaire interface with tab navigation
+- 7 pre-defined technology categories with aspects (customizable)
 - Solution metadata documentation
 - Multiple answer capability per question
 - Status tracking (Adopt/Assess/Hold/Retire)
-- JSON export and import
+- JSON export and import (multiple formats)
+- Technology Radar visualization
+- Configuration editor for categories and entries
+- Auto-save with localStorage
+- Sample data loading
 - PWA capabilities
 - Responsive design
-- In-memory data persistence
+- Persistent data storage in browser
 
 ### Out of Scope (Future Enhancement)
-- Backend database
+- Backend database / server
 - User authentication/authorization
 - Multi-user collaboration
-- Real-time synchronization
-- Advanced analytics and reporting
-- Custom category creation
+- Real-time synchronization across devices
+- Advanced analytics and reporting dashboards
+- Excel/PDF export formats
 - Role-based access control
-- Version control / history
-- Comments/discussions on answers
+- Version control / change history
+- Comments/discussions threads on answers
+- API integrations
+- Cloud storage sync
 
 
 ## 6. Success Metrics
@@ -232,7 +378,10 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Adoption**: > 80% of target users complete at least one full documentation cycle
 - **Completeness**: Average > 70% of questions answered per user
 - **Export Usage**: > 50% of users export data
-- **Performance**: Page load time < 3 seconds (median)
+- **Radar Usage**: > 60% of users view Summary/Radar tab
+- **Configuration Usage**: > 30% of teams customize categories
+- **Performance**: Page load time < 3 seconds (median), tab switches < 100ms
+- **Data Persistence**: < 1% data loss incidents (auto-save reliability)
 - **Satisfaction**: > 4/5 ratings on usability
 - **Data Quality**: No exported data loss or corruption incidents
 
@@ -262,30 +411,39 @@ To create a centralized, accessible platform for documenting technology landscap
 
 ### External Dependencies
 - Browser Service Worker API support (for PWA)
-- local storage availability (future enhancement)
+- Browser localStorage API (minimum 5MB storage)
+- Modern browser with SVG rendering support
 
 ## 10. Risks & Mitigation
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|-----------|
-| Data loss on browser crash | Medium | High | Implement auto-save to localStorage |
-| Incomplete questionnaire abandonment | Medium | Medium | Progress indicator, save draft capability |
+| Data loss on browser crash | Low | High | ✓ Implemented: Auto-save to localStorage |
+| localStorage quota exceeded | Low | Medium | Warning message, data size monitoring |
+| Incomplete questionnaire abandonment | Medium | Medium | ✓ Implemented: Auto-save, progress visible in radar |
 | Export file corruption | Low | High | Validation tests on export functions |
-| Performance issues with large datasets | Low | Medium | Pagination or virtual scrolling |
+| Performance issues with large datasets | Low | Medium | SVG optimization, consider virtual scrolling |
 | Browser incompatibility | Low | Medium | Cross-browser testing, version detection |
+| Confusion with multiple tabs | Low | Low | Clear tab labels, intuitive navigation |
 
 ## 11. Future Enhancements (Post-MVP)
 
 ### Phase 2 Features
-- Integration with technology radar
-- Advanced search and filtering
-- Bulk import from external sources
+- Excel/PDF export formats
+- Advanced search and filtering in questionnaire
+- Bulk import from external sources (CSV, Excel)
+- Export radar as image
+- Undo/redo functionality
+- Keyboard shortcuts
 
 ### Phase 3 Features
-- Custom category templates
 - Backend database for persistent storage
+- User authentication and multi-user support
 - Comparison between different solutions
 - Revision history and change tracking
+- API for integrations
+- Advanced analytics dashboard
+- Team collaboration features
 
 ## 12. Glossary
 
@@ -298,4 +456,8 @@ To create a centralized, accessible platform for documenting technology landscap
 - **Import**: Load external data file into application
 - **Metadata**: Solution description information (product, company, contact)
 - **Status**: Lifecycle classification of a technology (Adopt/Assess/Hold/Retire)
+- **Technology Radar**: Visual representation inspired by ThoughtWorks Technology Radar
+- **localStorage**: Browser storage API for persistent data
+- **Tab**: Navigation element for switching between main views
+- **Configuration**: Editor interface for customizing questionnaire structure
 
