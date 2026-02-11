@@ -123,8 +123,40 @@ export function getCategoriesData() {
         },
         {
           id: 'fe-quality',
-          aspect: 'Code Quality',
+          aspect: 'Code Formatting',
           examples: 'ESLint, Prettier, Stylelint',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'fe-i18n',
+          aspect: 'Internationalization',
+          examples: 'i18next, Angular i18n, .resx files',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'fe-cache',
+          aspect: 'Caching Strategy',
+          examples: 'Workbox, Dexie.js, Nuxt',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'fe-analytics',
+          aspect: 'Analytics',
+          examples: 'Google Analytics, Matomo, Pendo',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'fe-dev-env',
+          aspect: 'Development Environment',
+          examples: 'Visual Studio, VS Code, Rider',
           answers: [
             { technology: '', status: '', comments: '' }
           ]
@@ -186,7 +218,7 @@ export function getCategoriesData() {
         },
         {
           id: 'be-integration',
-          aspect: 'Integration Testing',
+          aspect: 'Integration',
           examples: 'TestServer, RestAssured, Postman',
           answers: [
             { technology: '', status: '', comments: '' }
@@ -201,9 +233,49 @@ export function getCategoriesData() {
           ]
         },
         {
+          id: 'be-cache',
+          aspect: 'Caching Strategy',
+          examples: 'Redis, Memcached, In-Memory (Dict)',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'be-jobs',
+          aspect: 'Job Scheduling',
+          examples: 'Hangfire, Quartz.NET, Cron, Windows Task',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'be-workflow',
+          aspect: 'Workflow Management',
+          examples: 'Camunda, Elsa Workflows, Temporal, Logic Apps',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
           id: 'be-logging',
           aspect: 'Logging',
           examples: 'NLog, Serilog, Log4j',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'be-format',
+          aspect: 'Code Formatting',
+          examples: 'Resharper, StyleCop',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'be-dev-env',
+          aspect: 'Development Environment',
+          examples: 'Visual Studio, VS Code, Rider',
           answers: [
             { technology: '', status: '', comments: '' }
           ]
@@ -211,9 +283,9 @@ export function getCategoriesData() {
       ]
     },
     {
-      id: 'ops-security',
-      title: 'Ops & Security',
-      desc: 'Operational and security tooling and practices',
+      id: 'ops',
+      title: 'Ops',
+      desc: 'Operational tooling and practices',
       entries: [
         {
           id: 'ops-deploy',
@@ -264,14 +336,6 @@ export function getCategoriesData() {
           ]
         },
         {
-          id: 'ops-licensing',
-          aspect: 'Licensing / DRM',
-          examples: 'Hardware Dongle, License Key File, Online Activation, Floating Server',
-          answers: [
-            { technology: '', status: '', comments: '' }
-          ]
-        },
-        {
           id: 'ops-resources',
           aspect: 'Resource Constraints',
           examples: 'Fixed RAM/CPU limit, GPU required, Specific Disk IOPS',
@@ -288,7 +352,38 @@ export function getCategoriesData() {
           ]
         },
         {
-          id: 'ops-auth',
+          id: 'ops-cicd',
+          aspect: 'CI/CD Pipeline',
+          examples: 'Azure DevOps, GitHub Actions, Jenkins',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'ops-iac',
+          aspect: 'Infrastructure as Code',
+          examples: 'Terraform, Bicep, Ansible, Manual',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'ops-registry',
+          aspect: 'Container Registry',
+          examples: 'ACR, Docker Hub, Harbor, Nexus',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'security',
+      title: 'Security',
+      desc: 'Security controls and risk management',
+      entries: [
+        {
+          id: 'sec-auth',
           aspect: 'Authentication',
           examples: 'SAML2, OIDC, Windows Auth, LDAP',
           answers: [
@@ -296,7 +391,23 @@ export function getCategoriesData() {
           ]
         },
         {
-          id: 'ops-secrets',
+          id: 'sec-licensing',
+          aspect: 'Licensing / DRM',
+          examples: 'Hardware Dongle, License Key File, Online Activation, Floating Server',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'sec-testing',
+          aspect: 'Security Testing',
+          examples: 'SonarQube, OWASP ZAP, Veracode',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'sec-secrets',
           aspect: 'Secret Management',
           examples: 'Env Vars, Vault, Credential Store',
           answers: [
@@ -322,6 +433,14 @@ export function getCategoriesData() {
           id: 'infra-schema',
           aspect: 'Schema Migration',
           examples: 'Liquibase, Flyway, EF Migrations',
+          answers: [
+            { technology: '', status: '', comments: '' }
+          ]
+        },
+        {
+          id: 'infra-broker',
+          aspect: 'Message Broker',
+          examples: 'RabbitMQ, Kafka, Azure Service Bus',
           answers: [
             { technology: '', status: '', comments: '' }
           ]

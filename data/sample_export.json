@@ -124,6 +124,78 @@
           ]
         },
         {
+          "id": "fe-quality",
+          "aspect": "Code Formatting",
+          "examples": "ESLint, Prettier, Stylelint",
+          "answers": [
+            {
+              "technology": "ESLint + Prettier",
+              "status": "Adopt",
+              "comments": "Linting in CI with auto-format on commit"
+            }
+          ]
+        },
+        {
+          "id": "fe-i18n",
+          "aspect": "Internationalization",
+          "examples": "i18next, Angular i18n, .resx files",
+          "answers": [
+            {
+              "technology": "i18next",
+              "status": "Assess",
+              "comments": "Planning multilingual UI for 2026 rollout"
+            }
+          ]
+        },
+        {
+          "id": "fe-cache",
+          "aspect": "Caching Strategy",
+          "examples": "Workbox, Dexie.js, Nuxt",
+          "answers": [
+            {
+              "technology": "Workbox",
+              "status": "Adopt",
+              "comments": "Service worker caching for offline-first dashboards"
+            }
+          ]
+        },
+        {
+          "id": "fe-analytics",
+          "aspect": "Analytics",
+          "examples": "Google Analytics, Matomo, Pendo",
+          "answers": [
+            {
+              "technology": "Matomo",
+              "status": "Adopt",
+              "comments": "Self-hosted analytics to meet data residency rules"
+            }
+          ]
+        },
+        {
+          "id": "fe-dev-env",
+          "aspect": "Development Environment",
+          "examples": "Visual Studio, VS Code, Rider",
+          "answers": [
+            {
+              "technology": "VS Code",
+              "status": "Adopt",
+              "comments": "Team standard with shared workspace settings"
+            }
+          ]
+        },
+        {
+          "id": "fe-logging",
+          "aspect": "Logging",
+          "examples": "Console, Sentry, AppInsights",
+          "answers": [
+            {
+              "technology": "Sentry",
+              "status": "Adopt",
+              "comments": "Client-side error tracking with release tagging"
+            }
+          ]
+        },
+        {
           "id": "fe-build",
           "aspect": "Build System",
           "examples": "Nx, Webpack, Vite, Angular CLI",
@@ -205,6 +277,71 @@
           ]
         },
         {
+          "id": "be-integration",
+          "aspect": "Integration",
+          "examples": "TestServer, RestAssured, Postman",
+          "answers": [
+            {
+              "technology": "ASP.NET TestServer",
+              "status": "Adopt",
+              "comments": "In-memory API tests with seeded data"
+            },
+            {
+              "technology": "Postman",
+              "status": "Adopt",
+              "comments": "Manual smoke tests for customer environments"
+            }
+          ]
+        },
+        {
+          "id": "be-perf",
+          "aspect": "Performance",
+          "examples": "Benchmark.Net, k6, JMeter",
+          "answers": [
+            {
+              "technology": "Benchmark.Net",
+              "status": "Adopt",
+              "comments": "Micro-benchmarks for hot paths"
+            }
+          ]
+        },
+        {
+          "id": "be-cache",
+          "aspect": "Caching Strategy",
+          "examples": "Redis, Memcached, In-Memory (Dict)",
+          "answers": [
+            {
+              "technology": "Redis",
+              "status": "Adopt",
+              "comments": "Distributed cache for lookups and session data"
+            }
+          ]
+        },
+        {
+          "id": "be-jobs",
+          "aspect": "Job Scheduling",
+          "examples": "Hangfire, Quartz.NET, Cron, Windows Task",
+          "answers": [
+            {
+              "technology": "Hangfire",
+              "status": "Adopt",
+              "comments": "Recurring jobs for data sync and reporting"
+            }
+          ]
+        },
+        {
+          "id": "be-workflow",
+          "aspect": "Workflow Management",
+          "examples": "Camunda, Elsa Workflows, Temporal, Logic Apps",
+          "answers": [
+            {
+              "technology": "Temporal",
+              "status": "Assess",
+              "comments": "Evaluating for long-running process orchestration"
+            }
+          ]
+        },
+        {
           "id": "be-logging",
           "aspect": "Logging",
           "examples": "NLog, Serilog, Log4j",
@@ -215,12 +352,36 @@
               "comments": "Structured logging with Seq sink for centralized logs"
             }
           ]
+        },
+        {
+          "id": "be-format",
+          "aspect": "Code Formatting",
+          "examples": "Resharper, StyleCop",
+          "answers": [
+            {
+              "technology": "StyleCop",
+              "status": "Adopt",
+              "comments": "Consistent formatting and analyzer rules"
+            }
+          ]
+        },
+        {
+          "id": "be-dev-env",
+          "aspect": "Development Environment",
+          "examples": "Visual Studio, VS Code, Rider",
+          "answers": [
+            {
+              "technology": "Visual Studio",
+              "status": "Adopt",
+              "comments": "Primary IDE for backend development"
+            }
+          ]
         }
       ]
     },
     {
-      "id": "ops-security",
-      "title": "Ops & Security",
+      "id": "ops",
+      "title": "Ops",
       "entries": [
         {
           "id": "ops-deploy",
@@ -240,6 +401,18 @@
           ]
         },
         {
+          "id": "ops-update",
+          "aspect": "Update Mechanism",
+          "examples": "Auto-Update (ClickOnce/Squirrel), Manual Install, Pull (K8s)",
+          "answers": [
+            {
+              "technology": "Pull (K8s)",
+              "status": "Adopt",
+              "comments": "GitOps-based updates via Argo CD"
+            }
+          ]
+        },
+        {
           "id": "ops-config",
           "aspect": "Configuration Mgmt",
           "examples": "appsettings.json, Env Vars, Registry, Central Config DB",
@@ -248,6 +421,30 @@
               "technology": "Environment Variables",
               "status": "Adopt",
               "comments": "12-factor app style; injected via K8s ConfigMaps/Secrets"
+            }
+          ]
+        },
+        {
+          "id": "ops-backup",
+          "aspect": "Backup Strategy",
+          "examples": "Built-in Backup Job, External Script, DB Dump, VM Snapshot",
+          "answers": [
+            {
+              "technology": "DB Dump",
+              "status": "Adopt",
+              "comments": "Nightly database backups with 30-day retention"
+            }
+          ]
+        },
+        {
+          "id": "ops-remote",
+          "aspect": "Remote Support",
+          "examples": "VPN Access, TeamViewer, Remote Shell, Log Export Tool",
+          "answers": [
+            {
+              "technology": "VPN Access",
+              "status": "Adopt",
+              "comments": "On-demand support access with audit logs"
             }
           ]
         },
@@ -264,7 +461,73 @@
           ]
         },
         {
-          "id": "ops-auth",
+          "id": "ops-resources",
+          "aspect": "Resource Constraints",
+          "examples": "Fixed RAM/CPU limit, GPU required, Specific Disk IOPS",
+          "answers": [
+            {
+              "technology": "Fixed RAM/CPU limit",
+              "status": "Adopt",
+              "comments": "Resource limits enforced per deployment"
+            }
+          ]
+        },
+        {
+          "id": "ops-logging",
+          "aspect": "Logging",
+          "examples": "NLog, Serilog, Log4j, Graylog",
+          "answers": [
+            {
+              "technology": "Serilog + Seq",
+              "status": "Adopt",
+              "comments": "Centralized log aggregation with structured events"
+            }
+          ]
+        },
+        {
+          "id": "ops-cicd",
+          "aspect": "CI/CD Pipeline",
+          "examples": "Azure DevOps, GitHub Actions, Jenkins",
+          "answers": [
+            {
+              "technology": "Azure DevOps Pipelines",
+              "status": "Adopt",
+              "comments": "Build, test, and deploy stages with approvals"
+            }
+          ]
+        },
+        {
+          "id": "ops-iac",
+          "aspect": "Infrastructure as Code",
+          "examples": "Terraform, Bicep, Ansible, Manual",
+          "answers": [
+            {
+              "technology": "Terraform",
+              "status": "Adopt",
+              "comments": "Provisioning for networks, databases, and AKS"
+            }
+          ]
+        },
+        {
+          "id": "ops-registry",
+          "aspect": "Container Registry",
+          "examples": "ACR, Docker Hub, Harbor, Nexus",
+          "answers": [
+            {
+              "technology": "Azure Container Registry",
+              "status": "Adopt",
+              "comments": "Private registry for internal images"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "entries": [
+        {
+          "id": "sec-auth",
           "aspect": "Authentication",
           "examples": "SAML2, OIDC, Windows Auth, LDAP",
           "answers": [
@@ -276,7 +539,31 @@
           ]
         },
         {
-          "id": "ops-secrets",
+          "id": "sec-licensing",
+          "aspect": "Licensing / DRM",
+          "examples": "Hardware Dongle, License Key File, Online Activation, Floating Server",
+          "answers": [
+            {
+              "technology": "License Key File",
+              "status": "Adopt",
+              "comments": "Signed license files validated at startup"
+            }
+          ]
+        },
+        {
+          "id": "sec-testing",
+          "aspect": "Security Testing",
+          "examples": "SonarQube, OWASP ZAP, Veracode",
+          "answers": [
+            {
+              "technology": "SonarQube",
+              "status": "Assess",
+              "comments": "SAST scans on pull requests"
+            }
+          ]
+        },
+        {
+          "id": "sec-secrets",
           "aspect": "Secret Management",
           "examples": "Env Vars, Vault, Credential Store",
           "answers": [
@@ -319,6 +606,18 @@
               "technology": "EF Core Migrations",
               "status": "Adopt",
               "comments": "Database schema versioning; applied during deployment"
+            }
+          ]
+        },
+        {
+          "id": "infra-broker",
+          "aspect": "Message Broker",
+          "examples": "RabbitMQ, Kafka, Azure Service Bus",
+          "answers": [
+            {
+              "technology": "Kafka",
+              "status": "Assess",
+              "comments": "Evaluating for high-throughput telemetry streams"
             }
           ]
         },
@@ -383,6 +682,18 @@
               "technology": "Soft Realtime",
               "status": "Adopt",
               "comments": "Control loop latency < 100ms; monitoring alerts if exceeded"
+            }
+          ]
+        },
+        {
+          "id": "hw-lifecycle",
+          "aspect": "Connection Lifecycle",
+          "examples": "Persistent, Session-Based, On-Demand",
+          "answers": [
+            {
+              "technology": "Persistent",
+              "status": "Adopt",
+              "comments": "Always-on connections for critical equipment"
             }
           ]
         },
