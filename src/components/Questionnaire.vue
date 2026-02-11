@@ -74,9 +74,20 @@
                     <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
                     <div class="text--secondary text-sm mt-1"><strong>Examples:</strong> {{ entry.examples }}</div>
                   </div>
+                  <div class="ml-4" style="min-width: 190px;">
+                    <v-select
+                      v-model="entry.applicability"
+                      :items="applicabilityOptions"
+                      density="compact"
+                      variant="plain"
+                      hide-details
+                      @update:model-value="setApplicability(entry, $event)"
+                    />
+                  </div>
                 </div>
 
                 <!-- Antworten pro Entry -->
+                <div v-if="isEntryApplicable(entry)">
                 <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                   <v-row dense>
                     <v-col cols="12" md="4">
@@ -123,6 +134,7 @@
                     + Add Answer
                   </v-btn>
                 </div>
+                </div>
               </v-sheet>
             </div>
             </div>
@@ -157,6 +169,7 @@ export default {
     const activeCategory = ref(props.categories[0].id)
 
     watch(() => props.categories, (newCategories) => {
+      normalizeCategories(newCategories)
       if (newCategories.length > 0 && !newCategories.find(c => c.id === activeCategory.value)) {
         activeCategory.value = newCategories[0].id
       }
@@ -170,6 +183,8 @@ export default {
       { label: 'Hold', description: 'We use this, but do not recommend it for new features.' },
       { label: 'Retire', description: 'We are actively replacing or removing this.' }
     ]
+
+    const applicabilityOptions = ['applicable', 'not applicable', 'unknown']
 
     function scrollToTop() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -207,7 +222,7 @@ export default {
     function addAnswer(entryId) {
       const entry = findEntry(entryId)
       console.log('Adding answer to entry:', entryId, entry)
-      if (entry) {
+      if (entry && isEntryApplicable(entry)) {
         entry.answers = [...entry.answers, { technology: '', status: '', comments: '' }]
         emit('update-categories', props.categories)
       }
@@ -239,6 +254,50 @@ export default {
       return null
     }
 
+    function isEntryApplicable(entry) {
+      return (entry.applicability || 'applicable') === 'applicable'
+    }
+
+    function setApplicability(entry, value) {
+      if (!applicabilityOptions.includes(value)) {
+        entry.applicability = 'applicable'
+        return
+      }
+
+      entry.applicability = value
+
+      if (['does not apply', 'unknown'].includes(value)) {
+        entry.answers = [{ technology: value, status: '', comments: '' }]
+      } else {
+        const filteredAnswers = (entry.answers || []).filter(
+          (answer) => !['does not apply', 'unknown'].includes(answer.technology)
+        )
+        entry.answers = filteredAnswers.length > 0
+          ? filteredAnswers
+          : [{ technology: '', status: '', comments: '' }]
+      }
+
+      emit('update-categories', props.categories)
+    }
+
+    function normalizeCategories(categories) {
+      categories.forEach((category) => {
+        if (!category.entries) return
+        category.entries.forEach((entry) => {
+          if (!entry.applicability) {
+            entry.applicability = 'applicable'
+          }
+          if (['does not apply', 'unknown'].includes(entry.applicability)) {
+            entry.answers = [{ technology: entry.applicability, status: '', comments: '' }]
+            return
+          }
+          if (!entry.answers || entry.answers.length === 0) {
+            entry.answers = [{ technology: '', status: '', comments: '' }]
+          }
+        })
+      })
+    }
+
     function exportJSON() {
       const exportData = { categories: props.categories }
       const data = JSON.stringify(exportData, null, 2)
@@ -263,7 +322,26 @@ export default {
       }
     }
 
-    return { activeCategory, currentCategory, selectCategory, nextCategory, prevCategory, hasNext, hasPrev, statusOptions, getStatusTooltip, addAnswer, deleteAnswer, exportJSON, importJSON }
+    normalizeCategories(props.categories)
+
+    return {
+      activeCategory,
+      currentCategory,
+      selectCategory,
+      nextCategory,
+      prevCategory,
+      hasNext,
+      hasPrev,
+      statusOptions,
+      applicabilityOptions,
+      getStatusTooltip,
+      isEntryApplicable,
+      setApplicability,
+      addAnswer,
+      deleteAnswer,
+      exportJSON,
+      importJSON
+    }
   }
 }
 </script>

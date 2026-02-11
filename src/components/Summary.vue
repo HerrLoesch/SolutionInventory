@@ -143,9 +143,10 @@ export default {
         
         category.entries.forEach((entry) => {
           if (!entry.answers) return
+          if ((entry.applicability || 'applicable') !== 'applicable') return
           
           entry.answers.forEach((answer) => {
-            if (answer.technology) {
+            if (answer.technology && !['does not apply', 'unknown'].includes(answer.technology)) {
               const status = answer.status || 'Hold'
               let radius
               

@@ -250,6 +250,7 @@ export default {
           id: generateId(`${selectedCategory.value.id}-${aspect}`),
           aspect: aspect,
           examples: 'Example 1, Example 2',
+          applicability: 'applicable',
           answers: [
             { technology: '', status: '', comments: '' }
           ]
