@@ -72,8 +72,11 @@
                 <div class="d-flex justify-space-between align-start">
                   <div class="flex-grow-1">
                     <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
-                    <div v-if="entry.description" class="text-body-2 mt-1">{{ entry.description }}</div>
-                    <div class="text--secondary text-sm mt-1"><strong>Examples:</strong> {{ entry.examples }}</div>
+                    <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
+                    <div class="text--secondary text-sm mt-1">
+                      <strong>Examples: </strong>
+                      <span v-html="renderTextWithLinks(entry.examples)"></span>
+                    </div>
                   </div>
                   <div class="ml-4" style="min-width: 190px;">
                     <v-select
@@ -255,6 +258,44 @@ export default {
       return null
     }
 
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+    }
+
+    function renderTextWithLinks(value) {
+      if (!value) return ''
+
+      const tokens = []
+      let working = String(value)
+
+      working = working.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, url) => {
+        const token = `__LINK_${tokens.length}__`
+        tokens.push({ label, url })
+        return token
+      })
+
+      working = working.replace(/https?:\/\/[^\s)]+/g, (url) => {
+        const token = `__LINK_${tokens.length}__`
+        tokens.push({ label: url, url })
+        return token
+      })
+
+      working = escapeHtml(working)
+
+      tokens.forEach((token, idx) => {
+        const placeholder = `__LINK_${idx}__`
+        const anchor = `<a href="${escapeHtml(token.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(token.label)}</a>`
+        working = working.replace(placeholder, anchor)
+      })
+
+      return working
+    }
+
     function isEntryApplicable(entry) {
       return (entry.applicability || 'applicable') === 'applicable'
     }
@@ -335,6 +376,7 @@ export default {
       hasPrev,
       statusOptions,
       applicabilityOptions,
+      renderTextWithLinks,
       getStatusTooltip,
       isEntryApplicable,
       setApplicability,
