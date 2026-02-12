@@ -2,17 +2,6 @@
   <v-app>
     <v-app-bar color="primary" dark>
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
-      
-      <v-tabs v-model="activeTab" class="ml-6">
-        <v-tab value="questionnaire">Questionnaire</v-tab>
-        <v-tab value="summary">Summary</v-tab>
-        <v-tab value="config">Configuration</v-tab>
-      </v-tabs>
-
-      <v-btn class="ml-4" @click="wizardOpen = true">
-        <v-icon>mdi-wand</v-icon>
-        <span class="ml-2">Wizzard</span>
-      </v-btn>
 
       <v-spacer />
 
@@ -54,6 +43,47 @@
         @change="handleFileUpload"
       />
     </v-app-bar>
+
+    <v-navigation-drawer app permanent width="260" class="side-nav">
+      <v-list density="compact" nav>
+        <v-list-subheader class="nav-header">Workspace</v-list-subheader>
+        <v-list-item
+          title="Questionnaire"
+          :active="activeTab === 'questionnaire'"
+          @click="activeTab = 'questionnaire'"
+        >
+          <template #prepend>
+            <v-icon>mdi-clipboard-text</v-icon>
+          </template>
+        </v-list-item>
+        <v-list-item
+          title="Summary"
+          :active="activeTab === 'summary'"
+          @click="activeTab = 'summary'"
+        >
+          <template #prepend>
+            <v-icon>mdi-chart-donut</v-icon>
+          </template>
+        </v-list-item>
+        <v-list-item
+          title="Configuration"
+          :active="activeTab === 'config'"
+          @click="activeTab = 'config'"
+        >
+          <template #prepend>
+            <v-icon>mdi-cog</v-icon>
+          </template>
+        </v-list-item>
+        <v-list-item
+          title="Wizard"
+          @click="wizardOpen = true"
+        >
+          <template #prepend>
+            <v-icon>mdi-wand</v-icon>
+          </template>
+        </v-list-item>
+      </v-list>
+    </v-navigation-drawer>
 
     <v-main>
       <v-container fluid class="pa-4 main-container">
@@ -236,5 +266,16 @@ body { font-family: Roboto, Arial, sans-serif; }
 .main-container {
   max-width: 1800px;
   margin: 0 auto;
+}
+
+.side-nav {
+  border-right: 1px solid #ECEFF1;
+}
+
+.nav-header {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #78909C;
 }
 </style>
