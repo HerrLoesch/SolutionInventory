@@ -8,12 +8,12 @@
     </div>
 
     <v-list density="compact" class="tree-list">
-      <v-list-item v-if="!localWorkspace.projects.length" class="text-caption text--secondary">
+      <v-list-item v-if="!projects.length" class="text-caption text--secondary">
         No projects yet.
       </v-list-item>
 
       <v-list-group
-        v-for="project in localWorkspace.projects"
+        v-for="project in projects"
         :key="project.id"
         v-model="project.expanded"
         class="project-group"
@@ -59,7 +59,7 @@
         </template>
 
         <v-list-item
-          v-for="questionnaire in getProjectQuestionnaires(project)"
+          v-for="questionnaire in projectQuestionnaires(project)"
           :key="questionnaire.id"
           class="questionnaire-item"
           draggable="true"
@@ -124,19 +124,13 @@
 </template>
 
 <script>
-import { ref, watch } from 'vue'
-import { getCategoriesData } from '../services/categoriesService'
+import { computed, ref } from 'vue'
+import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
-  props: {
-    workspace: {
-      type: Object,
-      required: true
-    }
-  },
-  emits: ['update-workspace', 'open-questionnaire'],
-  setup(props, { emit }) {
-    const localWorkspace = ref(cloneWorkspace(props.workspace))
+  setup() {
+    const store = useWorkspaceStore()
+    const projects = computed(() => store.workspace.projects || [])
     const projectDialogOpen = ref(false)
     const questionnaireDialogOpen = ref(false)
     const newProjectName = ref('')
@@ -144,35 +138,6 @@ export default {
     const targetProjectId = ref('')
     const dragState = ref(null)
     const activeDropTarget = ref('')
-
-    watch(() => props.workspace, (value) => {
-      localWorkspace.value = cloneWorkspace(value)
-    }, { deep: true })
-
-    function cloneWorkspace(source) {
-      return {
-        id: source?.id || 'workspace-local',
-        projects: (source?.projects || []).map((project) => ({
-          id: project.id,
-          name: project.name,
-          expanded: project.expanded ?? true,
-          questionnaireIds: Array.isArray(project.questionnaireIds)
-            ? [...project.questionnaireIds]
-            : []
-        })),
-        questionnaires: (source?.questionnaires || []).map((item) => ({
-          id: item.id,
-          name: item.name,
-          categories: Array.isArray(item.categories)
-            ? JSON.parse(JSON.stringify(item.categories))
-            : []
-        }))
-      }
-    }
-
-    function emitWorkspace() {
-      emit('update-workspace', cloneWorkspace(localWorkspace.value))
-    }
 
     function openProjectDialog() {
       newProjectName.value = ''
@@ -186,22 +151,13 @@ export default {
     function createProject() {
       const name = newProjectName.value.trim()
       if (!name) return
-      localWorkspace.value.projects.push({
-        id: createId('project'),
-        name,
-        expanded: true,
-        questionnaireIds: []
-      })
+      store.addProject(name)
       projectDialogOpen.value = false
-      emitWorkspace()
     }
 
     function deleteProject(projectId) {
       if (!confirm('Delete this project and its questionnaires?')) return
-      localWorkspace.value.projects = localWorkspace.value.projects.filter(
-        (project) => project.id !== projectId
-      )
-      emitWorkspace()
+      store.deleteProject(projectId)
     }
 
     function openQuestionnaireDialog(projectId) {
@@ -217,25 +173,12 @@ export default {
     function createQuestionnaire() {
       const name = newQuestionnaireName.value.trim()
       if (!name) return
-      const project = localWorkspace.value.projects.find(
-        (item) => item.id === targetProjectId.value
-      )
-      if (!project) return
-      const newItem = {
-        id: createId('questionnaire'),
-        name,
-        categories: getCategoriesData()
-      }
-      localWorkspace.value.questionnaires.push(newItem)
-      project.questionnaireIds = [...project.questionnaireIds, newItem.id]
-      project.expanded = true
+      store.addQuestionnaire(name, null, targetProjectId.value)
       questionnaireDialogOpen.value = false
-      emitWorkspace()
-      emit('open-questionnaire', { questionnaireId: newItem.id })
     }
 
     function openQuestionnaire(questionnaireId) {
-      emit('open-questionnaire', { questionnaireId })
+      store.openQuestionnaire(questionnaireId)
     }
 
     function onDragStart(projectId, questionnaireId) {
@@ -261,38 +204,21 @@ export default {
     function onDrop(projectId) {
       if (!dragState.value) return
       if (dragState.value.projectId === projectId) return
-      const fromProject = localWorkspace.value.projects.find(
-        (item) => item.id === dragState.value.projectId
-      )
-      const toProject = localWorkspace.value.projects.find((item) => item.id === projectId)
-      if (!fromProject || !toProject) return
-      const index = fromProject.questionnaireIds.findIndex(
-        (id) => id === dragState.value.questionnaireId
-      )
-      if (index === -1) return
-      const [movedId] = fromProject.questionnaireIds.splice(index, 1)
-      toProject.questionnaireIds.push(movedId)
+      store.moveQuestionnaire(dragState.value.projectId, projectId, dragState.value.questionnaireId)
       activeDropTarget.value = ''
       dragState.value = null
-      emitWorkspace()
     }
 
-    function getProjectQuestionnaires(project) {
-      return project.questionnaireIds
-        .map((id) => localWorkspace.value.questionnaires.find((item) => item.id === id))
-        .filter(Boolean)
+    function projectQuestionnaires(project) {
+      return store.getProjectQuestionnaires(project)
     }
 
     function isDropTarget(projectId) {
       return activeDropTarget.value === projectId
     }
 
-    function createId(prefix) {
-      return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
-    }
-
     return {
-      localWorkspace,
+      projects,
       projectDialogOpen,
       questionnaireDialogOpen,
       newProjectName,
@@ -311,7 +237,7 @@ export default {
       onDragLeave,
       onDrop,
       isDropTarget,
-      getProjectQuestionnaires
+      projectQuestionnaires
     }
   }
 }
