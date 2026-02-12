@@ -19,8 +19,8 @@
 
     <v-navigation-drawer app permanent width="260" class="side-nav">
       <ProjectTreeNav
-        :projects="projects"
-        @update-projects="updateProjects"
+        :workspace="workspace"
+        @update-workspace="updateWorkspace"
         @open-questionnaire="openQuestionnaireTab"
       />
       <v-list density="compact" nav>
@@ -61,18 +61,20 @@
           <v-window-item value="questionnaire">
             <QuestionnaireWorkspace
               ref="questionnaireWorkspaceRef"
-              :categories="categories"
-              @update-categories="updateCategories"
+              :workspace="workspace"
+              :active-questionnaire-id="activeQuestionnaireId"
+              @update-workspace="updateWorkspace"
+              @update-active-questionnaire="setActiveQuestionnaire"
               @open-wizard="wizardOpen = true"
             />
           </v-window-item>
 
          <v-window-item value="summary">
-            <Summary :categories="categories" />
+            <Summary :categories="activeCategories" />
           </v-window-item>
 
           <v-window-item value="config">
-            <QuestionnaireConfig :categories="categories" @update-categories="updateCategories" />
+            <QuestionnaireConfig :categories="activeCategories" @update-categories="updateCategories" />
           </v-window-item>
         </v-window>
       </v-container>
@@ -80,20 +82,21 @@
 
     <WizardDialog
       v-model="wizardOpen"
-      :categories="categories"
+      :categories="activeCategories"
       @update-categories="updateCategories"
     />
   </v-app>
 </template>
 
 <script>
-import { ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
 import Summary from './components/Summary.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import WizardDialog from './components/WizardDialog.vue'
 import { getCategoriesData } from './services/categoriesService'
+import { createQuestionnaire, createWorkspace } from './models/projectModels'
 
 const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1
@@ -103,10 +106,18 @@ export default {
   setup() {
     const questionnaireWorkspaceRef = ref(null)
     const activeTab = ref('questionnaire')
-    const categories = ref(getCategoriesData())
-    const projects = ref([])
+    const workspace = ref(createWorkspace())
+    const activeQuestionnaireId = ref('')
     const lastSaved = ref('')
     const wizardOpen = ref(false)
+
+    const activeQuestionnaire = computed(() => {
+      return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
+    })
+
+    const activeCategories = computed(() => {
+      return activeQuestionnaire.value?.categories || []
+    })
 
     // LocalStorage Funktionen
     function saveToLocalStorage() {
@@ -114,7 +125,8 @@ export default {
         const dataToSave = {
           version: STORAGE_VERSION,
           timestamp: new Date().toISOString(),
-          categories: categories.value
+          workspace: workspace.value,
+          activeQuestionnaireId: activeQuestionnaireId.value
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
         
@@ -133,13 +145,27 @@ export default {
         const saved = localStorage.getItem(STORAGE_KEY)
         if (saved) {
           const data = JSON.parse(saved)
-          if (data.version === STORAGE_VERSION && data.categories) {
-            categories.value = data.categories
+          if (data.version === STORAGE_VERSION && data.workspace) {
+            workspace.value = data.workspace
+            activeQuestionnaireId.value = data.activeQuestionnaireId || data.workspace.questionnaires?.[0]?.id || ''
             
             // Update last saved indicator with loaded timestamp
             const savedDate = new Date(data.timestamp)
             lastSaved.value = savedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
             
+            console.log('Data loaded from localStorage (saved:', data.timestamp, ')')
+            return true
+          }
+
+          if (data.version === STORAGE_VERSION && data.categories) {
+            const initialQuestionnaire = createQuestionnaire('Current questionnaire', data.categories)
+            workspace.value = createWorkspace([], [initialQuestionnaire])
+            activeQuestionnaireId.value = initialQuestionnaire.id
+
+            // Update last saved indicator with loaded timestamp
+            const savedDate = new Date(data.timestamp)
+            lastSaved.value = savedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+
             console.log('Data loaded from localStorage (saved:', data.timestamp, ')')
             return true
           }
@@ -153,7 +179,9 @@ export default {
     function clearStorage() {
       if (confirm('Möchten Sie wirklich alle gespeicherten Daten löschen?')) {
         localStorage.removeItem(STORAGE_KEY)
-        categories.value = getCategoriesData()
+        const initialQuestionnaire = createQuestionnaire('Current questionnaire', getCategoriesData())
+        workspace.value = createWorkspace([], [initialQuestionnaire])
+        activeQuestionnaireId.value = initialQuestionnaire.id
         lastSaved.value = ''
         console.log('localStorage cleared')
       }
@@ -161,38 +189,52 @@ export default {
 
     // Beim Start versuchen, gespeicherte Daten zu laden
     onMounted(() => {
-      loadFromLocalStorage()
+      if (!loadFromLocalStorage()) {
+        const initialQuestionnaire = createQuestionnaire('Current questionnaire', getCategoriesData())
+        workspace.value = createWorkspace([], [initialQuestionnaire])
+        activeQuestionnaireId.value = initialQuestionnaire.id
+      }
     })
 
     // Automatisches Speichern bei Änderungen
-    watch(categories, () => {
+    watch(workspace, () => {
       saveToLocalStorage()
     }, { deep: true })
 
     function updateCategories(newCategories) {
-      categories.value = newCategories
+      if (!activeQuestionnaire.value) return
+      activeQuestionnaire.value.categories = newCategories
     }
 
-    function updateProjects(newProjects) {
-      projects.value = newProjects
+    function updateWorkspace(newWorkspace) {
+      workspace.value = newWorkspace
+      if (!workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value)) {
+        activeQuestionnaireId.value = workspace.value.questionnaires[0]?.id || ''
+      }
     }
 
     function openQuestionnaireTab(payload) {
-      if (!payload?.name) return
-      questionnaireWorkspaceRef.value?.openQuestionnaireTab(payload.name)
+      if (!payload?.questionnaireId) return
+      questionnaireWorkspaceRef.value?.openQuestionnaireTab(payload.questionnaireId)
       activeTab.value = 'questionnaire'
+    }
+
+    function setActiveQuestionnaire(questionnaireId) {
+      activeQuestionnaireId.value = questionnaireId
     }
 
     return { 
       activeTab, 
       questionnaireWorkspaceRef,
-      categories,
-      projects,
+      workspace,
+      activeQuestionnaireId,
+      activeCategories,
       lastSaved,
       wizardOpen,
       updateCategories, 
-      updateProjects,
+      updateWorkspace,
       openQuestionnaireTab,
+      setActiveQuestionnaire,
       clearStorage
     }
   }

@@ -29,7 +29,7 @@
 
     <v-tabs v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
       <v-tab
-        v-for="tab in tabs"
+        v-for="tab in openTabs"
         :key="tab.id"
         :value="tab.id"
         class="workspace-tab"
@@ -41,13 +41,14 @@
 
     <v-window v-model="activeTab">
       <v-window-item
-        v-for="tab in tabs"
+        v-for="tab in openTabs"
         :key="tab.id"
         :value="tab.id"
       >
         <Questionnaire
           :categories="tab.categories"
-          @update-categories="updateTabCategories(tab.id, $event)"
+          @update-categories="updateQuestionnaire(tab.id, $event)"
+          @open-wizard="$emit('open-wizard')"
         />
       </v-window-item>
     </v-window>
@@ -55,76 +56,106 @@
 </template>
 
 <script>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Questionnaire from './Questionnaire.vue'
 import { getCategoriesData } from '../services/categoriesService'
+import { createQuestionnaire } from '../models/projectModels'
 import sampleData from '../../data/sample_export.json'
 
 export default {
   components: { Questionnaire },
   props: {
-    categories: {
-      type: Array,
+    workspace: {
+      type: Object,
       required: true
+    },
+    activeQuestionnaireId: {
+      type: String,
+      default: ''
     }
   },
-  emits: ['update-categories'],
+  emits: ['update-workspace', 'update-active-questionnaire', 'open-wizard'],
   setup(props, { emit, expose }) {
     const fileInput = ref(null)
-    const tabs = ref([
-      {
-        id: 'current',
-        label: 'Current questionnaire',
-        categories: JSON.parse(JSON.stringify(props.categories))
-      }
-    ])
-    const activeTab = ref('current')
+    const localWorkspace = ref(cloneWorkspace(props.workspace))
+    const activeTab = ref(props.activeQuestionnaireId || localWorkspace.value.questionnaires[0]?.id || '')
+    const openTabIds = ref(activeTab.value ? [activeTab.value] : [])
 
-    watch(() => props.categories, (newCategories) => {
-      const currentTab = tabs.value.find((tab) => tab.id === 'current')
-      if (currentTab) {
-        currentTab.categories = JSON.parse(JSON.stringify(newCategories))
-      }
+    watch(() => props.workspace, (value) => {
+      localWorkspace.value = cloneWorkspace(value)
+      syncOpenTabs()
     }, { deep: true })
 
-    function addQuestionnaire() {
-      addTabWithCategories(getCategoriesData(), 'New questionnaire')
-    }
+    watch(() => props.activeQuestionnaireId, (value) => {
+      if (!value) return
+      openTab(value)
+    })
 
-    function openQuestionnaireTab(name) {
-      addTabWithCategories(getCategoriesData(), name || 'New questionnaire')
-    }
+    watch(activeTab, (value) => {
+      if (!value) return
+      emit('update-active-questionnaire', value)
+    })
 
-    function addTabWithCategories(categoriesData, fallbackLabel) {
-      const id = `questionnaire-${Math.random().toString(36).slice(2, 10)}`
-      const label = getTabLabel(categoriesData, fallbackLabel)
-      tabs.value.push({
-        id,
-        label,
-        categories: JSON.parse(JSON.stringify(categoriesData))
-      })
-      activeTab.value = id
-    }
+    const openTabs = computed(() => {
+      return openTabIds.value
+        .map((id) => getQuestionnaireById(id))
+        .filter(Boolean)
+        .map((questionnaire) => ({
+          id: questionnaire.id,
+          label: getTabLabel(questionnaire),
+          categories: questionnaire.categories
+        }))
+    })
 
-    function updateTabCategories(tabId, newCategories) {
-      const tab = tabs.value.find((item) => item.id === tabId)
-      if (!tab) return
-      tab.categories = newCategories
-      if (tabId === 'current') {
-        emit('update-categories', newCategories)
+    function cloneWorkspace(source) {
+      return {
+        id: source?.id || 'workspace-local',
+        projects: (source?.projects || []).map((project) => ({
+          id: project.id,
+          name: project.name,
+          expanded: project.expanded ?? true,
+          questionnaireIds: Array.isArray(project.questionnaireIds)
+            ? [...project.questionnaireIds]
+            : []
+        })),
+        questionnaires: (source?.questionnaires || []).map((item) => ({
+          id: item.id,
+          name: item.name,
+          categories: Array.isArray(item.categories)
+            ? JSON.parse(JSON.stringify(item.categories))
+            : []
+        }))
       }
+    }
+
+    function addQuestionnaire() {
+      const questionnaire = createQuestionnaire('New questionnaire', getCategoriesData())
+      localWorkspace.value.questionnaires.push(questionnaire)
+      emitWorkspace()
+      openTab(questionnaire.id)
+    }
+
+    function openQuestionnaireTab(questionnaireId) {
+      openTab(questionnaireId)
+    }
+
+    function updateQuestionnaire(questionnaireId, newCategories) {
+      const questionnaire = getQuestionnaireById(questionnaireId)
+      if (!questionnaire) return
+      questionnaire.categories = newCategories
+      emitWorkspace()
     }
 
     function saveActiveQuestionnaire() {
-      const tab = tabs.value.find((item) => item.id === activeTab.value)
-      if (!tab) return
-      const exportData = { categories: tab.categories }
+      const questionnaire = getQuestionnaireById(activeTab.value)
+      if (!questionnaire) return
+      const exportData = { categories: questionnaire.categories }
       const data = JSON.stringify(exportData, null, 2)
       const blob = new Blob([data], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${sanitizeFilename(tab.label || 'questionnaire')}.json`
+      a.download = `${sanitizeFilename(questionnaire.name || 'questionnaire')}.json`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -146,7 +177,10 @@ export default {
           if (!categoriesData) {
             throw new Error('Invalid format: Expected categories array or object with categories property')
           }
-          addTabWithCategories(categoriesData, 'Loaded questionnaire')
+          const questionnaire = createQuestionnaire('Loaded questionnaire', categoriesData)
+          localWorkspace.value.questionnaires.push(questionnaire)
+          emitWorkspace()
+          openTab(questionnaire.id)
         } catch (err) {
           alert('Error reading JSON file: ' + err.message)
         }
@@ -156,18 +190,48 @@ export default {
     }
 
     function loadSample() {
-      addTabWithCategories(sampleData.categories, 'Sample')
+      const questionnaire = createQuestionnaire('Sample', sampleData.categories)
+      localWorkspace.value.questionnaires.push(questionnaire)
+      emitWorkspace()
+      openTab(questionnaire.id)
     }
 
-    function getTabLabel(categoriesData, fallbackLabel) {
-      const productName = getProjectName(categoriesData)
-      return productName || fallbackLabel || 'New questionnaire'
+    function getTabLabel(questionnaire) {
+      const productName = getProjectName(questionnaire.categories)
+      return productName || questionnaire.name || 'New questionnaire'
     }
 
     function getProjectName(categoriesData) {
       if (!categoriesData || !categoriesData.length) return ''
       const metaCategory = categoriesData.find((category) => category.isMetadata)
       return metaCategory?.metadata?.productName || ''
+    }
+
+    function getQuestionnaireById(questionnaireId) {
+      return localWorkspace.value.questionnaires.find((item) => item.id === questionnaireId)
+    }
+
+    function openTab(questionnaireId) {
+      if (!questionnaireId || !getQuestionnaireById(questionnaireId)) return
+      if (!openTabIds.value.includes(questionnaireId)) {
+        openTabIds.value.push(questionnaireId)
+      }
+      activeTab.value = questionnaireId
+      emit('update-active-questionnaire', questionnaireId)
+    }
+
+    function syncOpenTabs() {
+      openTabIds.value = openTabIds.value.filter((id) => getQuestionnaireById(id))
+      if (activeTab.value && !getQuestionnaireById(activeTab.value)) {
+        activeTab.value = openTabIds.value[0] || localWorkspace.value.questionnaires[0]?.id || ''
+      }
+      if (activeTab.value) {
+        emit('update-active-questionnaire', activeTab.value)
+      }
+    }
+
+    function emitWorkspace() {
+      emit('update-workspace', cloneWorkspace(localWorkspace.value))
     }
 
     function sanitizeFilename(value) {
@@ -182,7 +246,7 @@ export default {
     expose({ saveActiveQuestionnaire, openQuestionnaireTab })
 
     return {
-      tabs,
+      openTabs,
       activeTab,
       addQuestionnaire,
       openQuestionnaireTab,
@@ -190,7 +254,7 @@ export default {
       triggerLoad,
       handleFileUpload,
       loadSample,
-      updateTabCategories
+      updateQuestionnaire
     }
   }
 }
