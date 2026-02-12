@@ -15,6 +15,12 @@
             </v-list-item-content>
           </v-list-item>
         </v-list>
+        <div class="category-actions">
+          <v-btn size="small" variant="tonal" @click="$emit('open-wizard')">
+            <v-icon size="16" class="mr-2">mdi-magic-staff</v-icon>
+            Wizard
+          </v-btn>
+        </div>
       </v-col>
 
       <v-col cols="12" md="9">
@@ -176,7 +182,7 @@ export default {
       required: true
     }
   },
-  emits: ['update-categories'],
+  emits: ['update-categories', 'open-wizard'],
   setup (props, { emit }) {
     const activeCategory = ref(props.categories[0].id)
 
@@ -434,5 +440,9 @@ export default {
 .example-item {
   cursor: help;
   text-decoration: underline dotted;
+}
+
+.category-actions {
+  margin-top: 12px;
 }
 </style>

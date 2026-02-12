@@ -47,14 +47,6 @@
             <v-icon>mdi-cog</v-icon>
           </template>
         </v-list-item>
-        <v-list-item
-          title="Wizard"
-          @click="wizardOpen = true"
-        >
-          <template #prepend>
-            <v-icon>mdi-wand</v-icon>
-          </template>
-        </v-list-item>
       </v-list>
     </v-navigation-drawer>
 
@@ -65,6 +57,7 @@
             <QuestionnaireWorkspace
               :categories="categories"
               @update-categories="updateCategories"
+              @open-wizard="wizardOpen = true"
             />
           </v-window-item>
 
