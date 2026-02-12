@@ -91,6 +91,10 @@ export default {
       addTabWithCategories(getCategoriesData(), 'New questionnaire')
     }
 
+    function openQuestionnaireTab(name) {
+      addTabWithCategories(getCategoriesData(), name || 'New questionnaire')
+    }
+
     function addTabWithCategories(categoriesData, fallbackLabel) {
       const id = `questionnaire-${Math.random().toString(36).slice(2, 10)}`
       const label = getTabLabel(categoriesData, fallbackLabel)
@@ -175,12 +179,13 @@ export default {
         .toLowerCase()
     }
 
-    expose({ saveActiveQuestionnaire })
+    expose({ saveActiveQuestionnaire, openQuestionnaireTab })
 
     return {
       tabs,
       activeTab,
       addQuestionnaire,
+      openQuestionnaireTab,
       saveActiveQuestionnaire,
       triggerLoad,
       handleFileUpload,

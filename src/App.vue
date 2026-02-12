@@ -18,6 +18,11 @@
     </v-app-bar>
 
     <v-navigation-drawer app permanent width="260" class="side-nav">
+      <ProjectTreeNav
+        :projects="projects"
+        @update-projects="updateProjects"
+        @open-questionnaire="openQuestionnaireTab"
+      />
       <v-list density="compact" nav>
         <v-list-subheader class="nav-header">Workspace</v-list-subheader>
         <v-list-item
@@ -55,6 +60,7 @@
         <v-window v-model="activeTab">
           <v-window-item value="questionnaire">
             <QuestionnaireWorkspace
+              ref="questionnaireWorkspaceRef"
               :categories="categories"
               @update-categories="updateCategories"
               @open-wizard="wizardOpen = true"
@@ -83,6 +89,7 @@
 <script>
 import { ref, watch, onMounted } from 'vue'
 import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
+import ProjectTreeNav from './components/ProjectTreeNav.vue'
 import Summary from './components/Summary.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import WizardDialog from './components/WizardDialog.vue'
@@ -92,10 +99,12 @@ const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1
 
 export default {
-  components: { QuestionnaireWorkspace, Summary, QuestionnaireConfig, WizardDialog },
+  components: { QuestionnaireWorkspace, Summary, QuestionnaireConfig, WizardDialog, ProjectTreeNav },
   setup() {
+    const questionnaireWorkspaceRef = ref(null)
     const activeTab = ref('questionnaire')
     const categories = ref(getCategoriesData())
+    const projects = ref([])
     const lastSaved = ref('')
     const wizardOpen = ref(false)
 
@@ -164,12 +173,26 @@ export default {
       categories.value = newCategories
     }
 
+    function updateProjects(newProjects) {
+      projects.value = newProjects
+    }
+
+    function openQuestionnaireTab(payload) {
+      if (!payload?.name) return
+      questionnaireWorkspaceRef.value?.openQuestionnaireTab(payload.name)
+      activeTab.value = 'questionnaire'
+    }
+
     return { 
       activeTab, 
+      questionnaireWorkspaceRef,
       categories,
+      projects,
       lastSaved,
       wizardOpen,
       updateCategories, 
+      updateProjects,
+      openQuestionnaireTab,
       clearStorage
     }
   }
