@@ -11,37 +11,10 @@
         {{ lastSaved }}
       </v-chip>
       
-      <v-btn @click="saveJSON" class="mr-2">
-        <v-icon>mdi-content-save</v-icon>
-        <span class="ml-2">Save JSON</span>
-        <v-tooltip activator="parent" location="bottom">Save entries as JSON</v-tooltip>
-      </v-btn>
-
-      <v-btn @click="importJSON" class="mr-2">
-        <v-icon>mdi-folder-open</v-icon>
-        <span class="ml-2">Load JSON</span>
-        <v-tooltip activator="parent" location="bottom">Import JSON file</v-tooltip>
-      </v-btn>
-
-      <v-btn @click="loadSample" class="mr-2">
-        <v-icon>mdi-file-document-outline</v-icon>
-        <span class="ml-2">Load Sample</span>
-        <v-tooltip activator="parent" location="bottom">Load sample data</v-tooltip>
-      </v-btn>
-
       <v-btn @click="clearStorage" class="mr-2" variant="text" size="small">
         <v-icon>mdi-delete</v-icon>
         <v-tooltip activator="parent" location="bottom">Clear saved data</v-tooltip>
       </v-btn>
-
-      <!-- Hidden file input for import -->
-      <input
-        ref="fileInput"
-        type="file"
-        accept=".json"
-        style="display: none"
-        @change="handleFileUpload"
-      />
     </v-app-bar>
 
     <v-navigation-drawer app permanent width="260" class="side-nav">
@@ -89,7 +62,10 @@
       <v-container fluid class="pa-4 main-container">
         <v-window v-model="activeTab">
           <v-window-item value="questionnaire">
-            <Questionnaire ref="questionnaireRef" :categories="categories" @update-categories="updateCategories" />
+            <QuestionnaireWorkspace
+              :categories="categories"
+              @update-categories="updateCategories"
+            />
           </v-window-item>
 
          <v-window-item value="summary">
@@ -113,21 +89,18 @@
 
 <script>
 import { ref, watch, onMounted } from 'vue'
-import Questionnaire from './components/Questionnaire.vue'
+import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
 import Summary from './components/Summary.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import WizardDialog from './components/WizardDialog.vue'
 import { getCategoriesData } from './services/categoriesService'
-import sampleData from '../data/sample_export.json'
 
 const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1
 
 export default {
-  components: { Questionnaire, Summary, QuestionnaireConfig, WizardDialog },
+  components: { QuestionnaireWorkspace, Summary, QuestionnaireConfig, WizardDialog },
   setup() {
-    const questionnaireRef = ref(null)
-    const fileInput = ref(null)
     const activeTab = ref('questionnaire')
     const categories = ref(getCategoriesData())
     const lastSaved = ref('')
@@ -198,62 +171,13 @@ export default {
       categories.value = newCategories
     }
 
-    function saveJSON() {
-      if (questionnaireRef.value) {
-        questionnaireRef.value.exportJSON()
-      }
-    }
-
-    function importJSON() {
-      if (fileInput.value) {
-        fileInput.value.click()
-      }
-    }
-
-    function handleFileUpload(event) {
-      const file = event.target.files?.[0]
-      if (file && questionnaireRef.value) {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          try {
-            const data = JSON.parse(e.target.result)
-            // Support both formats: array or object with categories property
-            const categoriesData = Array.isArray(data) ? data : data.categories
-            if (!categoriesData) {
-              throw new Error('Invalid format: Expected categories array or object with categories property')
-            }
-            questionnaireRef.value.importJSON(categoriesData)
-            categories.value = categoriesData
-          } catch (err) {
-            alert('Error reading JSON file: ' + err.message)
-          }
-        }
-        reader.readAsText(file)
-      }
-      // Reset file input
-      event.target.value = ''
-    }
-
-    function loadSample() {
-      if (questionnaireRef.value) {
-        questionnaireRef.value.importJSON(sampleData.categories)
-        categories.value = sampleData.categories
-      }
-    }
-
     return { 
-      questionnaireRef, 
       activeTab, 
       categories,
       lastSaved,
       wizardOpen,
       updateCategories, 
-      saveJSON, 
-      importJSON, 
-      handleFileUpload, 
-      loadSample, 
-      clearStorage,
-      fileInput 
+      clearStorage
     }
   }
 }
