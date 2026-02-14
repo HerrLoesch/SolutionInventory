@@ -1,12 +1,39 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { getCategoriesData } from '../services/categoriesService'
-import { createProject, createQuestionnaire, createWorkspace } from '../models/projectModels'
 
 const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1
 
 export const useWorkspaceStore = defineStore('workspace', () => {
+  function createId(prefix) {
+    return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
+  }
+
+  function createWorkspace(projects = [], questionnaires = []) {
+    return {
+      id: createId('workspace'),
+      projects: Array.isArray(projects) ? projects : [],
+      questionnaires: Array.isArray(questionnaires) ? questionnaires : []
+    }
+  }
+
+  function createProject(name, questionnaireIds = []) {
+    return {
+      id: createId('project'),
+      name: name || 'New project',
+      questionnaireIds: Array.isArray(questionnaireIds) ? questionnaireIds : []
+    }
+  }
+
+  function createQuestionnaire(name, categories = []) {
+    return {
+      id: createId('questionnaire'),
+      name: name || 'New questionnaire',
+      categories: Array.isArray(categories) ? categories : []
+    }
+  }
+
   const workspace = ref(createWorkspace())
   const activeQuestionnaireId = ref('')
   const openQuestionnaireIds = ref([])
