@@ -33,7 +33,7 @@
         </v-list-item>
         <v-list-item
           title="Configuration"
-          :active="activeTab === 'config'"
+          :active="configOpen"
           @click="openConfig"
         >
           <template #prepend>
@@ -49,10 +49,6 @@
           <v-window-item value="questionnaire">
             <QuestionnaireWorkspace @open-wizard="wizardOpen = true" />
           </v-window-item>
-
-          <v-window-item value="config">
-            <QuestionnaireConfig :categories="activeCategories" @update-categories="updateCategories" />
-          </v-window-item>
         </v-window>
       </v-container>
     </v-main>
@@ -62,6 +58,24 @@
       :categories="activeCategories"
       @update-categories="updateCategories"
     />
+
+    <v-dialog v-model="configOpen" max-width="1200">
+      <v-card>
+        <v-card-title class="d-flex justify-space-between align-center">
+          <span>Configuration</span>
+          <v-btn icon variant="text" @click="configOpen = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <QuestionnaireConfig
+            :categories="activeCategories"
+            @update-categories="updateCategories"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -78,6 +92,7 @@ export default {
   components: { QuestionnaireWorkspace, QuestionnaireConfig, WizardDialog, ProjectTreeNav },
   setup() {
     const activeTab = ref('questionnaire')
+    const configOpen = ref(false)
     const wizardOpen = ref(false)
     const store = useWorkspaceStore()
     const { activeCategories, lastSaved, activeQuestionnaireId, workspace } = storeToRefs(store)
@@ -101,7 +116,7 @@ export default {
           store.openQuestionnaire(firstId)
         }
       }
-      activeTab.value = 'config'
+      configOpen.value = true
     }
 
     function updateCategories(newCategories) {
@@ -112,6 +127,7 @@ export default {
       activeTab, 
       activeCategories,
       lastSaved,
+      configOpen,
       wizardOpen,
       openConfig,
       updateCategories, 

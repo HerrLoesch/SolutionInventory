@@ -147,6 +147,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     workspace.value.projects = workspace.value.projects.filter((project) => project.id !== projectId)
   }
 
+  function renameProject(projectId, name) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    const nextName = String(name || '').trim()
+    if (!nextName) return
+    project.name = nextName
+  }
+
   function addQuestionnaire(name, categories, projectId) {
     const questionnaire = createQuestionnaire(
       name || 'New questionnaire',
@@ -179,6 +187,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!remainingIds.has(activeQuestionnaireId.value)) {
       activeQuestionnaireId.value = openQuestionnaireIds.value[0] || ''
     }
+  }
+
+  function renameQuestionnaire(questionnaireId, name) {
+    const questionnaire = getQuestionnaireById(questionnaireId)
+    if (!questionnaire) return
+    const nextName = String(name || '').trim()
+    if (!nextName) return
+    questionnaire.name = nextName
   }
 
   function moveQuestionnaire(fromProjectId, toProjectId, questionnaireId) {
@@ -368,7 +384,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function getTabLabel(questionnaire) {
     const productName = getProjectName(questionnaire.categories)
-    return productName || questionnaire.name || 'New questionnaire'
+    return questionnaire.name || productName || 'New questionnaire'
   }
 
   function getProjectName(categoriesData) {
@@ -422,11 +438,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     applicabilityOptions,
     addProject,
     deleteProject,
+    renameProject,
     addQuestionnaire,
     moveQuestionnaire,
     getQuestionnaireById,
     getProjectQuestionnaires,
     deleteQuestionnaire,
+    renameQuestionnaire,
     saveActiveQuestionnaire,
     addQuestionnaireFromCategories
   }

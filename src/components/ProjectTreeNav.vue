@@ -34,23 +34,32 @@
                     icon
                     size="x-small"
                     variant="text"
+                    class="item-menu"
                     v-bind="menuProps"
                   >
                     <v-icon size="16">mdi-dots-vertical</v-icon>
                   </v-btn>
                 </template>
                 <v-list density="compact">
-                  <v-list-item @click="openQuestionnaireDialog(project.id)">
+                                    <v-list-item @click="openQuestionnaireDialog(project.id)">
                     <template #prepend>
                       <v-icon size="16">mdi-file-plus</v-icon>
                     </template>
-                    <v-list-item-title>New questionnaire</v-list-item-title>
+                    <v-list-item-title>Add</v-list-item-title>
                   </v-list-item>
+                  <v-divider></v-divider>
+                  <v-list-item @click="openRenameProjectDialog(project)">
+                    <template #prepend>
+                      <v-icon size="16">mdi-pencil</v-icon>
+                    </template>
+                    <v-list-item-title>Rename</v-list-item-title>
+                  </v-list-item>
+
                   <v-list-item @click="deleteProject(project.id)">
                     <template #prepend>
                       <v-icon size="16" color="error">mdi-delete</v-icon>
                     </template>
-                    <v-list-item-title>Delete project</v-list-item-title>
+                    <v-list-item-title>Delete</v-list-item-title>
                   </v-list-item>
                 </v-list>
               </v-menu>
@@ -71,6 +80,36 @@
             <v-icon size="16">mdi-file-document-outline</v-icon>
           </template>
           <v-list-item-title>{{ questionnaire.name }}</v-list-item-title>
+          <template #append>
+            <v-menu location="bottom end">
+              <template #activator="{ props: menuProps }">
+                <v-btn
+                  icon
+                  size="x-small"
+                  variant="text"
+                  class="item-menu"
+                  v-bind="menuProps"
+                  @click.stop
+                >
+                  <v-icon size="16">mdi-dots-vertical</v-icon>
+                </v-btn>
+              </template>
+              <v-list density="compact">
+                <v-list-item @click="openRenameQuestionnaireDialog(questionnaire)">
+                  <template #prepend>
+                    <v-icon size="16">mdi-pencil</v-icon>
+                  </template>
+                  <v-list-item-title>Rename</v-list-item-title>
+                </v-list-item>
+                <v-list-item @click="deleteQuestionnaire(questionnaire)">
+                  <template #prepend>
+                    <v-icon size="16" color="error">mdi-delete</v-icon>
+                  </template>
+                  <v-list-item-title>Delete</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </template>
         </v-list-item>
 
         <v-list-item v-if="!project.questionnaireIds.length" density="compact">
@@ -120,6 +159,46 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="renameProjectDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Rename project</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="renameProjectName"
+            label="Project name"
+            density="compact"
+            autofocus
+            @keyup.enter="confirmRenameProject"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeRenameProjectDialog">Cancel</v-btn>
+          <v-btn color="primary" @click="confirmRenameProject">Rename</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="renameQuestionnaireDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Rename questionnaire</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="renameQuestionnaireName"
+            label="Questionnaire name"
+            density="compact"
+            autofocus
+            @keyup.enter="confirmRenameQuestionnaire"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeRenameQuestionnaireDialog">Cancel</v-btn>
+          <v-btn color="primary" @click="confirmRenameQuestionnaire">Rename</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -133,8 +212,14 @@ export default {
     const projects = computed(() => store.workspace.projects || [])
     const projectDialogOpen = ref(false)
     const questionnaireDialogOpen = ref(false)
+    const renameProjectDialogOpen = ref(false)
+    const renameQuestionnaireDialogOpen = ref(false)
     const newProjectName = ref('')
     const newQuestionnaireName = ref('')
+    const renameProjectId = ref('')
+    const renameProjectName = ref('')
+    const renameQuestionnaireId = ref('')
+    const renameQuestionnaireName = ref('')
     const targetProjectId = ref('')
     const dragState = ref(null)
     const activeDropTarget = ref('')
@@ -158,6 +243,54 @@ export default {
     function deleteProject(projectId) {
       if (!confirm('Delete this project and its questionnaires?')) return
       store.deleteProject(projectId)
+    }
+
+    function openRenameProjectDialog(project) {
+      renameProjectId.value = project.id
+      renameProjectName.value = project.name
+      renameProjectDialogOpen.value = true
+    }
+
+    function closeRenameProjectDialog() {
+      renameProjectDialogOpen.value = false
+      renameProjectId.value = ''
+      renameProjectName.value = ''
+    }
+
+    function confirmRenameProject() {
+      const name = renameProjectName.value.trim()
+      if (!renameProjectId.value || !name) return
+      store.renameProject(renameProjectId.value, name)
+      closeRenameProjectDialog()
+    }
+
+    function openRenameQuestionnaireDialog(questionnaire) {
+      renameQuestionnaireId.value = questionnaire.id
+      renameQuestionnaireName.value = questionnaire.name
+      renameQuestionnaireDialogOpen.value = true
+    }
+
+    function closeRenameQuestionnaireDialog() {
+      renameQuestionnaireDialogOpen.value = false
+      renameQuestionnaireId.value = ''
+      renameQuestionnaireName.value = ''
+    }
+
+    function confirmRenameQuestionnaire() {
+      const name = renameQuestionnaireName.value.trim()
+      const id = renameQuestionnaireId.value
+      if (!id || !name) {
+        closeRenameQuestionnaireDialog()
+        return
+      }
+      store.renameQuestionnaire(id, name)
+      closeRenameQuestionnaireDialog()
+    }
+
+    function deleteQuestionnaire(questionnaire) {
+      const name = questionnaire.name || 'questionnaire'
+      if (!confirm(`Delete questionnaire "${name}"?`)) return
+      store.deleteQuestionnaire(questionnaire.id)
     }
 
     function openQuestionnaireDialog(projectId) {
@@ -221,12 +354,23 @@ export default {
       projects,
       projectDialogOpen,
       questionnaireDialogOpen,
+      renameProjectDialogOpen,
+      renameQuestionnaireDialogOpen,
       newProjectName,
       newQuestionnaireName,
+      renameProjectName,
+      renameQuestionnaireName,
       openProjectDialog,
       closeProjectDialog,
       createProject,
       deleteProject,
+      openRenameProjectDialog,
+      closeRenameProjectDialog,
+      confirmRenameProject,
+      openRenameQuestionnaireDialog,
+      closeRenameQuestionnaireDialog,
+      confirmRenameQuestionnaire,
+      deleteQuestionnaire,
       openQuestionnaireDialog,
       closeQuestionnaireDialog,
       createQuestionnaire,
@@ -274,6 +418,16 @@ export default {
 
 .questionnaire-item :deep(.v-list-item__content) {
   font-size: 12px;
+}
+
+.item-menu {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.project-group :deep(.v-list-item:hover .item-menu) {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .drop-target {
