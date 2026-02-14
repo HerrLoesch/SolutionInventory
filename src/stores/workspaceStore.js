@@ -117,7 +117,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function setActiveQuestionnaire(questionnaireId) {
-    openQuestionnaire(questionnaireId)
+    if (!openQuestionnaireIds.value.includes(questionnaireId)) return
+    activeQuestionnaireId.value = questionnaireId
   }
 
   function openQuestionnaire(questionnaireId) {
@@ -126,6 +127,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds.value.push(questionnaireId)
     }
     activeQuestionnaireId.value = questionnaireId
+  }
+
+  function closeQuestionnaire(questionnaireId) {
+    if (!questionnaireId) return
+    openQuestionnaireIds.value = openQuestionnaireIds.value.filter((id) => id !== questionnaireId)
+    if (activeQuestionnaireId.value !== questionnaireId) return
+    activeQuestionnaireId.value = openQuestionnaireIds.value[0] || ''
   }
 
   function updateQuestionnaireCategories(questionnaireId, categories) {
@@ -394,6 +402,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     clearStorage,
     setActiveQuestionnaire,
     openQuestionnaire,
+    closeQuestionnaire,
     updateQuestionnaireCategories,
     addAnswer,
     deleteAnswer,

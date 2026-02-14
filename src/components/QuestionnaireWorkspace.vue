@@ -33,9 +33,19 @@
         :key="tab.id"
         :value="tab.id"
         class="workspace-tab"
+        :class="{ 'tab-active': tab.id === activeTab }"
       >
         <v-icon size="16" class="mr-2">mdi-file-document-outline</v-icon>
         <span class="tab-title">{{ tab.label }}</span>
+        <v-btn
+          icon
+          size="x-small"
+          variant="text"
+          class="tab-close"
+          @click.stop="closeTab(tab.id)"
+        >
+          <v-icon size="14">mdi-close</v-icon>
+        </v-btn>
       </v-tab>
     </v-tabs>
 
@@ -119,6 +129,10 @@ export default {
     function openWizard() {
       emit('open-wizard')
     }
+
+    function closeTab(questionnaireId) {
+      store.closeQuestionnaire(questionnaireId)
+    }
     return {
       openTabs,
       activeTab,
@@ -128,7 +142,8 @@ export default {
       handleFileUpload,
       loadSample,
       updateQuestionnaire,
-      openWizard
+      openWizard,
+      closeTab
     }
   }
 }
@@ -157,6 +172,9 @@ export default {
   color: #263238;
   min-height: 36px;
   padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tab-title {
@@ -164,5 +182,17 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tab-close {
+  opacity: 0;
+  pointer-events: none;
+  margin-left: 4px;
+}
+
+.workspace-tab:hover .tab-close,
+.workspace-tab.tab-active .tab-close {
+  opacity: 1;
+  pointer-events: auto;
 }
 </style>
