@@ -75,6 +75,7 @@ export default {
       set: (value) => store.setActiveQuestionnaire(value)
     })
 
+
     function addQuestionnaire() {
       store.addQuestionnaire('New questionnaire')
     }
@@ -118,7 +119,6 @@ export default {
     function openWizard() {
       emit('open-wizard')
     }
-
     return {
       openTabs,
       activeTab,

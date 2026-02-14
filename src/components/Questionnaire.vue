@@ -1,4 +1,4 @@
-  <template>
+<template>
   <div>
     <v-row>
       <v-col cols="12" md="3">
@@ -6,7 +6,7 @@
           <v-list-item
             v-for="cat in categories"
             :key="cat.id"
-            :active="cat.id === activeCategory"
+            :active="cat.id === currentCategory.id"
             @click="selectCategory(cat.id)"
           >
             <v-list-item-content>
@@ -73,12 +73,12 @@
 
             <!-- Regular entries for other categories -->
             <div v-else>
-            <div v-for="entry in currentCategory.entries" :key="entry.id" class="mb-6">
-              <v-sheet class="pa-3" elevation="1">
-                <div class="d-flex justify-space-between align-start">
-                  <div class="flex-grow-1">
-                    <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
-                    <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
+              <div v-for="entry in currentCategory.entries" :key="entry.id" class="mb-6">
+                <v-sheet class="pa-3" elevation="1">
+                  <div class="d-flex justify-space-between align-start">
+                    <div class="flex-grow-1">
+                      <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
+                      <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
                       <div v-if="getExampleItems(entry.examples).length" class="text--secondary text-sm mt-1">
                         <strong>Examples: </strong>
                         <span v-for="(example, eIdx) in getExampleItems(entry.examples)" :key="`${entry.id}-ex-${eIdx}`">
@@ -91,70 +91,70 @@
                           <span v-if="eIdx < getExampleItems(entry.examples).length - 1">, </span>
                         </span>
                       </div>
+                    </div>
+                    <div class="ml-4" style="min-width: 190px;">
+                      <v-select
+                        v-model="entry.applicability"
+                        :items="applicabilityOptions"
+                        density="compact"
+                        variant="plain"
+                        hide-details
+                        @update:model-value="setApplicability(entry, $event)"
+                      />
+                    </div>
                   </div>
-                  <div class="ml-4" style="min-width: 190px;">
-                    <v-select
-                      v-model="entry.applicability"
-                      :items="applicabilityOptions"
-                      density="compact"
-                      variant="plain"
-                      hide-details
-                      @update:model-value="setApplicability(entry, $event)"
-                    />
-                  </div>
-                </div>
 
-                <!-- Antworten pro Entry -->
-                <div v-if="isEntryApplicable(entry)">
-                <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
-                  <v-row dense>
-                    <v-col cols="12" md="4">
-                      <v-text-field label="Solution" v-model="answer.technology" clearable />
-                    </v-col>
+                  <!-- Antworten pro Entry -->
+                  <div v-if="isEntryApplicable(entry)">
+                    <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
+                      <v-row dense>
+                        <v-col cols="12" md="4">
+                          <v-text-field label="Solution" v-model="answer.technology" clearable />
+                        </v-col>
 
-                    <v-col cols="12" md="2">
-                      <v-tooltip :text="getStatusTooltip(answer.status)" location="top">
-                        <template v-slot:activator="{ props }">
-                          <v-select
-                            label="Status"
-                            :items="statusOptions"
-                            item-title="label"
-                            item-value="label"
-                            v-model="answer.status"
-                            v-bind="props"
-                          />
-                        </template>
-                      </v-tooltip>
-                    </v-col>
+                        <v-col cols="12" md="2">
+                          <v-tooltip :text="getStatusTooltip(answer.status)" location="top">
+                            <template v-slot:activator="{ props }">
+                              <v-select
+                                label="Status"
+                                :items="statusOptions"
+                                item-title="label"
+                                item-value="label"
+                                v-model="answer.status"
+                                v-bind="props"
+                              />
+                            </template>
+                          </v-tooltip>
+                        </v-col>
 
-                    <v-col cols="12" md="5">
-                      <v-textarea label="Comment" v-model="answer.comments" rows="1" auto-grow />
-                    </v-col>
+                        <v-col cols="12" md="5">
+                          <v-textarea label="Comment" v-model="answer.comments" rows="1" auto-grow />
+                        </v-col>
 
-                    <v-col cols="12" md="1" class="d-flex align-center justify-end">
-                      <v-btn
-                        size="small"
-                        color="error"
-                        variant="text"
-                        icon
-                        @click="deleteAnswer(entry.id, aIdx)"
-                        v-if="entry.answers.length > 1"
-                      >
-                        <v-icon>mdi-delete</v-icon>
+                        <v-col cols="12" md="1" class="d-flex align-center justify-end">
+                          <v-btn
+                            size="small"
+                            color="error"
+                            variant="text"
+                            icon
+                            @click="deleteAnswer(entry.id, aIdx)"
+                            v-if="entry.answers.length > 1"
+                          >
+                            <v-icon>mdi-delete</v-icon>
+                          </v-btn>
+                        </v-col>
+                      </v-row>
+                    </div>
+
+                    <!-- Button fuer neue Antwort -->
+                    <div class="mt-3">
+                      <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
+                        + Add Answer
                       </v-btn>
-                    </v-col>
-                  </v-row>
-                </div>
-
-                <!-- Button für neue Antwort -->
-                <div class="mt-3">
-                  <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
-                    + Add Answer
-                  </v-btn>
-                </div>
-                </div>
-              </v-sheet>
-            </div>
+                    </div>
+                  </div>
+                </v-sheet>
+              </div>
             </div>
           </v-card-text>
           <v-card-actions>
@@ -173,7 +173,8 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
   props: {
@@ -182,254 +183,80 @@ export default {
       required: true
     }
   },
-  emits: ['update-categories', 'open-wizard'],
-  setup (props, { emit }) {
-    const activeCategory = ref(props.categories[0].id)
+  emits: ['open-wizard'],
+  setup (props) {
+    const store = useWorkspaceStore()
+    const activeCategoryId = ref(props.categories[0]?.id || '')
 
-    watch(() => props.categories, (newCategories) => {
-      normalizeCategories(newCategories)
-      if (newCategories.length > 0 && !newCategories.find(c => c.id === activeCategory.value)) {
-        activeCategory.value = newCategories[0].id
+    watch(() => props.categories, (value) => {
+      if (!value.length) {
+        activeCategoryId.value = ''
+        return
+      }
+      if (!value.find((category) => category.id === activeCategoryId.value)) {
+        activeCategoryId.value = value[0].id
       }
     })
 
-    const currentCategory = computed(() => props.categories.find(c => c.id === activeCategory.value))
+    const currentCategory = computed(() => {
+      return props.categories.find((category) => category.id === activeCategoryId.value) || {
+        title: '',
+        desc: '',
+        isMetadata: false,
+        entries: []
+      }
+    })
 
-    const statusOptions = [
-      { label: 'Adopt', description: 'We use this and recommend it.' },
-      { label: 'Assess', description: 'We are currently evaluating/testing this.' },
-      { label: 'Hold', description: 'We use this, but do not recommend it for new features.' },
-      { label: 'Retire', description: 'We are actively replacing or removing this.' }
-    ]
+    const hasNext = computed(() => {
+      return props.categories.findIndex((category) => category.id === activeCategoryId.value) < props.categories.length - 1
+    })
 
-    const applicabilityOptions = ['applicable', 'not applicable', 'unknown']
+    const hasPrev = computed(() => {
+      return props.categories.findIndex((category) => category.id === activeCategoryId.value) > 0
+    })
 
     function scrollToTop() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
     function selectCategory(id) {
-      activeCategory.value = id
+      activeCategoryId.value = id
       scrollToTop()
     }
 
-    function getStatusTooltip(status) {
-      const opt = statusOptions.find(s => s.label === status)
-      return opt ? opt.description : ''
-    }
-
     function nextCategory() {
-      const idx = props.categories.findIndex(c => c.id === activeCategory.value)
+      const idx = props.categories.findIndex((category) => category.id === activeCategoryId.value)
       if (idx < props.categories.length - 1) {
-        activeCategory.value = props.categories[idx + 1].id
+        activeCategoryId.value = props.categories[idx + 1].id
         scrollToTop()
       }
     }
 
     function prevCategory() {
-      const idx = props.categories.findIndex(c => c.id === activeCategory.value)
+      const idx = props.categories.findIndex((category) => category.id === activeCategoryId.value)
       if (idx > 0) {
-        activeCategory.value = props.categories[idx - 1].id
+        activeCategoryId.value = props.categories[idx - 1].id
         scrollToTop()
       }
     }
-
-    const hasNext = computed(() => props.categories.findIndex(c => c.id === activeCategory.value) < props.categories.length - 1)
-    const hasPrev = computed(() => props.categories.findIndex(c => c.id === activeCategory.value) > 0)
-
-    function addAnswer(entryId) {
-      const entry = findEntry(entryId)
-      console.log('Adding answer to entry:', entryId, entry)
-      if (entry && isEntryApplicable(entry)) {
-        entry.answers = [...entry.answers, { technology: '', status: '', comments: '' }]
-        emit('update-categories', props.categories)
-      }
-    }
-
-    function deleteAnswer(entryId, answerIdx) {
-      const entry = findEntry(entryId)
-      if (entry && entry.answers.length > 1) {
-        entry.answers = entry.answers.filter((_, idx) => idx !== answerIdx)
-        emit('update-categories', props.categories)
-      }
-    }
-
-    function findEntry(entryId) {
-      console.log('Finding entry with ID:', entryId)
-      console.log('Categories:', props.categories)
-
-      for (const cat of props.categories) {
-        console.log('Checking category:', cat.id)
-        
-        if (!cat.entries) continue // Skip categories without entries
-
-        for (const e of cat.entries) {
-          console.log('Checking entry:', e.id)
-          
-          if (e.id === entryId) return e
-        }
-      }
-      return null
-    }
-
-    function escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-    }
-
-    function renderTextWithLinks(value) {
-      if (!value) return ''
-
-      const tokens = []
-      let working = String(value)
-
-      working = working.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, url) => {
-        const token = `__LINK_${tokens.length}__`
-        tokens.push({ label, url })
-        return token
-      })
-
-      working = working.replace(/https?:\/\/[^\s)]+/g, (url) => {
-        const token = `__LINK_${tokens.length}__`
-        tokens.push({ label: url, url })
-        return token
-      })
-
-      working = escapeHtml(working)
-
-      tokens.forEach((token, idx) => {
-        const placeholder = `__LINK_${idx}__`
-        const anchor = `<a href="${escapeHtml(token.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(token.label)}</a>`
-        working = working.replace(placeholder, anchor)
-      })
-
-      return working
-    }
-
-    function getExampleItems(examples) {
-      if (!examples) return []
-
-      if (Array.isArray(examples)) {
-        return examples
-          .map((example) => {
-            if (typeof example === 'string') {
-              const label = example.trim()
-              return label ? { label, description: '' } : null
-            }
-            if (example && typeof example === 'object') {
-              const label = String(example.label || '').trim()
-              if (!label) return null
-              return { label, description: example.description || '' }
-            }
-            return null
-          })
-          .filter(Boolean)
-      }
-
-      if (typeof examples === 'string') {
-        return examples
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean)
-          .map((label) => ({ label, description: '' }))
-      }
-
-      return []
-    }
-
-    function isEntryApplicable(entry) {
-      return (entry.applicability || 'applicable') === 'applicable'
-    }
-
-    function setApplicability(entry, value) {
-      if (!applicabilityOptions.includes(value)) {
-        entry.applicability = 'applicable'
-        return
-      }
-
-      entry.applicability = value
-
-      if (['does not apply', 'unknown'].includes(value)) {
-        entry.answers = [{ technology: value, status: '', comments: '' }]
-      } else {
-        const filteredAnswers = (entry.answers || []).filter(
-          (answer) => !['does not apply', 'unknown'].includes(answer.technology)
-        )
-        entry.answers = filteredAnswers.length > 0
-          ? filteredAnswers
-          : [{ technology: '', status: '', comments: '' }]
-      }
-
-      emit('update-categories', props.categories)
-    }
-
-    function normalizeCategories(categories) {
-      categories.forEach((category) => {
-        if (!category.entries) return
-        category.entries.forEach((entry) => {
-          if (!entry.applicability) {
-            entry.applicability = 'applicable'
-          }
-          if (['does not apply', 'unknown'].includes(entry.applicability)) {
-            entry.answers = [{ technology: entry.applicability, status: '', comments: '' }]
-            return
-          }
-          if (!entry.answers || entry.answers.length === 0) {
-            entry.answers = [{ technology: '', status: '', comments: '' }]
-          }
-        })
-      })
-    }
-
-    function exportJSON() {
-      const exportData = { categories: props.categories }
-      const data = JSON.stringify(exportData, null, 2)
-      const blob = new Blob([data], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'solution_inventory.json'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    }
-
-    function importJSON(data) {
-      if (Array.isArray(data)) {
-        emit('update-categories', data)
-        activeCategory.value = data[0]?.id || ''
-        scrollToTop()
-      } else {
-        alert('Invalid JSON format: Expected array of categories')
-      }
-    }
-
-    normalizeCategories(props.categories)
 
     return {
-      activeCategory,
+      categories: props.categories,
       currentCategory,
-      selectCategory,
-      nextCategory,
-      prevCategory,
       hasNext,
       hasPrev,
-      statusOptions,
-      applicabilityOptions,
-      getStatusTooltip,
-      renderTextWithLinks,
-      getExampleItems,
-      isEntryApplicable,
-      setApplicability,
-      addAnswer,
-      deleteAnswer,
-      exportJSON,
-      importJSON
+      statusOptions: store.statusOptions,
+      applicabilityOptions: store.applicabilityOptions,
+      getStatusTooltip: store.getStatusTooltip,
+      renderTextWithLinks: store.renderTextWithLinks,
+      getExampleItems: store.getExampleItems,
+      isEntryApplicable: store.isEntryApplicable,
+      setApplicability: store.setApplicability,
+      addAnswer: store.addAnswer,
+      deleteAnswer: store.deleteAnswer,
+      selectCategory,
+      nextCategory,
+      prevCategory
     }
   }
 }
