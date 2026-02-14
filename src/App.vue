@@ -15,6 +15,11 @@
         <v-icon size="small" class="mr-1">mdi-flask-outline</v-icon>
         Sample
       </v-btn>
+
+      <v-btn class="mr-2" variant="text" size="small" icon @click="openConfig">
+        <v-icon size="small">mdi-cog</v-icon>
+        <v-tooltip activator="parent" location="bottom">Configuration</v-tooltip>
+      </v-btn>
       
       <v-btn @click="clearStorage" class="mr-2" variant="text" size="small">
         <v-icon>mdi-delete</v-icon>
@@ -24,28 +29,6 @@
 
     <v-navigation-drawer app permanent width="260" class="side-nav">
       <ProjectTreeNav />
-      <v-divider class="nav-divider" />
-      <v-list density="compact" nav class="nav-footer">
-        <v-list-subheader class="nav-header">Workspace</v-list-subheader>
-        <v-list-item
-          title="Questionnaire"
-          :active="activeTab === 'questionnaire'"
-          @click="activeTab = 'questionnaire'"
-        >
-          <template #prepend>
-            <v-icon>mdi-clipboard-text</v-icon>
-          </template>
-        </v-list-item>
-        <v-list-item
-          title="Configuration"
-          :active="configOpen"
-          @click="openConfig"
-        >
-          <template #prepend>
-            <v-icon>mdi-cog</v-icon>
-          </template>
-        </v-list-item>
-      </v-list>
     </v-navigation-drawer>
 
     <v-main>
