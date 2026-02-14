@@ -77,7 +77,6 @@
         <Questionnaire
           :categories="tab.categories"
           @update-categories="updateQuestionnaire(tab.id, $event)"
-          @open-wizard="openWizard"
         />
       </v-window-item>
     </v-window>
@@ -106,8 +105,7 @@ import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
   components: { Questionnaire },
-  emits: ['open-wizard'],
-  setup(props, { emit }) {
+  setup() {
     const fileInput = ref(null)
     const deleteDialogOpen = ref(false)
     const deleteTargetId = ref('')
@@ -154,9 +152,6 @@ export default {
     }
 
 
-    function openWizard() {
-      emit('open-wizard')
-    }
 
     function openDeleteDialog() {
       const questionnaire = activeQuestionnaire.value
@@ -195,7 +190,6 @@ export default {
       triggerLoad,
       handleFileUpload,
       updateQuestionnaire,
-      openWizard,
       closeTab
     }
   }

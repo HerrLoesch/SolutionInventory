@@ -35,17 +35,11 @@
       <v-container fluid class="pa-4 main-container">
         <v-window v-model="activeTab">
           <v-window-item value="questionnaire">
-            <QuestionnaireWorkspace @open-wizard="wizardOpen = true" />
+            <QuestionnaireWorkspace />
           </v-window-item>
         </v-window>
       </v-container>
     </v-main>
-
-    <WizardDialog
-      v-model="wizardOpen"
-      :categories="activeCategories"
-      @update-categories="updateCategories"
-    />
 
     <v-dialog v-model="configOpen" max-width="1200">
       <v-card>
@@ -73,16 +67,14 @@ import { storeToRefs } from 'pinia'
 import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
-import WizardDialog from './components/WizardDialog.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import sampleData from '../data/sample_export.json'
 
 export default {
-  components: { QuestionnaireWorkspace, QuestionnaireConfig, WizardDialog, ProjectTreeNav },
+  components: { QuestionnaireWorkspace, QuestionnaireConfig, ProjectTreeNav },
   setup() {
     const activeTab = ref('questionnaire')
     const configOpen = ref(false)
-    const wizardOpen = ref(false)
     const store = useWorkspaceStore()
     const { activeCategories, lastSaved, activeQuestionnaireId, workspace } = storeToRefs(store)
 
@@ -121,7 +113,6 @@ export default {
       activeCategories,
       lastSaved,
       configOpen,
-      wizardOpen,
       openConfig,
       loadSample,
       updateCategories, 

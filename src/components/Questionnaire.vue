@@ -13,12 +13,6 @@
             <v-list-item-subtitle>{{ cat.desc }}</v-list-item-subtitle>
           </v-list-item>
         </v-list>
-        <div class="category-actions">
-          <v-btn size="small" variant="tonal" @click="$emit('open-wizard')">
-            <v-icon size="16" class="mr-2">mdi-magic-staff</v-icon>
-            Wizard
-          </v-btn>
-        </div>
       </v-col>
 
       <v-col cols="12" md="9">
@@ -227,7 +221,6 @@ export default {
       required: true
     }
   },
-  emits: ['open-wizard'],
   setup (props) {
     const store = useWorkspaceStore()
     const applicabilityDescriptions = {
@@ -325,9 +318,6 @@ export default {
   text-decoration: underline dotted;
 }
 
-.category-actions {
-  margin-top: 12px;
-}
 
 .resizable-textarea :deep(textarea) {
   resize: vertical;
