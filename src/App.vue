@@ -1,6 +1,10 @@
 <template>
   <v-app>
     <v-app-bar color="primary" dark>
+      <v-btn icon variant="text" @click="drawerOpen = !drawerOpen">
+        <v-icon>mdi-menu</v-icon>
+        <v-tooltip activator="parent" location="bottom">Toggle sidebar</v-tooltip>
+      </v-btn>
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
 
       <v-spacer />
@@ -27,7 +31,7 @@
       </v-btn>
     </v-app-bar>
 
-    <v-navigation-drawer app permanent width="260" class="side-nav">
+    <v-navigation-drawer v-model="drawerOpen" app width="260" class="side-nav">
       <ProjectTreeNav />
     </v-navigation-drawer>
 
@@ -75,6 +79,7 @@ export default {
   setup() {
     const activeTab = ref('questionnaire')
     const configOpen = ref(false)
+    const drawerOpen = ref(true)
     const store = useWorkspaceStore()
     const { activeCategories, lastSaved, activeQuestionnaireId, workspace } = storeToRefs(store)
 
@@ -113,6 +118,7 @@ export default {
       activeCategories,
       lastSaved,
       configOpen,
+      drawerOpen,
       openConfig,
       loadSample,
       updateCategories, 
