@@ -41,21 +41,27 @@
                   </v-btn>
                 </template>
                 <v-list density="compact">
-                                    <v-list-item @click="openQuestionnaireDialog(project.id)">
+                                    <v-list-item @click.stop="openQuestionnaireDialog(project.id)">
                     <template #prepend>
                       <v-icon size="16">mdi-file-plus</v-icon>
                     </template>
                     <v-list-item-title>Add</v-list-item-title>
                   </v-list-item>
+                                    <v-list-item @click.stop="downloadProject(project.id)">
+                                      <template #prepend>
+                                        <v-icon size="16">mdi-download</v-icon>
+                                      </template>
+                                      <v-list-item-title>Download</v-list-item-title>
+                                    </v-list-item>
                   <v-divider></v-divider>
-                  <v-list-item @click="openRenameProjectDialog(project)">
+                                    <v-list-item @click.stop="openRenameProjectDialog(project)">
                     <template #prepend>
                       <v-icon size="16">mdi-pencil</v-icon>
                     </template>
                     <v-list-item-title>Rename</v-list-item-title>
                   </v-list-item>
 
-                  <v-list-item @click="deleteProject(project.id)">
+                                    <v-list-item @click.stop="deleteProject(project.id)">
                     <template #prepend>
                       <v-icon size="16" color="error">mdi-delete</v-icon>
                     </template>
@@ -245,6 +251,10 @@ export default {
       store.deleteProject(projectId)
     }
 
+    function downloadProject(projectId) {
+      store.exportProject(projectId)
+    }
+
     function openRenameProjectDialog(project) {
       renameProjectId.value = project.id
       renameProjectName.value = project.name
@@ -364,6 +374,7 @@ export default {
       closeProjectDialog,
       createProject,
       deleteProject,
+      downloadProject,
       openRenameProjectDialog,
       closeRenameProjectDialog,
       confirmRenameProject,

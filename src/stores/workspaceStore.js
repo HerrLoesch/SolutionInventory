@@ -217,8 +217,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return ids.map((id) => getQuestionnaireById(id)).filter(Boolean)
   }
 
-  function saveActiveQuestionnaire() {
-    const questionnaire = getQuestionnaireById(activeQuestionnaireId.value)
+  function saveQuestionnaire(questionnaireId) {
+    const questionnaire = getQuestionnaireById(questionnaireId)
     if (!questionnaire) return
     const exportData = { categories: questionnaire.categories }
     const data = JSON.stringify(exportData, null, 2)
@@ -231,6 +231,37 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
+  }
+
+  function exportProject(projectId) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    const questionnaires = getProjectQuestionnaires(project).map((questionnaire) => ({
+      id: questionnaire.id,
+      name: questionnaire.name,
+      categories: questionnaire.categories
+    }))
+    const exportData = {
+      project: {
+        id: project.id,
+        name: project.name
+      },
+      questionnaires
+    }
+    const data = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${sanitizeFilename(project.name || 'project')}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function saveActiveQuestionnaire() {
+    saveQuestionnaire(activeQuestionnaireId.value)
   }
 
   function addQuestionnaireFromCategories(name, categories) {
@@ -445,7 +476,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     getProjectQuestionnaires,
     deleteQuestionnaire,
     renameQuestionnaire,
+    saveQuestionnaire,
     saveActiveQuestionnaire,
+    exportProject,
     addQuestionnaireFromCategories
   }
 })
