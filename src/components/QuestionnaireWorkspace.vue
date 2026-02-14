@@ -1,13 +1,19 @@
 <template>
   <div class="questionnaire-workspace">
     <div class="workspace-actions">
-      <v-btn color="primary" size="small" @click="addQuestionnaire">
-        <v-icon size="16" class="mr-2">mdi-plus</v-icon>
-        New
-      </v-btn>
       <v-btn size="small" variant="tonal" @click="saveActiveQuestionnaire">
         <v-icon size="16" class="mr-2">mdi-content-save</v-icon>
         Save
+      </v-btn>
+      <v-btn
+        size="small"
+        variant="tonal"
+        color="error"
+        :disabled="!activeQuestionnaire"
+        @click="openDeleteDialog"
+      >
+        <v-icon size="16" class="mr-2">mdi-delete</v-icon>
+        Delete
       </v-btn>
       <v-btn size="small" variant="tonal" @click="triggerLoad">
         <v-icon size="16" class="mr-2">mdi-folder-open</v-icon>
@@ -62,6 +68,20 @@
         />
       </v-window-item>
     </v-window>
+
+    <v-dialog v-model="deleteDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Delete questionnaire</v-card-title>
+        <v-card-text>
+          Do you really want to delete the questionnaire "{{ deleteTargetName }}"?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeDeleteDialog">Cancel</v-btn>
+          <v-btn color="error" @click="confirmDelete">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -77,18 +97,17 @@ export default {
   emits: ['open-wizard'],
   setup(props, { emit }) {
     const fileInput = ref(null)
+    const deleteDialogOpen = ref(false)
+    const deleteTargetId = ref('')
+    const deleteTargetName = ref('')
     const store = useWorkspaceStore()
-    const { openTabs, activeQuestionnaireId } = storeToRefs(store)
+    const { openTabs, activeQuestionnaire, activeQuestionnaireId } = storeToRefs(store)
 
     const activeTab = computed({
       get: () => activeQuestionnaireId.value,
       set: (value) => store.setActiveQuestionnaire(value)
     })
 
-
-    function addQuestionnaire() {
-      store.addQuestionnaire('New questionnaire')
-    }
 
     function updateQuestionnaire(questionnaireId, newCategories) {
       store.updateQuestionnaireCategories(questionnaireId, newCategories)
@@ -130,14 +149,40 @@ export default {
       emit('open-wizard')
     }
 
+    function openDeleteDialog() {
+      const questionnaire = activeQuestionnaire.value
+      if (!questionnaire) return
+      deleteTargetId.value = questionnaire.id
+      deleteTargetName.value = questionnaire.name || 'questionnaire'
+      deleteDialogOpen.value = true
+    }
+
+    function closeDeleteDialog() {
+      deleteDialogOpen.value = false
+      deleteTargetId.value = ''
+      deleteTargetName.value = ''
+    }
+
+    function confirmDelete() {
+      const targetId = deleteTargetId.value || activeQuestionnaireId.value
+      closeDeleteDialog()
+      if (!targetId) return
+      store.deleteQuestionnaire(targetId)
+    }
+
     function closeTab(questionnaireId) {
       store.closeQuestionnaire(questionnaireId)
     }
     return {
       openTabs,
       activeTab,
-      addQuestionnaire,
+      activeQuestionnaire,
       saveActiveQuestionnaire,
+      deleteDialogOpen,
+      deleteTargetName,
+      openDeleteDialog,
+      closeDeleteDialog,
+      confirmDelete,
       triggerLoad,
       handleFileUpload,
       loadSample,
