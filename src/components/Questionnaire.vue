@@ -58,6 +58,38 @@
                   />
                 </v-col>
                 <v-col cols="12">
+                  <v-select
+                    label="Execution Type"
+                    :items="currentCategory.metadataOptions?.executionType || []"
+                    item-title="label"
+                    item-value="label"
+                    v-model="currentCategory.metadata.executionType"
+                    clearable
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props">
+                        <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                      </v-list-item>
+                    </template>
+                  </v-select>
+                </v-col>
+                <v-col cols="12">
+                  <v-select
+                    label="Architectural Role"
+                    :items="currentCategory.metadataOptions?.architecturalRole || []"
+                    item-title="label"
+                    item-value="label"
+                    v-model="currentCategory.metadata.architecturalRole"
+                    clearable
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props">
+                        <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                      </v-list-item>
+                    </template>
+                  </v-select>
+                </v-col>
+                <v-col cols="12">
                   <v-textarea
                     label="Description"
                     v-model="currentCategory.metadata.description"

@@ -142,7 +142,8 @@
             <!-- Metadata Fields Info -->
             <div v-else>
               <v-alert type="info" density="compact">
-                This is a metadata category. Metadata fields are: productName, company, department, contactPerson, description
+                This is a metadata category. Metadata fields are: productName, company, department, contactPerson, description,
+                executionType, architecturalRole, targetAudience
               </v-alert>
             </div>
           </v-card-text>
