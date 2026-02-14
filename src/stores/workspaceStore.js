@@ -137,10 +137,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function addProject(name) {
-    workspace.value.projects.push({
+    const project = {
       ...createProject(name, []),
       expanded: true
-    })
+    }
+    workspace.value.projects.push(project)
+    return project.id
   }
 
   function deleteProject(projectId) {
@@ -174,6 +176,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     openQuestionnaire(questionnaire.id)
     return questionnaire.id
+  }
+
+  function importProject(projectName, questionnaires) {
+    const name = String(projectName || '').trim()
+    if (!name) return
+    const projectId = addProject(name)
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    ;(questionnaires || []).forEach((questionnaire) => {
+      const nextName = String(questionnaire?.name || 'Imported questionnaire').trim() || 'Imported questionnaire'
+      const categories = normalizeCategories(questionnaire?.categories || [])
+      const created = createQuestionnaire(nextName, categories)
+      workspace.value.questionnaires.push(created)
+      project.questionnaireIds = Array.isArray(project.questionnaireIds)
+        ? [...project.questionnaireIds, created.id]
+        : [created.id]
+    })
   }
 
   function deleteQuestionnaire(questionnaireId) {
@@ -471,6 +490,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     deleteProject,
     renameProject,
     addQuestionnaire,
+    importProject,
     moveQuestionnaire,
     getQuestionnaireById,
     getProjectQuestionnaires,

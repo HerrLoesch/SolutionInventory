@@ -2,9 +2,16 @@
   <div class="project-tree-nav">
     <div class="tree-header">
       <div class="tree-title">Projects</div>
-      <v-btn icon size="x-small" variant="text" @click="openProjectDialog">
-        <v-icon>mdi-folder-plus</v-icon>
-      </v-btn>
+      <div class="tree-actions">
+        <v-btn icon size="x-small" variant="text" @click="openProjectDialog">
+          <v-icon>mdi-plus</v-icon>
+          <v-tooltip activator="parent" location="bottom">New project</v-tooltip>
+        </v-btn>
+        <v-btn icon size="x-small" variant="text" @click="openImportDialog">
+          <v-icon>mdi-file-upload</v-icon>
+          <v-tooltip activator="parent" location="bottom">Import project</v-tooltip>
+        </v-btn>
+      </div>
     </div>
 
     <v-list density="compact" class="tree-list">
@@ -205,6 +212,30 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="importDialogOpen" max-width="520">
+      <v-card>
+        <v-card-title>Import project</v-card-title>
+        <v-card-text>
+          <v-file-input
+            v-model="importFile"
+            label="Select JSON file"
+            accept=".json"
+            density="compact"
+            prepend-icon="mdi-file-upload"
+            @update:model-value="clearImportError"
+          />
+          <v-alert v-if="importError" type="error" density="compact" class="mt-2">
+            {{ importError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeImportDialog">Cancel</v-btn>
+          <v-btn color="primary" :disabled="!importFile" @click="confirmImport">Import</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -220,6 +251,9 @@ export default {
     const questionnaireDialogOpen = ref(false)
     const renameProjectDialogOpen = ref(false)
     const renameQuestionnaireDialogOpen = ref(false)
+    const importDialogOpen = ref(false)
+    const importFile = ref(null)
+    const importError = ref('')
     const newProjectName = ref('')
     const newQuestionnaireName = ref('')
     const renameProjectId = ref('')
@@ -233,6 +267,22 @@ export default {
     function openProjectDialog() {
       newProjectName.value = ''
       projectDialogOpen.value = true
+    }
+
+    function openImportDialog() {
+      importError.value = ''
+      importFile.value = null
+      importDialogOpen.value = true
+    }
+
+    function closeImportDialog() {
+      importDialogOpen.value = false
+      importError.value = ''
+      importFile.value = null
+    }
+
+    function clearImportError() {
+      importError.value = ''
     }
 
     function closeProjectDialog() {
@@ -272,6 +322,38 @@ export default {
       if (!renameProjectId.value || !name) return
       store.renameProject(renameProjectId.value, name)
       closeRenameProjectDialog()
+    }
+
+    function confirmImport() {
+      const file = Array.isArray(importFile.value) ? importFile.value[0] : importFile.value
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result)
+          const projectName = data?.project?.name || data?.projectName || data?.name
+          if (!projectName) {
+            throw new Error('Missing project name.')
+          }
+          if (!Array.isArray(data.questionnaires)) {
+            throw new Error('Missing questionnaires array.')
+          }
+          const questionnaires = data.questionnaires.map((item) => {
+            if (!Array.isArray(item?.categories)) {
+              throw new Error('Each questionnaire must include a categories array.')
+            }
+            return {
+              name: item.name || 'Imported questionnaire',
+              categories: item.categories
+            }
+          })
+          store.importProject(projectName, questionnaires)
+          closeImportDialog()
+        } catch (err) {
+          importError.value = `Import failed: ${err.message}`
+        }
+      }
+      reader.readAsText(file)
     }
 
     function openRenameQuestionnaireDialog(questionnaire) {
@@ -366,11 +448,18 @@ export default {
       questionnaireDialogOpen,
       renameProjectDialogOpen,
       renameQuestionnaireDialogOpen,
+      importDialogOpen,
+      importFile,
+      importError,
       newProjectName,
       newQuestionnaireName,
       renameProjectName,
       renameQuestionnaireName,
       openProjectDialog,
+      openImportDialog,
+      closeImportDialog,
+      clearImportError,
+      confirmImport,
       closeProjectDialog,
       createProject,
       deleteProject,
@@ -408,6 +497,12 @@ export default {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
+}
+
+.tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .tree-title {
