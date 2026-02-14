@@ -19,7 +19,8 @@
 
     <v-navigation-drawer app permanent width="260" class="side-nav">
       <ProjectTreeNav />
-      <v-list density="compact" nav>
+      <v-divider class="nav-divider" />
+      <v-list density="compact" nav class="nav-footer">
         <v-list-subheader class="nav-header">Workspace</v-list-subheader>
         <v-list-item
           title="Questionnaire"
@@ -31,18 +32,9 @@
           </template>
         </v-list-item>
         <v-list-item
-          title="Summary"
-          :active="activeTab === 'summary'"
-          @click="activeTab = 'summary'"
-        >
-          <template #prepend>
-            <v-icon>mdi-chart-donut</v-icon>
-          </template>
-        </v-list-item>
-        <v-list-item
           title="Configuration"
           :active="activeTab === 'config'"
-          @click="activeTab = 'config'"
+          @click="openConfig"
         >
           <template #prepend>
             <v-icon>mdi-cog</v-icon>
@@ -56,10 +48,6 @@
         <v-window v-model="activeTab">
           <v-window-item value="questionnaire">
             <QuestionnaireWorkspace @open-wizard="wizardOpen = true" />
-          </v-window-item>
-
-        <v-window-item value="summary">
-          <Summary :categories="activeCategories" />
           </v-window-item>
 
           <v-window-item value="config">
@@ -82,18 +70,17 @@ import { onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
-import Summary from './components/Summary.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import WizardDialog from './components/WizardDialog.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 
 export default {
-  components: { QuestionnaireWorkspace, Summary, QuestionnaireConfig, WizardDialog, ProjectTreeNav },
+  components: { QuestionnaireWorkspace, QuestionnaireConfig, WizardDialog, ProjectTreeNav },
   setup() {
     const activeTab = ref('questionnaire')
     const wizardOpen = ref(false)
     const store = useWorkspaceStore()
-    const { activeCategories, lastSaved, activeQuestionnaireId } = storeToRefs(store)
+    const { activeCategories, lastSaved, activeQuestionnaireId, workspace } = storeToRefs(store)
 
     // Beim Start versuchen, gespeicherte Daten zu laden
     onMounted(() => {
@@ -102,10 +89,20 @@ export default {
     })
 
     watch(activeQuestionnaireId, (value) => {
-      if (value) {
+      if (value && activeTab.value !== 'config') {
         activeTab.value = 'questionnaire'
       }
     })
+
+    function openConfig() {
+      if (!activeQuestionnaireId.value) {
+        const firstId = workspace.value.questionnaires?.[0]?.id
+        if (firstId) {
+          store.openQuestionnaire(firstId)
+        }
+      }
+      activeTab.value = 'config'
+    }
 
     function updateCategories(newCategories) {
       store.updateQuestionnaireCategories(activeQuestionnaireId.value, newCategories)
@@ -116,6 +113,7 @@ export default {
       activeCategories,
       lastSaved,
       wizardOpen,
+      openConfig,
       updateCategories, 
       clearStorage: store.clearStorage
     }
@@ -134,6 +132,21 @@ body { font-family: Roboto, Arial, sans-serif; }
 
 .side-nav {
   border-right: 1px solid #ECEFF1;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-nav .project-tree-nav {
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.nav-divider {
+  margin: 8px 12px;
+}
+
+.nav-footer {
+  margin-top: auto;
 }
 
 .nav-header {

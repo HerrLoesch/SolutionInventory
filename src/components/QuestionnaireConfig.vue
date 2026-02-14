@@ -94,12 +94,46 @@
                   density="compact"
                   class="mb-2"
                 />
-                <v-textarea
-                  label="Examples"
-                  v-model="entry.examples"
-                  density="compact"
-                  rows="2"
-                />
+
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <strong>Examples</strong>
+                  <v-btn size="x-small" variant="text" @click="addExample(entryIdx)">
+                    <v-icon size="16">mdi-plus</v-icon>
+                    Add example
+                  </v-btn>
+                </div>
+
+                <div v-if="entry.examples && entry.examples.length" class="example-list">
+                  <div
+                    v-for="(example, exampleIdx) in entry.examples"
+                    :key="exampleIdx"
+                    class="example-row"
+                  >
+                    <v-text-field
+                      label="Label"
+                      v-model="example.label"
+                      density="compact"
+                    />
+                    <v-text-field
+                      label="Description"
+                      v-model="example.description"
+                      density="compact"
+                    />
+                    <v-btn
+                      icon
+                      size="x-small"
+                      color="error"
+                      variant="text"
+                      @click="deleteExample(entryIdx, exampleIdx)"
+                    >
+                      <v-icon size="16">mdi-delete</v-icon>
+                    </v-btn>
+                  </div>
+                </div>
+
+                <v-alert v-else type="info" density="compact">
+                  No examples yet. Click "Add example" to create one.
+                </v-alert>
               </div>
 
               <v-alert v-if="!selectedCategory.entries || selectedCategory.entries.length === 0" type="info" density="compact">
@@ -211,6 +245,10 @@ export default {
 
     function selectCategory(index) {
       selectedCategoryIndex.value = index
+      const category = localCategories.value[index]
+      if (category && Array.isArray(category.entries)) {
+        category.entries.forEach((entry) => normalizeEntryExamples(entry))
+      }
     }
 
     function addCategory() {
@@ -249,13 +287,60 @@ export default {
         selectedCategory.value.entries.push({
           id: generateId(`${selectedCategory.value.id}-${aspect}`),
           aspect: aspect,
-          examples: 'Example 1, Example 2',
+          examples: [],
           applicability: 'applicable',
           answers: [
             { technology: '', status: '', comments: '' }
           ]
         })
       }
+    }
+
+    function normalizeEntryExamples(entry) {
+      if (!entry) return []
+      if (Array.isArray(entry.examples)) {
+        entry.examples = entry.examples
+          .map((example) => {
+            if (typeof example === 'string') {
+              const label = example.trim()
+              return label ? { label, description: '' } : null
+            }
+            if (example && typeof example === 'object') {
+              const label = String(example.label || '').trim()
+              if (!label) return null
+              return { label, description: example.description || '' }
+            }
+            return null
+          })
+          .filter(Boolean)
+        return entry.examples
+      }
+
+      if (typeof entry.examples === 'string') {
+        entry.examples = entry.examples
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((label) => ({ label, description: '' }))
+        return entry.examples
+      }
+
+      entry.examples = []
+      return entry.examples
+    }
+
+    function addExample(entryIdx) {
+      const entry = selectedCategory.value?.entries?.[entryIdx]
+      if (!entry) return
+      const examples = normalizeEntryExamples(entry)
+      entry.examples = [...examples, { label: '', description: '' }]
+    }
+
+    function deleteExample(entryIdx, exampleIdx) {
+      const entry = selectedCategory.value?.entries?.[entryIdx]
+      if (!entry) return
+      const examples = normalizeEntryExamples(entry)
+      entry.examples = examples.filter((_, idx) => idx !== exampleIdx)
     }
 
     function deleteEntry(entryIdx) {
@@ -310,6 +395,8 @@ export default {
       addEntry,
       deleteEntry,
       updateEntryId,
+      addExample,
+      deleteExample,
       saveChanges,
       resetChanges,
       exportStructure
@@ -329,5 +416,18 @@ export default {
 
 .gap-2 {
   gap: 8px;
+}
+
+.example-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.example-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: start;
 }
 </style>
