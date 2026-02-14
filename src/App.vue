@@ -10,6 +10,11 @@
         <v-icon size="small" class="mr-1">mdi-content-save</v-icon>
         {{ lastSaved }}
       </v-chip>
+
+      <v-btn class="mr-2" variant="text" size="small" @click="loadSample">
+        <v-icon size="small" class="mr-1">mdi-flask-outline</v-icon>
+        Sample
+      </v-btn>
       
       <v-btn @click="clearStorage" class="mr-2" variant="text" size="small">
         <v-icon>mdi-delete</v-icon>
@@ -87,6 +92,7 @@ import ProjectTreeNav from './components/ProjectTreeNav.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import WizardDialog from './components/WizardDialog.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
+import sampleData from '../data/sample_export.json'
 
 export default {
   components: { QuestionnaireWorkspace, QuestionnaireConfig, WizardDialog, ProjectTreeNav },
@@ -123,6 +129,10 @@ export default {
       store.updateQuestionnaireCategories(activeQuestionnaireId.value, newCategories)
     }
 
+    function loadSample() {
+      store.addQuestionnaireFromCategories('Sample', sampleData.categories)
+    }
+
     return { 
       activeTab, 
       activeCategories,
@@ -130,6 +140,7 @@ export default {
       configOpen,
       wizardOpen,
       openConfig,
+      loadSample,
       updateCategories, 
       clearStorage: store.clearStorage
     }

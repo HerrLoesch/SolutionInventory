@@ -1,30 +1,39 @@
 <template>
   <div class="questionnaire-workspace">
-    <div class="workspace-actions">
-      <v-btn size="small" variant="tonal" @click="saveActiveQuestionnaire">
-        <v-icon size="16" class="mr-2">mdi-content-save</v-icon>
-        Save
-      </v-btn>
+    <div v-if="openTabs.length" class="workspace-actions">
       <v-btn
-        size="small"
-        variant="tonal"
+        size="small"    
+        variant="text"    
+        icon
+        @click="saveActiveQuestionnaire"
+      >
+        <v-icon size="16">mdi-content-save</v-icon>
+        <v-tooltip activator="parent" location="bottom">Save</v-tooltip>
+      </v-btn>
+
+      <v-btn
+        variant="text"
+        size="small"        
+        icon
+        @click="triggerLoad"
+      >
+        <v-icon size="16">mdi-folder-open</v-icon>
+        <v-tooltip activator="parent" location="bottom">Load</v-tooltip>
+      </v-btn>
+      <v-spacer />
+      <v-btn
+        variant="text"
+        size="small"        
         color="error"
+        icon
         :disabled="!activeQuestionnaire"
         @click="openDeleteDialog"
       >
-        <v-icon size="16" class="mr-2">mdi-delete</v-icon>
-        Delete
-      </v-btn>
-      <v-btn size="small" variant="tonal" @click="triggerLoad">
-        <v-icon size="16" class="mr-2">mdi-folder-open</v-icon>
-        Load
-      </v-btn>
-      <v-btn size="small" variant="tonal" @click="loadSample">
-        <v-icon size="16" class="mr-2">mdi-flask-outline</v-icon>
-        Sample
+        <v-icon size="16">mdi-delete</v-icon>
+        <v-tooltip activator="parent" location="bottom">Delete questionnaire</v-tooltip>
       </v-btn>
     </div>
-
+        
     <input
       ref="fileInput"
       type="file"
@@ -33,7 +42,7 @@
       @change="handleFileUpload"
     />
 
-    <v-tabs v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
+    <v-tabs v-if="openTabs.length" v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
       <v-tab
         v-for="tab in openTabs"
         :key="tab.id"
@@ -55,7 +64,11 @@
       </v-tab>
     </v-tabs>
 
-    <v-window v-model="activeTab">
+    <div v-if="!openTabs.length" class="workspace-empty">
+      Please select or create a questionnaire to get started.
+    </div>
+
+    <v-window v-else v-model="activeTab">
       <v-window-item
         v-for="tab in openTabs"
         :key="tab.id"
@@ -90,7 +103,6 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import Questionnaire from './Questionnaire.vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
-import sampleData from '../../data/sample_export.json'
 
 export default {
   components: { Questionnaire },
@@ -141,9 +153,6 @@ export default {
       event.target.value = ''
     }
 
-    function loadSample() {
-      store.addQuestionnaireFromCategories('Sample', sampleData.categories)
-    }
 
     function openWizard() {
       emit('open-wizard')
@@ -185,7 +194,6 @@ export default {
       confirmDelete,
       triggerLoad,
       handleFileUpload,
-      loadSample,
       updateQuestionnaire,
       openWizard,
       closeTab
@@ -209,6 +217,13 @@ export default {
 .workspace-tabs {
   border-bottom: 1px solid #ECEFF1;
   margin-bottom: 16px;
+}
+
+.workspace-empty {
+  padding: 32px 12px;
+  text-align: center;
+  color: #607D8B;
+  font-size: 14px;
 }
 
 .workspace-tab {
