@@ -9,10 +9,8 @@
             :active="cat.id === currentCategory.id"
             @click="selectCategory(cat.id)"
           >
-            <v-list-item-content>
-              <v-list-item-title>{{ cat.title }}</v-list-item-title>
-              <v-list-item-subtitle>{{ cat.desc }}</v-list-item-subtitle>
-            </v-list-item-content>
+            <v-list-item-title>{{ cat.title }}</v-list-item-title>
+            <v-list-item-subtitle>{{ cat.desc }}</v-list-item-subtitle>
           </v-list-item>
         </v-list>
         <div class="category-actions">
