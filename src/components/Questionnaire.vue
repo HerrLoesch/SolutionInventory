@@ -125,12 +125,20 @@
                     <div class="ml-4" style="min-width: 190px;">
                       <v-select
                         v-model="entry.applicability"
-                        :items="applicabilityOptions"
+                        :items="applicabilityItems"
+                        item-title="label"
+                        item-value="label"
                         density="compact"
                         variant="plain"
                         hide-details
                         @update:model-value="setApplicability(entry, $event)"
-                      />
+                      >
+                        <template #item="{ props, item }">
+                          <v-list-item v-bind="props">
+                            <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                          </v-list-item>
+                        </template>
+                      </v-select>
                     </div>
                   </div>
 
@@ -138,27 +146,24 @@
                   <div v-if="isEntryApplicable(entry)">
                     <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                       <v-row dense>
-                        <v-col cols="12" md="4">
+                        <v-col cols="12" md="9">
                           <v-text-field label="Solution" v-model="answer.technology" clearable />
                         </v-col>
 
-                        <v-col cols="12" md="2">
-                          <v-tooltip :text="getStatusTooltip(answer.status)" location="top">
-                            <template v-slot:activator="{ props }">
-                              <v-select
-                                label="Status"
-                                :items="statusOptions"
-                                item-title="label"
-                                item-value="label"
-                                v-model="answer.status"
-                                v-bind="props"
-                              />
+                        <v-col cols="12" md="3">
+                          <v-select
+                            label="Status"
+                            :items="statusOptions"
+                            item-title="label"
+                            item-value="label"
+                            v-model="answer.status"
+                          >
+                            <template #item="{ props, item }">
+                              <v-list-item v-bind="props">
+                                <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                              </v-list-item>
                             </template>
-                          </v-tooltip>
-                        </v-col>
-
-                        <v-col cols="12" md="5">
-                          <v-textarea label="Comment" v-model="answer.comments" rows="1" auto-grow />
+                          </v-select>
                         </v-col>
 
                         <v-col cols="12" md="1" class="d-flex align-center justify-end">
@@ -172,6 +177,15 @@
                           >
                             <v-icon>mdi-delete</v-icon>
                           </v-btn>
+                        </v-col>
+
+                        <v-col cols="12">
+                          <v-textarea
+                            label="Comment"
+                            v-model="answer.comments"
+                            rows="2"
+                            class="resizable-textarea"
+                          />
                         </v-col>
                       </v-row>
                     </div>
@@ -216,6 +230,11 @@ export default {
   emits: ['open-wizard'],
   setup (props) {
     const store = useWorkspaceStore()
+    const applicabilityDescriptions = {
+      applicable: 'Entry applies and should be filled in.',
+      'not applicable': 'Entry does not apply to this solution.',
+      unknown: 'Applicability is not known yet.'
+    }
     const activeCategoryId = ref(props.categories[0]?.id || '')
 
     watch(() => props.categories, (value) => {
@@ -235,6 +254,13 @@ export default {
         isMetadata: false,
         entries: []
       }
+    })
+
+    const applicabilityItems = computed(() => {
+      return store.applicabilityOptions.map((label) => ({
+        label,
+        description: applicabilityDescriptions[label] || ''
+      }))
     })
 
     const hasNext = computed(() => {
@@ -276,7 +302,7 @@ export default {
       hasNext,
       hasPrev,
       statusOptions: store.statusOptions,
-      applicabilityOptions: store.applicabilityOptions,
+      applicabilityItems,
       getStatusTooltip: store.getStatusTooltip,
       renderTextWithLinks: store.renderTextWithLinks,
       getExampleItems: store.getExampleItems,
@@ -301,5 +327,9 @@ export default {
 
 .category-actions {
   margin-top: 12px;
+}
+
+.resizable-textarea :deep(textarea) {
+  resize: vertical;
 }
 </style>
