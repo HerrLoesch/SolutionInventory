@@ -1,6 +1,8 @@
 {
   "name": "solution-inventory-pwa",
   "version": "0.1.0",
+  "description": "Solution Inventory - A questionnaire-based application for project assessment",
+  "author": "Hendrik Lösch <loeschhendrik@googlemail.com>",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -43,7 +45,8 @@
     },
     "linux": {
       "target": ["AppImage", "deb"],
-      "category": "Utility"
+      "category": "Utility",
+      "maintainer": "Hendrik Lösch <loeschhendrik@googlemail.com>"
     }
   }
 }
