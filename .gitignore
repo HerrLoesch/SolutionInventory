@@ -7,6 +7,14 @@ dist/
 *.xlsx
 *.xlsx~
 
+# Electron
+release/
+*.dmg
+*.AppImage
+*.deb
+*.exe
+*.msi
+
 # IDE and Editor
 .vscode/
 .idea/
