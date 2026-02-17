@@ -92,7 +92,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function seedWorkspace() {
-    const initialQuestionnaire = createQuestionnaire('Current questionnaire', getCategoriesData())
+    const catalogData = getCategoriesData()
+    const initialQuestionnaire = createQuestionnaire('Current questionnaire', catalogData.categories)
     workspace.value = createWorkspace([], [initialQuestionnaire])
     activeQuestionnaireId.value = ''
     openQuestionnaireIds.value = []
@@ -185,9 +186,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function addQuestionnaire(name, categories, projectId) {
+    const catalogData = getCategoriesData()
     const questionnaire = createQuestionnaire(
       name || 'New questionnaire',
-      normalizeCategories(categories || getCategoriesData())
+      normalizeCategories(categories || catalogData.categories)
     )
     workspace.value.questionnaires.push(questionnaire)
 
@@ -479,12 +481,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       .toLowerCase()
   }
 
-  const statusOptions = [
-    { label: 'Adopt', description: 'We use this and recommend it.' },
-    { label: 'Assess', description: 'We are currently evaluating/testing this.' },
-    { label: 'Hold', description: 'We use this, but do not recommend it for new features.' },
-    { label: 'Retire', description: 'We are actively replacing or removing this.' }
-  ]
+  const statusOptions = getCategoriesData().statusOptions
 
   const applicabilityOptions = ['applicable', 'not applicable', 'unknown']
 

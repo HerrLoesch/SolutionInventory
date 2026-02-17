@@ -1,16 +1,25 @@
 {
+  "statusOptions": [
+    { "label": "Adopt", "description": "We use this and recommend it." },
+    { "label": "Trial", "description": "We are testing this in selected production scenarios." },
+    { "label": "Assess", "description": "We are currently evaluating/testing this." },
+    { "label": "Hold", "description": "We use this, but do not recommend it for new features." },
+    { "label": "Retire", "description": "We are actively replacing or removing this." }
+  ],
   "categories": [
     {
       "id": "solution-desc",
       "title": "Solution Description",
-      "desc": "General information about the solution",
+      "desc": "General information and categorization of the solution",
       "isMetadata": true,
       "metadata": {
         "productName": "Industrial Control System Pro",
         "company": "ACME Manufacturing Solutions GmbH",
         "department": "Engineering & Automation",
         "contactPerson": "Max Mustermann (m.mustermann@acme.com)",
-        "description": "A comprehensive industrial automation and control system for managing production lines, sensor data acquisition, and real-time monitoring. The system integrates with various hardware devices and provides a modern web-based interface for operators and administrators."
+        "description": "A comprehensive industrial automation and control system for managing production lines, sensor data acquisition, and real-time monitoring. The system integrates with various hardware devices and provides a modern web-based interface for operators and administrators.",
+        "executionType": "Web Application",
+        "architecturalRole": "Standalone System"
       }
     },
     {
