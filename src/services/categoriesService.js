@@ -1,5 +1,13 @@
 export function getCategoriesData() {
-  return [
+  return {
+    statusOptions: [
+      { label: 'Adopt', description: 'We use this and recommend it.' },
+      { label: 'Trial', description: 'We are testing this in selected production scenarios.' },
+      { label: 'Assess', description: 'We are currently evaluating/testing this.' },
+      { label: 'Hold', description: 'We use this, but do not recommend it for new features.' },
+      { label: 'Retire', description: 'We are actively replacing or removing this.' }
+    ],
+    categories: [
     {
       id: 'solution-desc',
       title: 'Solution Description',
@@ -79,9 +87,21 @@ export function getCategoriesData() {
           examples: [
             { label: 'Standard CRUD', description: 'Direct mapping of objects to database tables for Create, Read, Update, and Delete operations.' },
             { label: 'CQRS', description: 'Command Query Responsibility Segregation, separating the models for reading and writing data.' },
-            { label: 'Event Sourcing', description: 'State is derived from a sequentially appended log of immutable events rather than overwriting records.' }
+            { label: 'Event Sourcing', description: 'State is derived from a sequentially appended log of immutable events.' }
           ],
           description: 'Defines the conceptual approach to how state mutations and data retrievals are structured.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'arch-ownership',
+          aspect: 'Data Ownership',
+          appliesTo: { architecturalRole: ['Domain Service / Microservice', 'Integration Bridge / Middleware'] },
+          examples: [
+            { label: 'Shared DB', description: 'Multiple services read and write to the same database schema.' },
+            { label: 'DB per Service', description: 'Each service exclusively owns its database and schema.' },
+            { label: 'Domain-Owned Models', description: 'Data contracts are strictly owned by specific domain boundaries.' }
+          ],
+          description: 'Describes who owns data and how ownership is technically enforced to prevent coupling.',
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
@@ -120,6 +140,17 @@ export function getCategoriesData() {
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
+          id: 'arch-failure',
+          aspect: 'Failure Domains',
+          examples: [
+            { label: 'Isolation Boundaries', description: 'Containing failures to a specific sub-system.' },
+            { label: 'Bulkheads', description: 'Resource isolation per component to prevent cascading resource exhaustion.' },
+            { label: 'Graceful Degradation', description: 'Deliberately reducing functionality to keep core systems alive under stress.' }
+          ],
+          description: 'Captures how systemic failures are isolated so that a single component crash does not bring down the entire application.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
           id: 'arch-off',
           aspect: 'Offline Capability',
           appliesTo: { executionType: ['Web Application', 'Desktop Application', 'Mobile Application'] },
@@ -144,15 +175,60 @@ export function getCategoriesData() {
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
+          id: 'arch-integration',
+          aspect: 'Integration Pattern',
+          appliesTo: { architecturalRole: ['Standalone System', 'Domain Service / Microservice', 'Integration Bridge / Middleware'] },
+          examples: [
+            { label: 'API Gateway', description: 'Single entry point routing requests to internal APIs.' },
+            { label: 'Backend-for-Frontend (BFF)', description: 'Tailored backend aggregation layer for specific UI clients.' },
+            { label: 'Adapter', description: 'Translating interfaces to integrate legacy systems.' }
+          ],
+          description: 'Describes the pattern used to handle external or internal integration points and API aggregation.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
           id: 'arch-consistency',
           aspect: 'Consistency Model',
           appliesTo: { architecturalRole: ['Standalone System', 'Domain Service / Microservice', 'Integration Bridge / Middleware'] },
           examples: [
             { label: 'Strong Consistency', description: 'A read operation is guaranteed to return the most recent write across all nodes.' },
             { label: 'Eventual Consistency', description: 'System state will eventually converge, meaning stale data may be read temporarily.' },
-            { label: 'Saga Pattern', description: 'Distributed transactions are managed via a sequence of local transactions and compensating actions.' }
+            { label: 'Saga Pattern', description: 'Distributed transactions are managed via a sequence of local transactions.' }
           ],
           description: 'Defines the target data consistency level across different systems, microservices, or database nodes.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'arch-extensibility',
+          aspect: 'Extensibility Model',
+          examples: [
+            { label: 'Plugin Architecture', description: 'System is designed to load external feature modules at runtime.' },
+            { label: 'Extension Points / Hooks', description: 'Pre-defined lifecycle hooks allowing custom code execution.' },
+            { label: 'Event-Driven Webhooks', description: 'Emitting events to allow external systems to react to changes.' }
+          ],
+          description: 'Captures how the architecture anticipates and supports future functional extensions without requiring core modifications.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'arch-feature',
+          aspect: 'Feature Strategy',
+          examples: [
+            { label: 'Feature Flags', description: 'Dynamic toggling of features at runtime without redeployment.' },
+            { label: 'Progressive Rollout', description: 'Gradual exposure of new features to a subset of users (Canary).' },
+            { label: 'Build-Time Configuration', description: 'Features are statically enabled or disabled during compilation.' }
+          ],
+          description: 'Describes how the release and visibility of new features are controlled and decoupled from code deployments.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'arch-dep',
+          aspect: 'Dependency Management',
+          examples: [
+            { label: 'Strict Vetting', description: 'Mandatory security and architecture review before introducing new libraries.' },
+            { label: 'Allowed List', description: 'Developers may only select from a pre-approved repository of libraries.' },
+            { label: 'Free Choice', description: 'Teams autonomously choose third-party dependencies as needed.' }
+          ],
+          description: 'Captures the governance model applied to the selection, maintenance, and updating of third-party libraries.',
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
@@ -242,6 +318,38 @@ export function getCategoriesData() {
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
+          id: 'fe-cache',
+          aspect: 'Client Caching Strategy',
+          examples: [
+            { label: 'Service Worker', description: 'Caching network requests for offline use (e.g., Workbox).' },
+            { label: 'Local Database', description: 'Structured local data storage (e.g., IndexedDB, SQLite).' },
+            { label: 'In-Memory Only', description: 'Data is only cached during the active user session.' }
+          ],
+          description: 'Describes how data is cached locally on the client to reduce network requests and support offline modes.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-error',
+          aspect: 'Client Error Handling',
+          examples: [
+            { label: 'Global Error Boundary', description: 'Centralized UI component catching rendering errors.' },
+            { label: 'HTTP Interceptors', description: 'Centralized catching of failed network requests.' },
+            { label: 'Silent Failure', description: 'Errors are logged but do not actively disrupt the UI state.' }
+          ],
+          description: 'Describes the code-level strategy for handling runtime exceptions gracefully within the UI without crashing the application.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-logging',
+          aspect: 'Client Logging',
+          examples: [
+            { label: 'Browser Console', description: 'Standard console outputs intended for debugging only.' },
+            { label: 'Custom Logger Abstraction', description: 'Wrapper preventing direct console calls and allowing log-level filtering.' }
+          ],
+          description: 'Captures how client-side events are recorded within the code (Note: Telemetry to external servers is in Ops).',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
           id: 'fe-a11y',
           aspect: 'Accessibility (A11y)',
           examples: [
@@ -260,6 +368,58 @@ export function getCategoriesData() {
             { label: 'Build-Time Localization', description: 'Compiling separate application bundles for each supported language.' }
           ],
           description: 'Describes the architectural approach to supporting multiple languages and cultural formats in the UI.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-analytics',
+          aspect: 'Client Analytics',
+          examples: [
+            { label: 'SaaS Analytics', description: 'Tracking user interaction via cloud tools (e.g., Google Analytics, Pendo).' },
+            { label: 'Self-Hosted Tracking', description: 'Internal behavioral tracking (e.g., Matomo).' },
+            { label: 'No Tracking', description: 'No telemetry or behavioral data is collected.' }
+          ],
+          description: 'Defines how user behavior and UI interaction flows are measured and analyzed.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-build',
+          aspect: 'Frontend Build System',
+          examples: [
+            { label: 'Module Bundler', description: 'Packaging code and assets (e.g., Webpack, Vite).' },
+            { label: 'Monorepo Tooling', description: 'Managing multi-package repositories (e.g., Nx, Lerna).' },
+            { label: 'Native Compiler', description: 'Compiling UI code to native executables.' }
+          ],
+          description: 'Describes the toolchain used to compile, minify, and package the frontend assets for deployment.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-quality',
+          aspect: 'Code Quality & Formatting',
+          examples: [
+            { label: 'Linter', description: 'Static analysis for code patterns (e.g., ESLint).' },
+            { label: 'Formatter', description: 'Opinionated code styling enforcement (e.g., Prettier).' }
+          ],
+          description: 'Captures the automated rules ensuring consistent styling and preventing common syntax errors in the UI codebase.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-unittest',
+          aspect: 'Frontend Unit Testing',
+          examples: [
+            { label: 'DOM Testing Framework', description: 'Tools for testing UI component rendering (e.g., Jest, React Testing Library).' },
+            { label: 'Headless Browser Tests', description: 'Executing tests in a browser environment without UI.' }
+          ],
+          description: 'Defines the framework used to validate isolated frontend logic and component behavior.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-dev-env',
+          aspect: 'Development Environment',
+          examples: [
+            { label: 'Lightweight Editor', description: 'Editors heavily extended via plugins (e.g., VS Code).' },
+            { label: 'Full IDE', description: 'Integrated development environments (e.g., Visual Studio, WebStorm).' }
+          ],
+          description: 'Describes the expected and officially supported local tooling setup for frontend engineers.',
           answers: [{ technology: '', status: '', comments: '' }]
         }
       ]
@@ -327,6 +487,16 @@ export function getCategoriesData() {
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
+          id: 'be-cache',
+          aspect: 'Server-Side Caching',
+          examples: [
+            { label: 'In-Memory Cache', description: 'Caching data locally within the application process.' },
+            { label: 'Distributed Cache', description: 'Externalizing cache to a shared memory store (e.g., Redis).' }
+          ],
+          description: 'Defines how the backend mitigates database load and reduces latency for frequently accessed data.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
           id: 'be-jobs',
           aspect: 'Job Scheduling',
           appliesTo: { architecturalRole: ['Standalone System', 'Domain Service / Microservice', 'Integration Bridge / Middleware'] },
@@ -335,6 +505,77 @@ export function getCategoriesData() {
             { label: 'External Batch Processor', description: 'Dedicated external services triggered by time-based events.' }
           ],
           description: 'Describes the architecture for executing time-based or long-running background tasks.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-workflow',
+          aspect: 'Workflow Engine',
+          appliesTo: { architecturalRole: ['Standalone System', 'Integration Bridge / Middleware'] },
+          examples: [
+            { label: 'BPMN Engine', description: 'Executable business process models (e.g., Camunda).' },
+            { label: 'State Machine', description: 'Code-based workflow orchestrators (e.g., Temporal, Elsa).' }
+          ],
+          description: 'Captures how complex, multi-step, or durable business processes are orchestrated and tracked.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-error',
+          aspect: 'Backend Error Handling',
+          examples: [
+            { label: 'Global Exception Middleware', description: 'Centralized interception of unhandled exceptions converting them to standard HTTP responses.' },
+            { label: 'Result Pattern', description: 'Returning explicit success/failure objects instead of throwing exceptions.' }
+          ],
+          description: 'Describes the structural code pattern utilized to manage exceptions and provide meaningful error states.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-logging',
+          aspect: 'Backend Logging Framework',
+          examples: [
+            { label: 'Structured Logging Library', description: 'Emitting logs as queryable JSON objects (e.g., Serilog).' },
+            { label: 'Standard Text Logger', description: 'Classic string-based logging (e.g., Log4j, NLog).' }
+          ],
+          description: 'Describes the in-code library used to generate log events before they are shipped to aggregation servers.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-unittest',
+          aspect: 'Backend Unit Testing',
+          examples: [
+            { label: 'xUnit / NUnit / JUnit', description: 'Standard object-oriented testing frameworks.' },
+            { label: 'Mocking Libraries', description: 'Tools for generating fake dependencies.' }
+          ],
+          description: 'Defines the frameworks used to isolate and test backend classes and domain logic.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-integration',
+          aspect: 'Backend Integration Testing',
+          examples: [
+            { label: 'In-Memory Test Servers', description: 'Bootstrapping the application in memory for fast API testing.' },
+            { label: 'Testcontainers', description: 'Spinning up real databases in Docker for tests.' }
+          ],
+          description: 'Captures how data access layers and API endpoints are validated against real infrastructure during development.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-perf',
+          aspect: 'Code-Level Profiling',
+          examples: [
+            { label: 'Micro-Benchmarking', description: 'Measuring execution time of specific algorithms (e.g., Benchmark.Net).' },
+            { label: 'Memory Profiling', description: 'Analyzing heap allocations and memory leaks locally.' }
+          ],
+          description: 'Describes how the development team analyzes code performance and optimization at a granular level.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'be-dev-env',
+          aspect: 'Development Environment',
+          examples: [
+            { label: 'Full IDE', description: 'Heavyweight IDEs providing deep language integration (e.g., Visual Studio, IntelliJ).' },
+            { label: 'Lightweight Editor', description: 'Fast, plugin-based editors (e.g., VS Code).' }
+          ],
+          description: 'Describes the officially supported local IDE and tooling setup for backend engineers.',
           answers: [{ technology: '', status: '', comments: '' }]
         }
       ]
@@ -354,6 +595,17 @@ export function getCategoriesData() {
             { label: 'Open-Source RDBMS', description: 'Community-driven relational database systems.' }
           ],
           description: 'Specifies the primary database engine utilized for highly structured, ACID-compliant transactional data storage.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'infra-schema',
+          aspect: 'Schema Migration Management',
+          appliesTo: { architecturalRole: ['Standalone System', 'Domain Service / Microservice', 'Integration Bridge / Middleware'] },
+          examples: [
+            { label: 'Code-First Migrations', description: 'Database changes derived from code models (e.g., EF Migrations).' },
+            { label: 'SQL-Based Versioning', description: 'Executing versioned SQL scripts (e.g., Liquibase, Flyway).' }
+          ],
+          description: 'Captures how database schema alterations are version-controlled, reviewed, and deployed without data loss.',
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
@@ -432,6 +684,60 @@ export function getCategoriesData() {
       desc: 'Operational tooling, hosting and deployment',
       appliesTo: { architecturalRole: ['Standalone System', 'Domain Service / Microservice', 'Integration Bridge / Middleware', 'AI / ML Inference Engine'] },
       entries: [
+        {
+          id: 'ops-deploy',
+          aspect: 'Deployment Artifact',
+          examples: [
+            { label: 'Container Image', description: 'Standardized OS-level virtualization package.' },
+            { label: 'OS Installer', description: 'Native installation routines (e.g., MSI, DEB, RPM).' },
+            { label: 'Serverless Package', description: 'Zipped code bundles deployed to function runtimes.' }
+          ],
+          description: 'Describes the immutable artifact format utilized to transport the compiled application into a runtime environment.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'ops-update',
+          aspect: 'Update Mechanism',
+          examples: [
+            { label: 'Automated Pull', description: 'Infrastructure actively fetches the latest artifacts (e.g., Kubernetes GitOps).' },
+            { label: 'Push Pipeline', description: 'CI/CD pipeline forces artifacts onto the target servers.' },
+            { label: 'Manual Execution', description: 'Updates require human interaction and execution on the target machine.' }
+          ],
+          description: 'Captures how new software versions are physically placed and activated on target environments.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'ops-config',
+          aspect: 'Configuration Management',
+          examples: [
+            { label: 'Environment Variables', description: 'Configuration supplied directly through the OS or container runtime.' },
+            { label: 'Central Config Server', description: 'A dedicated service dispensing configuration dynamically (e.g., Consul).' },
+            { label: 'Local Config Files', description: 'Static JSON/YAML/XML files deployed alongside the application.' }
+          ],
+          description: 'Describes the strategy for managing environment-specific settings outside of the source code.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'ops-resources',
+          aspect: 'Resource Constraints & Requirements',
+          examples: [
+            { label: 'Hardware Accelerators', description: 'Strict requirement for GPUs or TPUs.' },
+            { label: 'Fixed CPU/RAM Allocations', description: 'Application demands statically reserved memory or cores.' }
+          ],
+          description: 'Identifies specific hardware dependencies that limit where the application can be hosted.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'ops-remote',
+          aspect: 'Remote Support Access',
+          examples: [
+            { label: 'VPN & SSH', description: 'Direct network-level and shell access.' },
+            { label: 'Zero-Trust Tunnels', description: 'Granular application-layer access without opening broad networks.' },
+            { label: 'Telemetry Export Only', description: 'No inbound access allowed; diagnostics rely on exported log files.' }
+          ],
+          description: 'Captures the allowed pathways for operations teams to interact with the system for debugging and maintenance.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
         {
           id: 'ops-webserver',
           aspect: 'Webserver / Reverse Proxy',
@@ -626,6 +932,27 @@ export function getCategoriesData() {
           ],
           description: 'Describes the automated tooling integrated into the development lifecycle to proactively detect security flaws.',
           answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'sec-audit',
+          aspect: 'Audit & Compliance Logging',
+          examples: [
+            { label: 'Full Audit Trail', description: 'Recording all read and write operations along with user context.' },
+            { label: 'Critical Operations Only', description: 'Selectively recording events that mutate sensitive business data.' }
+          ],
+          description: 'Describes the strategy for tracing historical actions to satisfy legal compliance and forensic investigations.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'sec-licensing',
+          aspect: 'Licensing & Usage Enforcement',
+          examples: [
+            { label: 'Online Activation', description: 'Validation of usage rights against a central vendor server.' },
+            { label: 'Floating License Server', description: 'Local network server managing a pool of concurrent usage tokens.' },
+            { label: 'Hardware Dongle', description: 'Physical cryptography device required to execute the software.' }
+          ],
+          description: 'Captures the technical mechanisms used to protect intellectual property and enforce commercial usage rights.',
+          answers: [{ technology: '', status: '', comments: '' }]
         }
       ]
     },
@@ -654,6 +981,36 @@ export function getCategoriesData() {
           ],
           description: 'Identifies the layer of software utilized to bridge the application logic with the physical hardware.',
           answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'hw-buffering',
+          aspect: 'Data Buffering Strategy',
+          examples: [
+            { label: 'Ring-Buffer', description: 'Fixed-size circular buffer preventing memory overallocation.' },
+            { label: 'FIFO Queues', description: 'First-in, first-out memory structures for sequential processing.' }
+          ],
+          description: 'Captures how continuous streams of incoming hardware data are staged in memory prior to processing.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'hw-realtime',
+          aspect: 'Real-Time Requirements',
+          examples: [
+            { label: 'Hard Real-Time', description: 'Missing a processing deadline results in absolute system failure.' },
+            { label: 'Soft Real-Time', description: 'Missing deadlines degrades performance but does not cause failure.' }
+          ],
+          description: 'Defines the latency strictness required for hardware interactions, dictating the choice of operating system and runtime.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'hw-lifecycle',
+          aspect: 'Connection Lifecycle',
+          examples: [
+            { label: 'Persistent Connection', description: 'Connections to hardware interfaces remain open for the duration of the process.' },
+            { label: 'On-Demand Polling', description: 'Connections are established, queried, and immediately closed to save resources.' }
+          ],
+          description: 'Captures the stability and resource management strategy regarding hardware sockets and ports.',
+          answers: [{ technology: '', status: '', comments: '' }]
         }
       ]
     },
@@ -670,6 +1027,16 @@ export function getCategoriesData() {
             { label: 'Dedicated Test Software', description: 'Standalone systems specialized purely in test planning and execution.' }
           ],
           description: 'Describes the methodology and tooling for documenting and tracking manual and automated tests.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'qa-traceability',
+          aspect: 'Requirement Traceability',
+          examples: [
+            { label: 'Direct ALM Linking', description: 'Test cases are explicitly linked to business requirements or user stories in the tracking tool.' },
+            { label: 'Coverage Matrices', description: 'Generating reports that map executed code against defined feature requirements.' }
+          ],
+          description: 'Defines the mechanism used to prove that all specified business requirements have been corresponding, executed tests.',
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
@@ -728,5 +1095,6 @@ export function getCategoriesData() {
         }
       ]
     }
-  ];
+  ]
+  };
 }
