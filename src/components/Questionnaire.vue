@@ -7,12 +7,24 @@
             v-for="cat in visibleCategories"
             :key="cat.id"
             :active="cat.id === currentCategory.id"
+            :disabled="!categoryHasVisibleEntries(cat)"
+            :class="{ 'text--disabled': !categoryHasVisibleEntries(cat) }"
             @click="selectCategory(cat.id)"
           >
             <v-list-item-title>{{ cat.title }}</v-list-item-title>
             <v-list-item-subtitle>{{ cat.desc }}</v-list-item-subtitle>
           </v-list-item>
         </v-list>
+        <div class="px-4 mt-3">
+          <v-select
+            v-model="applicabilityFilter"
+            :items="applicabilityFilterOptions"
+            label="Filter by Applicability"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
+        </div>
       </v-col>
 
       <v-col cols="12" md="9">
@@ -240,6 +252,7 @@ export default {
     const metadataValue = computed(() => metadataCategory.value?.metadata || null)
     const architecturalRoleValue = computed(() => metadataValue.value?.architecturalRole || '')
     const activeCategoryId = ref('')
+    const applicabilityFilter = ref('all')
 
     function toArray(value) {
       if (!value) return []
@@ -291,7 +304,26 @@ export default {
 
     const visibleEntries = computed(() => {
       const entries = Array.isArray(currentCategory.value.entries) ? currentCategory.value.entries : []
-      return entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+      const filteredByMetadata = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+      
+      if (applicabilityFilter.value === 'all') {
+        return filteredByMetadata
+      }
+      
+      return filteredByMetadata.filter((entry) => {
+        const entryApplicability = entry.applicability || 'applicable'
+        return entryApplicability === applicabilityFilter.value
+      })
+    })
+
+    const applicabilityFilterOptions = computed(() => {
+      return [
+        { title: 'All', value: 'all' },
+        ...store.applicabilityOptions.map((label) => ({
+          title: label.charAt(0).toUpperCase() + label.slice(1),
+          value: label
+        }))
+      ]
     })
 
     const applicabilityItems = computed(() => {
@@ -334,6 +366,24 @@ export default {
       }
     }
 
+    function categoryHasVisibleEntries(category) {
+      if (category.isMetadata) return true
+      
+      const entries = Array.isArray(category.entries) ? category.entries : []
+      const filteredByMetadata = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+      
+      if (applicabilityFilter.value === 'all') {
+        return filteredByMetadata.length > 0
+      }
+      
+      const filteredByApplicability = filteredByMetadata.filter((entry) => {
+        const entryApplicability = entry.applicability || 'applicable'
+        return entryApplicability === applicabilityFilter.value
+      })
+      
+      return filteredByApplicability.length > 0
+    }
+
     return {
       categories: props.categories,
       visibleCategories,
@@ -344,6 +394,8 @@ export default {
       architecturalRoleValue,
       statusOptions: store.statusOptions,
       applicabilityItems,
+      applicabilityFilter,
+      applicabilityFilterOptions,
       getStatusTooltip: store.getStatusTooltip,
       renderTextWithLinks: store.renderTextWithLinks,
       getExampleItems: store.getExampleItems,
@@ -353,7 +405,8 @@ export default {
       deleteAnswer: store.deleteAnswer,
       selectCategory,
       nextCategory,
-      prevCategory
+      prevCategory,
+      categoryHasVisibleEntries
     }
   }
 }
