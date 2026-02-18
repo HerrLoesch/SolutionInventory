@@ -409,7 +409,21 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           if (example && typeof example === 'object') {
             const label = String(example.label || '').trim()
             if (!label) return null
-            return { label, description: example.description || '' }
+            
+            let description = example.description || ''
+            
+            // Append tools in parentheses if tools array exists and has items
+            if (Array.isArray(example.tools) && example.tools.length > 0) {
+              const toolsText = example.tools.join(', ')
+              description = description.trim()
+              // Remove trailing period if present before adding tools
+              if (description.endsWith('.')) {
+                description = description.slice(0, -1)
+              }
+              description = `${description} (${toolsText}).`
+            }
+            
+            return { label, description }
           }
           return null
         })
