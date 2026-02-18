@@ -65,7 +65,8 @@ export function getCategoriesData() {
             { label: 'GraphQL', description: 'Query language for APIs with strongly-typed schema (Apollo, Relay, Strawberry Shake, Hot Chocolate).' },
             { label: 'gRPC', description: 'Binary remote procedure call framework utilizing HTTP/2.' },
             { label: 'WebSocket / Real-time', description: 'Persistent bidirectional communication channels (SignalR, Socket.IO, WebSocket API).' },
-            { label: 'AMQP / MQTT', description: 'Publish-subscribe and message-queue protocols.' }
+            { label: 'AMQP / MQTT', description: 'Publish-subscribe and message-queue protocols.' },
+            { label: 'COM / DCOM', description: 'Component Object Model for inter-process communication and distributed object invocation (Windows COM, DCOM, COM+).' }
           ],
           description: 'Defines the primary protocols utilized for data exchange across system boundaries and client-server interactions.',
           answers: [{ technology: '', status: '', comments: '' }]
