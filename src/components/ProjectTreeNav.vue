@@ -54,6 +54,12 @@
                     </template>
                     <v-list-item-title>Add</v-list-item-title>
                   </v-list-item>
+                                    <v-list-item @click.stop="openQuestionnaireImportDialog(project.id)">
+                    <template #prepend>
+                      <v-icon size="16">mdi-file-upload</v-icon>
+                    </template>
+                    <v-list-item-title>Import Questionnaire</v-list-item-title>
+                  </v-list-item>
                                     <v-list-item @click.stop="downloadProject(project.id)">
                                       <template #prepend>
                                         <v-icon size="16">mdi-download</v-icon>
@@ -108,6 +114,13 @@
                 </v-btn>
               </template>
               <v-list density="compact">
+                <v-list-item @click="downloadQuestionnaire(questionnaire.id)">
+                  <template #prepend>
+                    <v-icon size="16">mdi-download</v-icon>
+                  </template>
+                  <v-list-item-title>Download</v-list-item-title>
+                </v-list-item>
+                <v-divider></v-divider>
                 <v-list-item @click="openRenameQuestionnaireDialog(questionnaire)">
                   <template #prepend>
                     <v-icon size="16">mdi-pencil</v-icon>
@@ -236,6 +249,50 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="questionnaireImportDialogOpen" max-width="520">
+      <v-card>
+        <v-card-title>Import questionnaire</v-card-title>
+        <v-card-text>
+          <v-file-input
+            v-model="questionnaireImportFile"
+            label="Select JSON file"
+            accept=".json"
+            density="compact"
+            prepend-icon="mdi-file-upload"
+            @update:model-value="clearQuestionnaireImportError"
+          />
+          <v-alert v-if="questionnaireImportError" type="error" density="compact" class="mt-2">
+            {{ questionnaireImportError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeQuestionnaireImportDialog">Cancel</v-btn>
+          <v-btn color="primary" :disabled="!questionnaireImportFile" @click="proceedToNameDialog">Next</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="questionnaireNameDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Questionnaire name</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="questionnaireImportName"
+            label="Questionnaire name"
+            density="compact"
+            autofocus
+            @keyup.enter="confirmQuestionnaireImport"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeQuestionnaireNameDialog">Cancel</v-btn>
+          <v-btn color="primary" @click="confirmQuestionnaireImport">Import</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -254,6 +311,13 @@ export default {
     const importDialogOpen = ref(false)
     const importFile = ref(null)
     const importError = ref('')
+    const questionnaireImportDialogOpen = ref(false)
+    const questionnaireNameDialogOpen = ref(false)
+    const questionnaireImportFile = ref(null)
+    const questionnaireImportError = ref('')
+    const questionnaireImportName = ref('')
+    const questionnaireImportData = ref(null)
+    const questionnaireImportProjectId = ref('')
     const newProjectName = ref('')
     const newQuestionnaireName = ref('')
     const renameProjectId = ref('')
@@ -385,6 +449,10 @@ export default {
       store.deleteQuestionnaire(questionnaire.id)
     }
 
+    function downloadQuestionnaire(questionnaireId) {
+      store.saveQuestionnaire(questionnaireId)
+    }
+
     function openQuestionnaireDialog(projectId) {
       targetProjectId.value = projectId
       newQuestionnaireName.value = ''
@@ -404,6 +472,68 @@ export default {
 
     function openQuestionnaire(questionnaireId) {
       store.openQuestionnaire(questionnaireId)
+    }
+
+    function openQuestionnaireImportDialog(projectId) {
+      questionnaireImportProjectId.value = projectId
+      questionnaireImportFile.value = null
+      questionnaireImportError.value = ''
+      questionnaireImportDialogOpen.value = true
+    }
+
+    function closeQuestionnaireImportDialog() {
+      questionnaireImportDialogOpen.value = false
+      questionnaireImportFile.value = null
+      questionnaireImportError.value = ''
+      questionnaireImportData.value = null
+    }
+
+    function clearQuestionnaireImportError() {
+      questionnaireImportError.value = ''
+    }
+
+    function proceedToNameDialog() {
+      const file = Array.isArray(questionnaireImportFile.value) 
+        ? questionnaireImportFile.value[0] 
+        : questionnaireImportFile.value
+      if (!file) return
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result)
+          if (!Array.isArray(data.categories)) {
+            throw new Error('Invalid questionnaire format. Expected a categories array.')
+          }
+          questionnaireImportData.value = data
+          questionnaireImportName.value = data.name || 'Imported questionnaire'
+          questionnaireImportDialogOpen.value = false
+          questionnaireNameDialogOpen.value = true
+        } catch (err) {
+          questionnaireImportError.value = `Import failed: ${err.message}`
+        }
+      }
+      reader.readAsText(file)
+    }
+
+    function closeQuestionnaireNameDialog() {
+      questionnaireNameDialogOpen.value = false
+      questionnaireImportName.value = ''
+      questionnaireImportData.value = null
+      questionnaireImportFile.value = null
+    }
+
+    function confirmQuestionnaireImport() {
+      const name = questionnaireImportName.value.trim()
+      if (!name || !questionnaireImportData.value) return
+
+      store.addQuestionnaire(
+        name,
+        questionnaireImportData.value.categories,
+        questionnaireImportProjectId.value
+      )
+
+      closeQuestionnaireNameDialog()
     }
 
     function onDragStart(projectId, questionnaireId) {
@@ -451,6 +581,11 @@ export default {
       importDialogOpen,
       importFile,
       importError,
+      questionnaireImportDialogOpen,
+      questionnaireNameDialogOpen,
+      questionnaireImportFile,
+      questionnaireImportError,
+      questionnaireImportName,
       newProjectName,
       newQuestionnaireName,
       renameProjectName,
@@ -471,7 +606,14 @@ export default {
       closeRenameQuestionnaireDialog,
       confirmRenameQuestionnaire,
       deleteQuestionnaire,
+      downloadQuestionnaire,
       openQuestionnaireDialog,
+      openQuestionnaireImportDialog,
+      closeQuestionnaireImportDialog,
+      clearQuestionnaireImportError,
+      proceedToNameDialog,
+      closeQuestionnaireNameDialog,
+      confirmQuestionnaireImport,
       closeQuestionnaireDialog,
       createQuestionnaire,
       openQuestionnaire,
