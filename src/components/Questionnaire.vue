@@ -200,7 +200,13 @@
                     <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                       <v-row dense>
                         <v-col cols="12" md="9">
-                          <v-text-field label="Solution" v-model="answer.technology" clearable />
+                          <v-combobox 
+                            label="Solution" 
+                            v-model="answer.technology" 
+                            :items="getSuggestions(entry)"
+                            clearable
+                            hide-details
+                          />
                         </v-col>
 
                         <v-col cols="12" md="3">
@@ -434,6 +440,32 @@ export default {
       })
     }
 
+    function getSuggestions(entry) {
+      if (!entry.examples || !Array.isArray(entry.examples)) {
+        return []
+      }
+
+      const suggestions = []
+      
+      entry.examples.forEach((example) => {
+        // Add the example label
+        if (example.label) {
+          suggestions.push(example.label)
+        }
+        
+        // Add all tools from the example
+        if (Array.isArray(example.tools)) {
+          example.tools.forEach((tool) => {
+            if (tool && !suggestions.includes(tool)) {
+              suggestions.push(tool)
+            }
+          })
+        }
+      })
+      
+      return suggestions.sort()
+    }
+
     return {
       categories: props.categories,
       visibleCategories,
@@ -457,7 +489,8 @@ export default {
       nextCategory,
       prevCategory,
       categoryHasVisibleEntries,
-      setAllApplicability
+      setAllApplicability,
+      getSuggestions
     }
   }
 }
