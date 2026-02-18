@@ -187,32 +187,32 @@
                         </v-col>
 
                         <v-col cols="12" md="3">
-                          <v-select
-                            label="Status"
-                            :items="statusOptions"
-                            item-title="label"
-                            item-value="label"
-                            v-model="answer.status"
-                          >
-                            <template #item="{ props, item }">
-                              <v-list-item v-bind="props">
-                                <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
-                              </v-list-item>
-                            </template>
-                          </v-select>
-                        </v-col>
-
-                        <v-col cols="12" md="1" class="d-flex align-center justify-end">
-                          <v-btn
-                            size="small"
-                            color="error"
-                            variant="text"
-                            icon
-                            @click="deleteAnswer(entry.id, aIdx)"
-                            v-if="entry.answers.length > 1"
-                          >
-                            <v-icon>mdi-delete</v-icon>
-                          </v-btn>
+                          <div class="d-flex align-center gap-2">
+                            <v-select
+                              label="Status"
+                              :items="statusOptions"
+                              item-title="label"
+                              item-value="label"
+                              v-model="answer.status"
+                              class="flex-grow-1"
+                            >
+                              <template #item="{ props, item }">
+                                <v-list-item v-bind="props">
+                                  <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                                </v-list-item>
+                              </template>
+                            </v-select>
+                            <v-btn
+                              size="small"
+                              color="error"
+                              variant="text"
+                              icon
+                              @click="deleteAnswer(entry.id, aIdx)"
+                              v-if="entry.answers.length > 1"
+                            >
+                              <v-icon>mdi-delete</v-icon>
+                            </v-btn>
+                          </div>
                         </v-col>
 
                         <v-col cols="12">
