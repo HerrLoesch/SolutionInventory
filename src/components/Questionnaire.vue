@@ -29,7 +29,29 @@
 
       <v-col cols="12" md="9">
         <v-card>
-          <v-card-title><h2>{{ currentCategory.title }}</h2></v-card-title>
+          <v-card-title>
+            <div class="d-flex align-center justify-space-between w-100">
+              <h2>{{ currentCategory.title }}</h2>
+              <v-select
+                v-if="!currentCategory.isMetadata && visibleEntries.length > 0"
+                :items="applicabilityItems"
+                item-title="label"
+                item-value="label"
+                label="Set all to"
+                density="compact"
+                variant="outlined"
+                hide-details
+                style="max-width: 220px;"
+                @update:model-value="setAllApplicability"
+              >
+                <template #item="{ props, item }">
+                  <v-list-item v-bind="props">
+                    <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                  </v-list-item>
+                </template>
+              </v-select>
+            </div>
+          </v-card-title>
           <v-card-subtitle class="px-4">{{ currentCategory.desc }}</v-card-subtitle>
           <v-card-text>
             <!-- Solution Description Metadata Form -->
@@ -384,6 +406,17 @@ export default {
       return filteredByApplicability.length > 0
     }
 
+    function setAllApplicability(value) {
+      if (!value || currentCategory.value.isMetadata) return
+      
+      const entries = Array.isArray(currentCategory.value.entries) ? currentCategory.value.entries : []
+      const entriesToUpdate = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+      
+      entriesToUpdate.forEach((entry) => {
+        store.setApplicability(entry, value)
+      })
+    }
+
     return {
       categories: props.categories,
       visibleCategories,
@@ -406,7 +439,8 @@ export default {
       selectCategory,
       nextCategory,
       prevCategory,
-      categoryHasVisibleEntries
+      categoryHasVisibleEntries,
+      setAllApplicability
     }
   }
 }
