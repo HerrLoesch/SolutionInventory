@@ -178,8 +178,25 @@
                     </div>
                   </div>
 
+                  <!-- Entry-Level Comment (always visible) -->
+                  <div class="mt-4">
+                    <v-textarea
+                      label="General Comment"
+                      v-model="entry.entryComment"
+                      rows="2"
+                      density="compact"
+                      variant="outlined"
+                      placeholder="Add a general comment for this subcategory..."
+                      class="resizable-textarea"
+                    />
+                  </div>
+
+                  <!-- Divider before answers -->
+                  <v-divider v-if="isEntryApplicable(entry)" class="my-4"></v-divider>
+
                   <!-- Antworten pro Entry -->
                   <div v-if="isEntryApplicable(entry)">
+                    <div class="text-subtitle-2 mb-3 text--secondary">Answers</div>
                     <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                       <v-row dense>
                         <v-col cols="12" md="9">
