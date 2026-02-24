@@ -32,6 +32,7 @@ Create a centralized, accessible platform to:
 - Context menus for create, rename, delete
 - Drag-and-drop questionnaires between projects
 - Questionnaire tabs with close buttons
+- Project Summary tab opened by clicking a project node
 
 #### 3.1.2 Questionnaire Editing
 - Category navigation within a questionnaire
@@ -39,6 +40,7 @@ Create a centralized, accessible platform to:
 - Status and applicability selects with descriptions
 - Metadata fields: productName, company, department, contactPerson, description,
   executionType, architecturalRole
+- "Not specified" option in executionType / architecturalRole — acts as a wildcard, all questions shown
 - Comments field with resizable textarea
 
 #### 3.1.3 Configuration Editor
@@ -51,6 +53,20 @@ Create a centralized, accessible platform to:
 - Project export to JSON
 - Project import from JSON (validated in dialog)
 - Sample data loader in app bar
+
+#### 3.1.5 Project Summary View
+- Accessible by clicking a project node in the tree
+- Displays a cross-questionnaire matrix: aspects (rows) × questionnaires (columns)
+- Categories displayed in collapsible accordion sections
+- Colored status chips per cell (Adopt / Assess / Hold / Retire)
+- Comment tooltips on chip hover
+- Search filter across aspects and technologies
+- Alphabetically sorted aspects
+
+#### 3.1.6 Resizable Sidebar
+- Drag handle on the right edge of the navigation drawer
+- Width adjustable between 160 px and 640 px
+- Width persisted across sessions (localStorage)
 
 ## 4. Functional Requirements
 - The system shall store data locally in the browser.
@@ -89,18 +105,23 @@ an existing questionnaire.
 As a Team Lead, I want to edit categories and questions so that the questionnaire
 fits our organization.
 
+### 6.6 Get a Project Overview
+As a Technology Architect, I want to open a project summary so that I can compare
+technology choices across all questionnaires in one view.
+
 ## 7. Product Scope
 
 ### In Scope
 - Project tree with questionnaires
 - Questionnaire tabs with close buttons
+- Project summary view (cross-questionnaire matrix)
 - Questionnaire editing and metadata
 - Configuration editor in dialog
 - Project import/export
 - Auto-save and sample data loading
+- Resizable sidebar
 
 ### Out of Scope
-- Technology radar summary view
 - Server-side storage or authentication
 - Real-time collaboration
 - Advanced analytics or reporting

@@ -119,7 +119,8 @@ interface Answer {
 - Handles project import/export
 
 ### localStorage
-- Key: solution-inventory-data
+- Key: `solution-inventory-data` — full workspace JSON
+- Key: `sidebar-width` — navigation drawer width in pixels (integer)
 - Auto-save on state change
 - Loaded on app start if present
 
@@ -129,20 +130,29 @@ interface Answer {
 - App bar actions: Sample data, configuration dialog, clear storage
 - Drawer toggle for project tree
 - Last-saved indicator
+- Resizable sidebar: 5 px drag handle on right edge of `v-navigation-drawer`, width clamped 160–640 px, persisted under `sidebar-width`
 
 ### ProjectTreeNav.vue
-- Project tree with context menus
+- v-treeview with context menus
 - Import dialog with JSON validation
 - Export project JSON download
+- Click on a project node opens ProjectSummary tab
 
 ### QuestionnaireWorkspace.vue
-- Tabs for open questionnaires
+- Tabs for open items (type `questionnaire` or `project-summary`)
 - Empty-state when no tabs are open
 
 ### Questionnaire.vue
 - Category navigation within a questionnaire
 - Metadata form with execution type and architectural role
+- `'Not specified'` in either dropdown bypasses `appliesToMatches` filtering (all entries visible)
 - Multi-answer entries with status and applicability selects
+
+### ProjectSummary.vue
+- Opened via `store.openProjectSummary(projectId)` from project tree
+- Accordion sections per category; v-data-table matrix (aspect × questionnaire)
+- Status chips colored by value; comment tooltips
+- Search field filters across all aspects and technology names
 
 ### QuestionnaireConfig.vue
 - Category and entry editor

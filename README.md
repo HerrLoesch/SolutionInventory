@@ -5,8 +5,10 @@ Vue 3 + Vuetify application for documenting solution questionnaires across multi
 ## Features
 - Project tree with create/rename/delete and drag-and-drop questionnaires
 - Questionnaire tabs with close buttons and per-tab state
+- Project Summary tab: cross-questionnaire matrix (aspect × questionnaire) with colored status chips, comment tooltips, search filter and collapsible categories
 - Category-based questionnaire with multi-answer entries
 - Status and applicability selects with descriptions
+- Resizable sidebar: drag the right edge of the navigation drawer (160–640 px, persisted)
 - Configuration editor (dialog) for categories and entries
 - Project import/export (JSON)
 - Auto-save to localStorage with last-saved indicator
@@ -48,7 +50,9 @@ src/
 │   ├── ProjectTreeNav.vue
 │   ├── QuestionnaireWorkspace.vue
 │   ├── Questionnaire.vue
-│   └── QuestionnaireConfig.vue
+│   ├── QuestionnaireConfig.vue
+│   ├── ProjectSummary.vue
+│   └── Summary.vue          # legacy, unused
 ├── services/
 │   └── categoriesService.js
 └── stores/

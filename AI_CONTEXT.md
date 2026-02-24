@@ -5,18 +5,20 @@ Solution Inventory PWA is a Vue 3 + Vuetify application for documenting solution
 
 ## Current Implementation Status
 Implemented features:
-- Project tree with projects and questionnaires, rename/delete, drag-and-drop between projects
+- Project tree (v-treeview) with projects and questionnaires, rename/delete, drag-and-drop between projects
 - Project import (JSON) and project export (JSON) from the project menu
 - Questionnaire tabs with close buttons and per-tab state
+- Project Summary tab: opened by clicking a project node; shows a cross-questionnaire matrix (aspects × questionnaires) with colored status chips, search filter, per-accordion expand/collapse, comment tooltips
 - Questionnaire editing with multi-answer entries and status/applicability selects
 - Configuration editor (dialog) with editable example objects (label + description)
 - Auto-save to localStorage with last-saved timestamp
+- Resizable sidebar: drag handle on the right edge of the nav drawer, width clamped to 160–640 px, persisted in localStorage under key `sidebar-width`
 - Sample data load button in the app bar
 - GitHub Pages build/deploy workflow for main, build-only for dev
 - Playwright E2E test for creating a new project
 
 Removed/changed features:
-- Summary/Technology Radar removed
+- Summary.vue (Technology Radar style) exists in the codebase but is no longer imported or used — superseded by ProjectSummary.vue
 - Wizard removed
 - Save/Load/Delete buttons removed from the questionnaire workspace
 
@@ -32,10 +34,12 @@ Removed/changed features:
 ```
 /src
   /components
-    ProjectTreeNav.vue
-    Questionnaire.vue
-    QuestionnaireWorkspace.vue
-    QuestionnaireConfig.vue
+    ProjectTreeNav.vue       ← v-treeview nav, context menus, import/export
+    Questionnaire.vue        ← questionnaire editor and metadata form
+    QuestionnaireWorkspace.vue ← tabs + empty-state
+    QuestionnaireConfig.vue  ← category/entry editor
+    ProjectSummary.vue       ← cross-questionnaire summary matrix
+    Summary.vue              ← legacy, unused (not imported)
   /services
     categoriesService.js
   /stores
@@ -66,11 +70,12 @@ Metadata category includes fields:
 - metadataOptions for executionType/architecturalRole (label + description)
 
 ## Key Components
-- App.vue: app bar, drawer, config dialog, sample loader, clear storage
-- ProjectTreeNav.vue: projects/questionnaires list, context menus, import/export
-- QuestionnaireWorkspace.vue: tabs + empty-state
+- App.vue: app bar, drawer (resizable via drag handle), config dialog, sample loader, clear storage
+- ProjectTreeNav.vue: v-treeview navigation, context menus, import/export dialog; clicking a project node opens ProjectSummary tab
+- QuestionnaireWorkspace.vue: tabs (type: questionnaire | project-summary) + empty-state
 - Questionnaire.vue: questionnaire editor and metadata form
 - QuestionnaireConfig.vue: category/entry editor with editable examples list
+- ProjectSummary.vue: accordion per category, v-data-table matrix (aspect rows × questionnaire columns), colored status chips, search, comment tooltips
 
 ## Commands
 - npm run dev
