@@ -30,8 +30,10 @@
       :item-props="treeItemProps"
     >
       <template #prepend="{ item }">
-        <v-icon v-if="item.type === 'project'" size="18">mdi-folder</v-icon>
-        <v-icon v-else size="16">mdi-file-document-outline</v-icon>
+        <span class="tree-click-prepend" @click="onNodeClick(item)">
+          <v-icon v-if="item.type === 'project'" size="18">mdi-folder</v-icon>
+          <v-icon v-else size="16">mdi-file-document-outline</v-icon>
+        </span>
       </template>
 
       <template #append="{ item }">
@@ -122,9 +124,13 @@
       </template>
 
       <template #title="{ item }">
-        <span :class="{ 'drop-target': item.type === 'project' && isDropTarget(item.id) }">
+        <div
+          class="tree-click-title"
+          :class="{ 'drop-target': item.type === 'project' && isDropTarget(item.id) }"
+          @click="onNodeClick(item)"
+        >
           {{ item.title }}
-        </span>
+        </div>
       </template>
     </v-treeview>
 
@@ -486,10 +492,20 @@ export default {
       store.openProjectSummary(projectId)
     }
 
+    function onNodeClick(item) {
+      if (!item) return
+      if (item.type === 'project') {
+        openProjectSummary(item.id)
+        return
+      }
+      if (item.type === 'questionnaire') {
+        openQuestionnaire(item.id)
+      }
+    }
+
     function treeItemProps(item) {
       if (item.type === 'project') {
         return {
-          onClick: () => openProjectSummary(item.id),
           onDragover: (e) => {
             e.preventDefault()
             onDragOver(item.id)
@@ -506,7 +522,6 @@ export default {
       return {
         class: 'questionnaire-item',
         draggable: true,
-        onClick: () => openQuestionnaire(item.id),
         onDragstart: () => onDragStart(item.projectId, item.id),
         onDragend: () => onDragEnd()
       }
@@ -615,6 +630,7 @@ export default {
       treeItems,
       opened,
       treeItemProps,
+      onNodeClick,
       projectDialogOpen,
       questionnaireDialogOpen,
       renameProjectDialogOpen,
@@ -718,5 +734,16 @@ export default {
 
 .drop-target {
   background: rgba(21, 101, 192, 0.08);
+}
+
+.tree-click-title {
+  width: 100%;
+  cursor: pointer;
+}
+
+.tree-click-prepend {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
 }
 </style>
