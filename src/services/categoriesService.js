@@ -322,6 +322,19 @@ export function getCategoriesData() {
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
+          id: 'fe-styling',
+          aspect: 'UI Styling / Theming Approach',
+          examples: [
+            { label: 'Web CSS (Plain / Scoped)', description: 'Stylesheets in CSS with optional component scoping (global + per-component).', tools: ["CSS","PostCSS","scoped styles"] },
+            { label: 'Web Preprocessor', description: 'Precompiled CSS with variables, mixins, and nesting.', tools: ["Sass/SCSS","LESS","Stylus"] },
+            { label: 'Utility-First', description: 'Composing UI using small atomic utility classes.', tools: ["Tailwind CSS"] },
+            { label: 'Component Library Theming', description: 'Using a UI library theme system and tokens as the primary styling mechanism.', tools: ["Vuetify themes","Material UI theming","Bootstrap"] },
+            { label: '.NET Desktop Styling', description: 'Styling via framework-specific mechanisms.', tools: ["WPF (XAML Styles)","Resource Dictionaries","Control Templates","WinForms (Owner Draw / Custom Controls)"] }
+          ],
+          description: 'Captures how the frontend UI is styled and themed across web and desktop clients (e.g., CSS/LESS/SCSS vs framework-native styling in WPF/WinForms), and where style definitions live (global, component-scoped, utility-first, or via a component library theme system).',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
           id: 'fe-cache',
           aspect: 'Client Caching Strategy',
           examples: [
