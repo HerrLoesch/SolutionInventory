@@ -29,7 +29,11 @@
         @drop="onDrop(project.id)"
       >
         <template #activator="{ props }">
-          <v-list-item v-bind="props" :class="{ 'drop-target': isDropTarget(project.id) }">
+          <v-list-item
+            v-bind="props"
+            :class="{ 'drop-target': isDropTarget(project.id) }"
+            @click="openProjectSummary(project.id)"
+          >
             <template #prepend>
               <v-icon size="18">mdi-folder</v-icon>
             </template>
@@ -43,6 +47,7 @@
                     variant="text"
                     class="item-menu"
                     v-bind="menuProps"
+                    @click.stop
                   >
                     <v-icon size="16">mdi-dots-vertical</v-icon>
                   </v-btn>
@@ -474,6 +479,10 @@ export default {
       store.openQuestionnaire(questionnaireId)
     }
 
+    function openProjectSummary(projectId) {
+      store.openProjectSummary(projectId)
+    }
+
     function openQuestionnaireImportDialog(projectId) {
       questionnaireImportProjectId.value = projectId
       questionnaireImportFile.value = null
@@ -617,6 +626,7 @@ export default {
       closeQuestionnaireDialog,
       createQuestionnaire,
       openQuestionnaire,
+      openProjectSummary,
       onDragStart,
       onDragEnd,
       onDragOver,

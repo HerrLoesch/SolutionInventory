@@ -1,17 +1,18 @@
 <template>
   <div class="questionnaire-workspace">
-    <div v-if="openTabs.length" class="workspace-actions">
+    <div v-if="workspaceTabs.length" class="workspace-actions">
     </div>
 
-    <v-tabs v-if="openTabs.length" v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
+    <v-tabs v-if="workspaceTabs.length" v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
       <v-tab
-        v-for="tab in openTabs"
+        v-for="tab in workspaceTabs"
         :key="tab.id"
         :value="tab.id"
         class="workspace-tab"
         :class="{ 'tab-active': tab.id === activeTab }"
       >
-        <v-icon size="16" class="mr-2">mdi-file-document-outline</v-icon>
+        <v-icon v-if="tab.type === 'project-summary'" size="16" class="mr-2">mdi-folder</v-icon>
+        <v-icon v-else size="16" class="mr-2">mdi-file-document-outline</v-icon>
         <span class="tab-title">{{ tab.label }}</span>
         <v-btn
           icon
@@ -25,17 +26,22 @@
       </v-tab>
     </v-tabs>
 
-    <div v-if="!openTabs.length" class="workspace-empty">
-      Please select or create a questionnaire to get started.
+    <div v-if="!workspaceTabs.length" class="workspace-empty">
+      Please select a project or create a questionnaire to get started.
     </div>
 
     <v-window v-else v-model="activeTab">
       <v-window-item
-        v-for="tab in openTabs"
+        v-for="tab in workspaceTabs"
         :key="tab.id"
         :value="tab.id"
       >
+        <ProjectSummary
+          v-if="tab.type === 'project-summary'"
+          :project-id="tab.projectId"
+        />
         <Questionnaire
+          v-else
           :categories="tab.categories"
           @update-categories="updateQuestionnaire(tab.id, $event)"
         />
@@ -46,28 +52,29 @@
 </template>
 
 <script>
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Questionnaire from './Questionnaire.vue'
+import ProjectSummary from './ProjectSummary.vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
-  components: { Questionnaire },
+  components: { Questionnaire, ProjectSummary },
   setup() {
     const store = useWorkspaceStore()
-    const { openTabs, activeQuestionnaireId } = storeToRefs(store)
+    const { workspaceTabs, activeWorkspaceTabId } = storeToRefs(store)
 
     const activeTab = computed({
-      get: () => activeQuestionnaireId.value,
-      set: (value) => store.setActiveQuestionnaire(value)
+      get: () => activeWorkspaceTabId.value,
+      set: (value) => store.setActiveWorkspaceTab(value)
     })
 
     watch(
-      () => [openTabs.value, activeQuestionnaireId.value],
+      () => [workspaceTabs.value, activeWorkspaceTabId.value],
       ([tabs, activeId]) => {
         if (!tabs.length) return
         if (!activeId) {
-          store.setActiveQuestionnaire(tabs[0].id)
+          store.setActiveWorkspaceTab(tabs[0].id)
         }
       },
       { immediate: true, deep: true }
@@ -79,11 +86,11 @@ export default {
     }
 
 
-    function closeTab(questionnaireId) {
-      store.closeQuestionnaire(questionnaireId)
+    function closeTab(tabId) {
+      store.closeWorkspaceTab(tabId)
     }
     return {
-      openTabs,
+      workspaceTabs,
       activeTab,
       updateQuestionnaire,
       closeTab

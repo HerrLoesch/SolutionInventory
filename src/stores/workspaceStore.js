@@ -37,6 +37,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const workspace = ref(createWorkspace())
   const activeQuestionnaireId = ref('')
   const openQuestionnaireIds = ref([])
+  const activeWorkspaceTabId = ref('')
+  const openProjectSummaryIds = ref([])
   const lastSaved = ref('')
   const autoSaveStarted = ref(false)
 
@@ -59,6 +61,30 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }))
   })
 
+  const workspaceTabs = computed(() => {
+    const projectTabs = openProjectSummaryIds.value
+      .map((projectId) => workspace.value.projects.find((project) => project.id === projectId))
+      .filter(Boolean)
+      .map((project) => ({
+        id: toProjectTabId(project.id),
+        type: 'project-summary',
+        label: project.name,
+        projectId: project.id
+      }))
+
+    const questionnaireTabs = openQuestionnaireIds.value
+      .map((id) => workspace.value.questionnaires.find((item) => item.id === id))
+      .filter(Boolean)
+      .map((questionnaire) => ({
+        id: questionnaire.id,
+        type: 'questionnaire',
+        label: getTabLabel(questionnaire),
+        categories: questionnaire.categories
+      }))
+
+    return [...projectTabs, ...questionnaireTabs]
+  })
+
   function initFromStorage() {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (!saved) {
@@ -72,6 +98,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         workspace.value = data.workspace
         activeQuestionnaireId.value = ''
         openQuestionnaireIds.value = []
+        activeWorkspaceTabId.value = ''
+        openProjectSummaryIds.value = []
         hydrateLastSaved(data.timestamp)
         return
       }
@@ -81,6 +109,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         workspace.value = createWorkspace([], [initialQuestionnaire])
         activeQuestionnaireId.value = ''
         openQuestionnaireIds.value = []
+        activeWorkspaceTabId.value = ''
+        openProjectSummaryIds.value = []
         hydrateLastSaved(data.timestamp)
         return
       }
@@ -97,13 +127,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     workspace.value = createWorkspace([], [initialQuestionnaire])
     activeQuestionnaireId.value = ''
     openQuestionnaireIds.value = []
+    activeWorkspaceTabId.value = ''
+    openProjectSummaryIds.value = []
   }
 
   function startAutoSave() {
     if (autoSaveStarted.value) return
     autoSaveStarted.value = true
     watch(
-      () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value],
+      () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value],
       () => persist(),
       { deep: true }
     )
@@ -116,7 +148,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         timestamp: new Date().toISOString(),
         workspace: workspace.value,
         activeQuestionnaireId: activeQuestionnaireId.value,
-        openQuestionnaireIds: openQuestionnaireIds.value
+        openQuestionnaireIds: openQuestionnaireIds.value,
+        activeWorkspaceTabId: activeWorkspaceTabId.value,
+        openProjectSummaryIds: openProjectSummaryIds.value
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
       hydrateLastSaved(dataToSave.timestamp)
@@ -141,6 +175,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function setActiveQuestionnaire(questionnaireId) {
     if (!openQuestionnaireIds.value.includes(questionnaireId)) return
     activeQuestionnaireId.value = questionnaireId
+    activeWorkspaceTabId.value = questionnaireId
   }
 
   function openQuestionnaire(questionnaireId) {
@@ -149,6 +184,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds.value.push(questionnaireId)
     }
     activeQuestionnaireId.value = questionnaireId
+    activeWorkspaceTabId.value = questionnaireId
   }
 
   function closeQuestionnaire(questionnaireId) {
@@ -156,6 +192,51 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds.value = openQuestionnaireIds.value.filter((id) => id !== questionnaireId)
     if (activeQuestionnaireId.value !== questionnaireId) return
     activeQuestionnaireId.value = openQuestionnaireIds.value[0] || ''
+    activeWorkspaceTabId.value = activeQuestionnaireId.value
+  }
+
+  function openProjectSummary(projectId) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    if (!openProjectSummaryIds.value.includes(projectId)) {
+      openProjectSummaryIds.value.push(projectId)
+    }
+    activeWorkspaceTabId.value = toProjectTabId(projectId)
+  }
+
+  function setActiveWorkspaceTab(tabId) {
+    if (!tabId) return
+    if (isProjectTabId(tabId)) {
+      const projectId = fromProjectTabId(tabId)
+      if (!openProjectSummaryIds.value.includes(projectId)) return
+      activeWorkspaceTabId.value = tabId
+      return
+    }
+
+    // questionnaire tab
+    if (!openQuestionnaireIds.value.includes(tabId)) return
+    activeQuestionnaireId.value = tabId
+    activeWorkspaceTabId.value = tabId
+  }
+
+  function closeWorkspaceTab(tabId) {
+    if (!tabId) return
+
+    if (isProjectTabId(tabId)) {
+      const projectId = fromProjectTabId(tabId)
+      openProjectSummaryIds.value = openProjectSummaryIds.value.filter((id) => id !== projectId)
+      if (activeWorkspaceTabId.value !== tabId) return
+      const nextTab = workspaceTabs.value[0]
+      activeWorkspaceTabId.value = nextTab?.id || ''
+      return
+    }
+
+    // questionnaire tab
+    closeQuestionnaire(tabId)
+    if (activeWorkspaceTabId.value === tabId) {
+      const nextTab = workspaceTabs.value[0]
+      activeWorkspaceTabId.value = nextTab?.id || ''
+    }
   }
 
   function updateQuestionnaireCategories(questionnaireId, categories) {
@@ -263,6 +344,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function getProjectQuestionnaires(project) {
     const ids = Array.isArray(project?.questionnaireIds) ? project.questionnaireIds : []
     return ids.map((id) => getQuestionnaireById(id)).filter(Boolean)
+  }
+
+  function toProjectTabId(projectId) {
+    return `project:${projectId}`
+  }
+
+  function isProjectTabId(tabId) {
+    return String(tabId || '').startsWith('project:')
+  }
+
+  function fromProjectTabId(tabId) {
+    return String(tabId || '').slice('project:'.length)
   }
 
   function saveQuestionnaire(questionnaireId) {
@@ -503,17 +596,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     workspace,
     activeQuestionnaireId,
     openQuestionnaireIds,
+    activeWorkspaceTabId,
+    openProjectSummaryIds,
     lastSaved,
     activeQuestionnaire,
     activeCategories,
     openTabs,
+    workspaceTabs,
     initFromStorage,
     startAutoSave,
     persist,
     clearStorage,
     setActiveQuestionnaire,
+    setActiveWorkspaceTab,
     openQuestionnaire,
+    openProjectSummary,
     closeQuestionnaire,
+    closeWorkspaceTab,
     updateQuestionnaireCategories,
     addAnswer,
     deleteAnswer,
