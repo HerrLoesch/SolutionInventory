@@ -31,8 +31,9 @@
       </v-btn>
     </v-app-bar>
 
-    <v-navigation-drawer v-model="drawerOpen" app width="260" class="side-nav">
+    <v-navigation-drawer v-model="drawerOpen" app :width="drawerWidth" class="side-nav">
       <ProjectTreeNav />
+      <div class="resize-handle" @mousedown.prevent="startResize" />
     </v-navigation-drawer>
 
     <v-main>
@@ -66,7 +67,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
@@ -80,6 +81,37 @@ export default {
     const activeTab = ref('questionnaire')
     const configOpen = ref(false)
     const drawerOpen = ref(true)
+    const drawerWidth = ref(parseInt(localStorage.getItem('sidebar-width') || '260', 10))
+
+    let resizeStartX = 0
+    let resizeStartWidth = 0
+
+    function onResizeMove(e) {
+      const delta = e.clientX - resizeStartX
+      drawerWidth.value = Math.min(Math.max(resizeStartWidth + delta, 160), 640)
+    }
+
+    function stopResize() {
+      document.removeEventListener('mousemove', onResizeMove)
+      document.removeEventListener('mouseup', stopResize)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      localStorage.setItem('sidebar-width', String(drawerWidth.value))
+    }
+
+    function startResize(e) {
+      resizeStartX = e.clientX
+      resizeStartWidth = drawerWidth.value
+      document.addEventListener('mousemove', onResizeMove)
+      document.addEventListener('mouseup', stopResize)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    onUnmounted(() => {
+      document.removeEventListener('mousemove', onResizeMove)
+      document.removeEventListener('mouseup', stopResize)
+    })
     const store = useWorkspaceStore()
     const { activeCategories, lastSaved, activeQuestionnaireId, workspace } = storeToRefs(store)
 
@@ -119,6 +151,8 @@ export default {
       lastSaved,
       configOpen,
       drawerOpen,
+      drawerWidth,
+      startResize,
       openConfig,
       loadSample,
       updateCategories, 
@@ -141,6 +175,21 @@ body { font-family: Roboto, Arial, sans-serif; }
   border-right: 1px solid #ECEFF1;
   display: flex;
   flex-direction: column;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 200;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover {
+  background: rgba(var(--v-theme-primary), 0.25);
 }
 
 .side-nav .project-tree-nav {
