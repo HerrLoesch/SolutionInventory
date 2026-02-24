@@ -84,6 +84,7 @@
                                         v-if="line.status"
                                         size="x-small"
                                         variant="tonal"
+                                        :color="statusChipColor(line.status)"
                                         class="ml-2"
                                       >
                                         {{ line.status }}
@@ -104,6 +105,7 @@
                                     v-if="line.status"
                                     size="x-small"
                                     variant="tonal"
+                                    :color="statusChipColor(line.status)"
                                     class="ml-2"
                                   >
                                     {{ line.status }}
@@ -178,7 +180,7 @@ export default {
     })
 
     const headers = computed(() => {
-      const base = [{ title: 'Subcategory', key: 'subcategory', sortable: true }]
+      const base = [{ title: '', key: 'subcategory', sortable: false }]
       const questionnaireHeaders = questionnaires.value.map((questionnaire) => ({
         title: questionnaire.name,
         key: toQuestionnaireKey(questionnaire.id),
@@ -301,6 +303,14 @@ export default {
       })
     }
 
+    function statusChipColor(status) {
+      const normalized = String(status || '').trim().toLowerCase()
+      if (normalized === 'adopt') return 'success'
+      if (normalized === 'retire') return 'error'
+      if (!normalized) return undefined
+      return 'warning'
+    }
+
     return {
       project,
       questionnaires,
@@ -312,7 +322,8 @@ export default {
       search,
       cellLinesByKey,
       rowFromItem,
-      isUnanswered
+      isUnanswered,
+      statusChipColor
     }
   }
 }
@@ -329,10 +340,25 @@ export default {
   border-radius: 6px;
 }
 
+.project-summary-table :deep(.v-data-table__tr--header th),
+.project-summary-table :deep(.v-data-table__th) {
+  font-weight: 700 !important;
+  background: rgb(var(--v-theme-surface)) !important;
+  border-bottom: 2px solid rgba(var(--v-theme-on-surface), 0.16) !important;
+}
+
+.project-summary-table :deep(.v-data-table-header__content) {
+  font-weight: 700 !important;
+}
+
+.project-summary-table :deep(.v-data-table__tr--header th:first-child) {
+  min-width: 240px;
+}
+
 .sticky-col {
   position: sticky;
   left: 0;
-  background: white;
+  background: rgb(var(--v-theme-surface));
   z-index: 1;
   min-width: 240px;
   max-width: 360px;
