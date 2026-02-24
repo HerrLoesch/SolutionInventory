@@ -14,142 +14,119 @@
       </div>
     </div>
 
-    <v-list density="compact" class="tree-list">
-      <v-list-item v-if="!projects.length" class="text-caption text--secondary">
-        No projects yet.
-      </v-list-item>
+    <div v-if="!projects.length" class="tree-list">
+      <div class="text-caption text--secondary px-2 py-2">No projects yet.</div>
+    </div>
 
-      <v-list-group
-        v-for="project in projects"
-        :key="project.id"
-        v-model="project.expanded"
-        class="project-group"
-        @dragover.prevent="onDragOver(project.id)"
-        @dragleave="onDragLeave(project.id)"
-        @drop="onDrop(project.id)"
-      >
-        <template #activator="{ props }">
-          <v-list-item
-            v-bind="props"
-            :class="{ 'drop-target': isDropTarget(project.id) }"
-            @click="openProjectSummary(project.id)"
-          >
-            <template #prepend>
-              <v-icon size="18">mdi-folder</v-icon>
-            </template>
-            <v-list-item-title>{{ project.name }}</v-list-item-title>
-            <template #append>
-              <v-menu location="bottom end">
-                <template #activator="{ props: menuProps }">
-                  <v-btn
-                    icon
-                    size="x-small"
-                    variant="text"
-                    class="item-menu"
-                    v-bind="menuProps"
-                    @click.stop
-                  >
-                    <v-icon size="16">mdi-dots-vertical</v-icon>
-                  </v-btn>
-                </template>
-                <v-list density="compact">
-                                    <v-list-item @click.stop="openQuestionnaireDialog(project.id)">
-                    <template #prepend>
-                      <v-icon size="16">mdi-file-plus</v-icon>
-                    </template>
-                    <v-list-item-title>Add</v-list-item-title>
-                  </v-list-item>
-                                    <v-list-item @click.stop="openQuestionnaireImportDialog(project.id)">
-                    <template #prepend>
-                      <v-icon size="16">mdi-file-upload</v-icon>
-                    </template>
-                    <v-list-item-title>Import Questionnaire</v-list-item-title>
-                  </v-list-item>
-                                    <v-list-item @click.stop="downloadProject(project.id)">
-                                      <template #prepend>
-                                        <v-icon size="16">mdi-download</v-icon>
-                                      </template>
-                                      <v-list-item-title>Download</v-list-item-title>
-                                    </v-list-item>
-                  <v-divider></v-divider>
-                                    <v-list-item @click.stop="openRenameProjectDialog(project)">
-                    <template #prepend>
-                      <v-icon size="16">mdi-pencil</v-icon>
-                    </template>
-                    <v-list-item-title>Rename</v-list-item-title>
-                  </v-list-item>
+    <v-treeview
+      v-else
+      v-model:opened="opened"
+      :items="treeItems"
+      item-title="title"
+      item-value="id"
+      item-children="children"
+      density="compact"
+      class="tree-list"
+      :item-props="treeItemProps"
+    >
+      <template #prepend="{ item }">
+        <v-icon v-if="item.type === 'project'" size="18">mdi-folder</v-icon>
+        <v-icon v-else size="16">mdi-file-document-outline</v-icon>
+      </template>
 
-                                    <v-list-item @click.stop="deleteProject(project.id)">
-                    <template #prepend>
-                      <v-icon size="16" color="error">mdi-delete</v-icon>
-                    </template>
-                    <v-list-item-title>Delete</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
-            </template>
-          </v-list-item>
-        </template>
-
-        <v-list-item
-          v-for="questionnaire in projectQuestionnaires(project)"
-          :key="questionnaire.id"
-          class="questionnaire-item"
-          draggable="true"
-          @click="openQuestionnaire(questionnaire.id)"
-          @dragstart="onDragStart(project.id, questionnaire.id)"
-          @dragend="onDragEnd"
-        >
-          <template #prepend>
-            <v-icon size="16">mdi-file-document-outline</v-icon>
+      <template #append="{ item }">
+        <v-menu v-if="item.type === 'project'" location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              icon
+              size="x-small"
+              variant="text"
+              class="item-menu"
+              v-bind="menuProps"
+              @click.stop
+            >
+              <v-icon size="16">mdi-dots-vertical</v-icon>
+            </v-btn>
           </template>
-          <v-list-item-title>{{ questionnaire.name }}</v-list-item-title>
-          <template #append>
-            <v-menu location="bottom end">
-              <template #activator="{ props: menuProps }">
-                <v-btn
-                  icon
-                  size="x-small"
-                  variant="text"
-                  class="item-menu"
-                  v-bind="menuProps"
-                  @click.stop
-                >
-                  <v-icon size="16">mdi-dots-vertical</v-icon>
-                </v-btn>
+          <v-list density="compact">
+            <v-list-item @click.stop="openQuestionnaireDialog(item.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-file-plus</v-icon>
               </template>
-              <v-list density="compact">
-                <v-list-item @click="downloadQuestionnaire(questionnaire.id)">
-                  <template #prepend>
-                    <v-icon size="16">mdi-download</v-icon>
-                  </template>
-                  <v-list-item-title>Download</v-list-item-title>
-                </v-list-item>
-                <v-divider></v-divider>
-                <v-list-item @click="openRenameQuestionnaireDialog(questionnaire)">
-                  <template #prepend>
-                    <v-icon size="16">mdi-pencil</v-icon>
-                  </template>
-                  <v-list-item-title>Rename</v-list-item-title>
-                </v-list-item>
-                <v-list-item @click="deleteQuestionnaire(questionnaire)">
-                  <template #prepend>
-                    <v-icon size="16" color="error">mdi-delete</v-icon>
-                  </template>
-                  <v-list-item-title>Delete</v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
-          </template>
-        </v-list-item>
+              <v-list-item-title>Add</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="openQuestionnaireImportDialog(item.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-file-upload</v-icon>
+              </template>
+              <v-list-item-title>Import Questionnaire</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="downloadProject(item.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-download</v-icon>
+              </template>
+              <v-list-item-title>Download</v-list-item-title>
+            </v-list-item>
+            <v-divider></v-divider>
+            <v-list-item @click.stop="openRenameProjectDialog(item.project)">
+              <template #prepend>
+                <v-icon size="16">mdi-pencil</v-icon>
+              </template>
+              <v-list-item-title>Rename</v-list-item-title>
+            </v-list-item>
 
-        <v-list-item v-if="!project.questionnaireIds.length" density="compact">
-          <v-list-item-title class="text-caption text--secondary">
-            No questionnaires
-          </v-list-item-title>
-        </v-list-item>
-      </v-list-group>
-    </v-list>
+            <v-list-item @click.stop="deleteProject(item.id)">
+              <template #prepend>
+                <v-icon size="16" color="error">mdi-delete</v-icon>
+              </template>
+              <v-list-item-title>Delete</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <v-menu v-else location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              icon
+              size="x-small"
+              variant="text"
+              class="item-menu"
+              v-bind="menuProps"
+              @click.stop
+            >
+              <v-icon size="16">mdi-dots-vertical</v-icon>
+            </v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item @click.stop="downloadQuestionnaire(item.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-download</v-icon>
+              </template>
+              <v-list-item-title>Download</v-list-item-title>
+            </v-list-item>
+            <v-divider></v-divider>
+            <v-list-item @click.stop="openRenameQuestionnaireDialog(item.questionnaire)">
+              <template #prepend>
+                <v-icon size="16">mdi-pencil</v-icon>
+              </template>
+              <v-list-item-title>Rename</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="deleteQuestionnaire(item.questionnaire)">
+              <template #prepend>
+                <v-icon size="16" color="error">mdi-delete</v-icon>
+              </template>
+              <v-list-item-title>Delete</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+      </template>
+
+      <template #title="{ item }">
+        <span :class="{ 'drop-target': item.type === 'project' && isDropTarget(item.id) }">
+          {{ item.title }}
+        </span>
+      </template>
+    </v-treeview>
 
     <v-dialog v-model="projectDialogOpen" max-width="420">
       <v-card>
@@ -309,6 +286,32 @@ export default {
   setup() {
     const store = useWorkspaceStore()
     const projects = computed(() => store.workspace.projects || [])
+
+    const treeItems = computed(() => {
+      return projects.value.map((project) => ({
+        id: project.id,
+        title: project.name,
+        type: 'project',
+        project,
+        children: projectQuestionnaires(project).map((questionnaire) => ({
+          id: questionnaire.id,
+          title: questionnaire.name,
+          type: 'questionnaire',
+          questionnaire,
+          projectId: project.id
+        }))
+      }))
+    })
+
+    const opened = computed({
+      get: () => projects.value.filter((p) => p.expanded).map((p) => p.id),
+      set: (value) => {
+        const openedSet = new Set(Array.isArray(value) ? value : [])
+        projects.value.forEach((p) => {
+          p.expanded = openedSet.has(p.id)
+        })
+      }
+    })
     const projectDialogOpen = ref(false)
     const questionnaireDialogOpen = ref(false)
     const renameProjectDialogOpen = ref(false)
@@ -483,6 +486,32 @@ export default {
       store.openProjectSummary(projectId)
     }
 
+    function treeItemProps(item) {
+      if (item.type === 'project') {
+        return {
+          onClick: () => openProjectSummary(item.id),
+          onDragover: (e) => {
+            e.preventDefault()
+            onDragOver(item.id)
+          },
+          onDragleave: () => onDragLeave(item.id),
+          onDrop: (e) => {
+            e.preventDefault()
+            onDrop(item.id)
+          }
+        }
+      }
+
+      // questionnaire
+      return {
+        class: 'questionnaire-item',
+        draggable: true,
+        onClick: () => openQuestionnaire(item.id),
+        onDragstart: () => onDragStart(item.projectId, item.id),
+        onDragend: () => onDragEnd()
+      }
+    }
+
     function openQuestionnaireImportDialog(projectId) {
       questionnaireImportProjectId.value = projectId
       questionnaireImportFile.value = null
@@ -583,6 +612,9 @@ export default {
 
     return {
       projects,
+      treeItems,
+      opened,
+      treeItemProps,
       projectDialogOpen,
       questionnaireDialogOpen,
       renameProjectDialogOpen,
@@ -670,10 +702,6 @@ export default {
   margin-bottom: 12px;
 }
 
-.project-group :deep(.v-list-group__items) {
-  margin-left: 12px;
-}
-
 .questionnaire-item :deep(.v-list-item__content) {
   font-size: 12px;
 }
@@ -683,7 +711,7 @@ export default {
   pointer-events: none;
 }
 
-.project-group :deep(.v-list-item:hover .item-menu) {
+.tree-list :deep(.v-list-item:hover .item-menu) {
   opacity: 1;
   pointer-events: auto;
 }
