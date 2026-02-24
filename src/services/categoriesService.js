@@ -24,6 +24,7 @@ export function getCategoriesData() {
       },
       metadataOptions: {
         executionType: [
+          { label: 'Not specified', description: 'Applicability is not yet determined. All questions will be shown.' },
           { label: 'Web Application', description: 'Runs in a web browser. Includes Single Page Applications (SPAs) and traditional Thin Clients.' },
           { label: 'Desktop Application', description: 'Installed and executed directly on a user\'s local operating system (Rich/Thick Client).' },
           { label: 'Mobile Application', description: 'Native or hybrid application running on mobile devices (iOS / Android).' },
@@ -32,6 +33,7 @@ export function getCategoriesData() {
           { label: 'Embedded / IoT', description: 'Software running directly on specialized, often resource-constrained hardware or devices.' }
         ],
         architecturalRole: [
+          { label: 'Not specified', description: 'Applicability is not yet determined. All questions will be shown.' },
           { label: 'Standalone System', description: 'An independent, self-contained application.' },
           { label: 'Domain Service / Microservice', description: 'A specialized service owning a specific business domain.' },
           { label: 'Integration Bridge / Middleware', description: 'A system primarily responsible for connecting, translating, or synchronizing data.' },

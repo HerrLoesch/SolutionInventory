@@ -311,6 +311,7 @@ export default {
       return Object.entries(appliesTo).every(([key, allowed]) => {
         const metadataValue = metadata[key]
         if (!metadataValue) return false
+        if (metadataValue === 'Not specified') return true
         const allowedValues = toArray(allowed)
         return allowedValues.includes(metadataValue)
       })
