@@ -438,7 +438,7 @@ export function getCategoriesData() {
           id: 'be-runtime',
           aspect: 'Tech Stack & Runtime',
           examples: [
-            { label: '.NET Runtime', description: 'Execution environment for C#, F#, or VB.NET.', tools: [".NET 6/7/8",".NET Framework","ASP.NET Core","Mono"] },
+            { label: '.NET Runtime', description: 'Execution environment for C#, F#, or VB.NET.', tools: [".NET",".NET Framework","ASP.NET Core","Mono"] },
             { label: 'Java Virtual Machine (JVM)', description: 'Execution environment for Java, Kotlin, or Scala.', tools: ["OpenJDK","Oracle JDK","GraalVM","Amazon Corretto","Spring Boot"] },
             { label: 'Scripting Runtime', description: 'Interpreted runtimes.', tools: ["Node.js","Deno","Bun","Python","Ruby","PHP","Go"] }
           ],
