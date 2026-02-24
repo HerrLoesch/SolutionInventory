@@ -24,18 +24,41 @@
           </v-alert>
 
           <div v-else class="summary-table-wrapper mt-2">
-            <v-text-field
-              v-model="search"
-              label="Search"
-              density="compact"
-              variant="outlined"
-              hide-details
-              clearable
-              prepend-inner-icon="mdi-magnify"
-              class="mb-3"
-            />
+            <div class="d-flex align-center mb-3" style="gap: 8px;">
+              <v-text-field
+                v-model="search"
+                label="Search"
+                density="compact"
+                variant="outlined"
+                hide-details
+                clearable
+                prepend-inner-icon="mdi-magnify"
+              />
+              <v-tooltip text="Alle aufklappen" location="top">
+                <template #activator="{ props }">
+                  <v-btn
+                    v-bind="props"
+                    size="small"
+                    variant="text"
+                    icon="mdi-unfold-more-horizontal"
+                    @click="expandAll"
+                  />
+                </template>
+              </v-tooltip>
+              <v-tooltip text="Alle zuklappen" location="top">
+                <template #activator="{ props }">
+                  <v-btn
+                    v-bind="props"
+                    size="small"
+                    variant="text"
+                    icon="mdi-unfold-less-horizontal"
+                    @click="collapseAll"
+                  />
+                </template>
+              </v-tooltip>
+            </div>
 
-            <v-expansion-panels variant="accordion" multiple>
+            <v-expansion-panels v-model="openPanels" variant="accordion" multiple>
               <v-expansion-panel
                 v-for="group in categoryGroups"
                 :key="group.title"
@@ -130,7 +153,7 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
@@ -143,6 +166,7 @@ export default {
   setup(props) {
     const store = useWorkspaceStore()
     const search = ref('')
+    const openPanels = ref([])
 
     const project = computed(() => {
       return (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
@@ -206,11 +230,25 @@ export default {
       })
     })
 
+    function matchesSearch(item) {
+      if (!search.value) return true
+      const term = search.value.toLowerCase()
+      return Object.values(item).some((v) => String(v).toLowerCase().includes(term))
+    }
+
     const categoryGroups = computed(() => {
+      // Collect all category keys from rows (so groups are always shown)
       const counts = new Map()
       rows.value.forEach((row) => {
         const key = String(row.category || '').trim() || 'Other'
-        counts.set(key, (counts.get(key) || 0) + 1)
+        counts.set(key, 0)
+      })
+      // Count only items that pass the current search filter
+      items.value.forEach((item) => {
+        if (matchesSearch(item)) {
+          const key = String(item.category || '').trim() || 'Other'
+          counts.set(key, (counts.get(key) || 0) + 1)
+        }
       })
 
       return Array.from(counts.entries())
@@ -303,6 +341,20 @@ export default {
       })
     }
 
+    watch(search, (val) => {
+      if (val) {
+        openPanels.value = categoryGroups.value.map((g) => g.title)
+      }
+    })
+
+    function expandAll() {
+      openPanels.value = categoryGroups.value.map((g) => g.title)
+    }
+
+    function collapseAll() {
+      openPanels.value = []
+    }
+
     function statusChipColor(status) {
       const normalized = String(status || '').trim().toLowerCase()
       if (normalized === 'adopt') return 'success'
@@ -320,6 +372,9 @@ export default {
       categoryGroups,
       itemsForCategory,
       search,
+      openPanels,
+      expandAll,
+      collapseAll,
       cellLinesByKey,
       rowFromItem,
       isUnanswered,
