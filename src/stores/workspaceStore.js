@@ -409,6 +409,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return addQuestionnaire(name, categories)
   }
 
+  function updateProjectDeviationSettings(projectId, settings) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    project.deviationSettings = settings || {}
+  }
+
   function addAnswer(entryId) {
     const entry = findEntry(entryId)
     if (!entry || !isEntryApplicable(entry)) return
@@ -636,6 +642,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     saveQuestionnaire,
     saveActiveQuestionnaire,
     exportProject,
-    addQuestionnaireFromCategories
+    addQuestionnaireFromCategories,
+    updateProjectDeviationSettings
   }
 })

@@ -25,6 +25,17 @@
 
           <div v-else class="summary-table-wrapper mt-2">
             <div class="d-flex align-center mb-3" style="gap: 8px;">
+              <v-tooltip text="Kategorieeinstellungen" location="top">
+                <template #activator="{ props }">
+                  <v-btn
+                    v-bind="props"
+                    size="small"
+                    variant="text"
+                    icon="mdi-cog"
+                    @click="categorySettingsOpen = true"
+                  />
+                </template>
+              </v-tooltip>
               <v-text-field
                 v-model="search"
                 label="Search"
@@ -66,7 +77,10 @@
               >
                 <v-expansion-panel-title>
                   <div class="d-flex align-center justify-space-between w-100">
-                    <span class="text-body-2 font-weight-bold">{{ group.title }}</span>
+                    <div class="d-flex align-center" style="gap: 6px;">
+                      <v-icon v-if="categoryHasViolation(group.title)" size="15" color="error">mdi-exclamation-thick</v-icon>
+                      <span class="text-body-2 font-weight-bold">{{ group.title }}</span>
+                    </div>
                     <v-chip size="x-small" variant="tonal">{{ group.count }}</v-chip>
                   </div>
                 </v-expansion-panel-title>
@@ -83,7 +97,7 @@
                     hide-default-footer
                   >
                     <template #item="{ item, columns }">
-                      <tr :class="{ 'row-muted': isUnanswered(rowFromItem(item).id) }">
+                      <tr :class="{ 'row-muted': isUnanswered(rowFromItem(item).id), 'row-violation': isViolation(rowFromItem(item)) }">
                         <td
                           v-for="col in columns"
                           :key="col.key"
@@ -149,14 +163,38 @@
         </div>
       </v-card-text>
     </v-card>
+
+    <v-dialog v-model="categorySettingsOpen" max-width="620" scrollable>
+      <v-card>
+        <v-card-title class="d-flex align-center" style="gap: 8px;">
+          <v-icon size="18">mdi-cog</v-icon>
+          Kategorieeinstellungen
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <CategorySettings
+            :categories="categoriesForSettings"
+            :model-value="deviationSettings"
+            @update:model-value="saveDeviationSettings"
+          />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="categorySettingsOpen = false">Schließen</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script>
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
+import CategorySettings from './CategorySettings.vue'
 
 export default {
+  components: { CategorySettings },
   props: {
     projectId: {
       type: String,
@@ -167,6 +205,7 @@ export default {
     const store = useWorkspaceStore()
     const search = ref('')
     const openPanels = ref([])
+    const categorySettingsOpen = ref(false)
 
     const project = computed(() => {
       return (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
@@ -194,7 +233,8 @@ export default {
               result.push({
                 id,
                 title: String(entry?.aspect || entry?.title || id),
-                category: String(category?.title || '')
+                category: String(category?.title || ''),
+                categoryId: String(category?.id || '')
               })
             })
           })
@@ -203,8 +243,42 @@ export default {
       return result
     })
 
+    // Unique categories + entries for the settings dialog
+    const categoriesForSettings = computed(() => {
+      const catMap = new Map()
+      questionnaires.value.forEach((questionnaire) => {
+        const cats = Array.isArray(questionnaire?.categories) ? questionnaire.categories : []
+        cats.filter((c) => !c?.isMetadata).forEach((cat) => {
+          const catId = String(cat?.id || '').trim()
+          if (!catId) return
+          if (!catMap.has(catId)) {
+            catMap.set(catId, { id: catId, title: cat.title || catId, entries: new Map() })
+          }
+          const catData = catMap.get(catId)
+          ;(Array.isArray(cat.entries) ? cat.entries : []).forEach((entry) => {
+            const eid = String(entry?.id || '').trim()
+            if (eid && !catData.entries.has(eid)) {
+              catData.entries.set(eid, { id: eid, aspect: String(entry?.aspect || entry?.title || eid) })
+            }
+          })
+        })
+      })
+      return Array.from(catMap.values()).map((c) => ({
+        ...c,
+        entries: Array.from(c.entries.values())
+      }))
+    })
+
+    const deviationSettings = computed(() => project.value?.deviationSettings || {})
+
+    function saveDeviationSettings(settings) {
+      store.updateProjectDeviationSettings(props.projectId, settings)
+    }
+
     const headers = computed(() => {
-      const base = [{ title: '', key: 'subcategory', sortable: false }]
+      const base = [
+        { title: '', key: 'subcategory', sortable: false }
+      ]
       const questionnaireHeaders = questionnaires.value.map((questionnaire) => ({
         title: questionnaire.name,
         key: toQuestionnaireKey(questionnaire.id),
@@ -219,6 +293,7 @@ export default {
           id: row.id,
           title: row.title,
           category: row.category || '',
+          categoryId: row.categoryId || '',
           subcategory: row.title
         }
 
@@ -334,6 +409,35 @@ export default {
       return item?.raw || item
     }
 
+    function isDeviationAllowed(row) {
+      const settings = deviationSettings.value
+      // checked = no deviation allowed => isDeviationAllowed = false
+      if (row.id in settings) return !settings[row.id]
+      if (row.categoryId in settings) return !settings[row.categoryId]
+      return true // default: deviations allowed
+    }
+
+    function hasDeviation(entryId) {
+      const answered = questionnaires.value
+        .map((q) => cellLines(q.id, entryId).map((l) => l.option).sort().join('|'))
+        .filter((s) => s.length > 0)
+      if (answered.length < 2) return false
+      return new Set(answered).size > 1
+    }
+
+    function isViolation(row) {
+      if (!row?.id) return false
+      if (isDeviationAllowed(row)) return false
+      return hasDeviation(row.id)
+    }
+
+    const categoryHasViolation = (categoryTitle) => {
+      const key = String(categoryTitle || '').trim() || 'Other'
+      return rows.value
+        .filter((r) => (String(r.category || '').trim() || 'Other') === key)
+        .some((r) => isViolation(r))
+    }
+
     function isUnanswered(entryId) {
       if (!entryId) return true
       return questionnaires.value.every((questionnaire) => {
@@ -378,7 +482,13 @@ export default {
       cellLinesByKey,
       rowFromItem,
       isUnanswered,
-      statusChipColor
+      statusChipColor,
+      categorySettingsOpen,
+      categoriesForSettings,
+      deviationSettings,
+      saveDeviationSettings,
+      isViolation,
+      categoryHasViolation
     }
   }
 }
@@ -453,7 +563,13 @@ export default {
   opacity: 0.45;
 }
 
-.comment-indicator {
-  opacity: 0.85;
+.project-summary-table :deep(tr.row-violation td) {
+  background: rgba(255, 152, 0, 0.15) !important;
+}
+
+.row-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 </style>
