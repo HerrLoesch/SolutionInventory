@@ -76,6 +76,10 @@ if (window.electronAPI?.isElectron) {
 - **electron/main.js**: Electron Hauptprozess (Backend)
 - **electron/preload.js**: Sicherer Kommunikationskanal zwischen Main und Renderer
 - **src/**: Vue.js Anwendung (Frontend)
+  - `components/Workspace.vue` — Tab-Verwaltung (umbenannt von `QuestionnaireWorkspace.vue`)
+  - `components/CategorySettings.vue` — Abweichungsregeln je Kategorie/Eintrag
+  - `components/ProjectSummary.vue` — Projektvergleich mit Abweichungsanalyse
+  - `stores/workspaceStore.js` — `reorderQuestionnaire`, `updateProjectDeviationSettings`, `setReferenceQuestionnaire`
 - **vite.config.js**: Build-Konfiguration für Web und Electron
 
 ## Unterschiede Web vs. Electron

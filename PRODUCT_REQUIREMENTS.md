@@ -1,7 +1,7 @@
 # Product Requirements Document - Solution Inventory PWA
 
 ## 1. Executive Summary
-Solution Inventory PWA is a Vue-based application for documenting solution questionnaires across multiple projects. It provides a project tree, questionnaire tabs, and a configuration editor. Data is stored locally and can be imported/exported per project.
+Solution Inventory PWA is a Vue-based application for documenting solution questionnaires across multiple projects. It provides a project tree, questionnaire tabs, a cross-questionnaire comparison view, and a configuration editor. Data is stored locally and can be imported/exported per project.
 
 ## 2. Product Vision
 
@@ -10,6 +10,7 @@ Create a centralized, accessible platform to:
 - Maintain an accurate inventory of technologies in use
 - Document architectural decisions and rationale
 - Track lifecycle status (Adopt, Assess, Hold, Retire)
+- Compare technology choices across questionnaires within a project
 - Share project documentation via JSON export/import
 
 ### 2.2 Target Users
@@ -20,7 +21,8 @@ Create a centralized, accessible platform to:
 
 ### 2.3 Key Benefits
 - Structured documentation via guided questions
-- Simple project organization with tabs
+- Simple project organization with drag-and-drop reordering
+- Cross-questionnaire deviation analysis with configurable rules
 - Local persistence with JSON export/import
 
 ## 3. Feature Requirements
@@ -31,17 +33,18 @@ Create a centralized, accessible platform to:
 - Project tree for navigation and management
 - Context menus for create, rename, delete
 - Drag-and-drop questionnaires between projects
+- Drag-and-drop reordering of questionnaires within a project (order persisted in JSON)
 - Questionnaire tabs with close buttons
 - Project Summary tab opened by clicking a project node
 
 #### 3.1.2 Questionnaire Editing
 - Category navigation within a questionnaire
-- Multiple answers per aspect
+- Multiple answers per aspect with technology, status, and comments
 - Status and applicability selects with descriptions
-- Metadata fields: productName, company, department, contactPerson, description,
-  executionType, architecturalRole
+- Entry-level general comment field
+- Metadata fields: productName, company, department, contactPerson, description, executionType, architecturalRole
 - "Not specified" option in executionType / architecturalRole — acts as a wildcard, all questions shown
-- Comments field with resizable textarea
+- **Reference questionnaire toggle** in metadata section: marks this questionnaire as the reference for project comparison
 
 #### 3.1.3 Configuration Editor
 - Configuration editor in a dialog
@@ -50,7 +53,7 @@ Create a centralized, accessible platform to:
 
 #### 3.1.4 Data Management
 - Auto-save to localStorage
-- Project export to JSON
+- Project export to JSON (includes questionnaireIds order, deviationSettings, referenceQuestionnaireId)
 - Project import from JSON (validated in dialog)
 - Sample data loader in app bar
 
@@ -62,8 +65,23 @@ Create a centralized, accessible platform to:
 - Comment tooltips on chip hover
 - Search filter across aspects and technologies
 - Alphabetically sorted aspects
+- **Settings gear button** before the search bar opens the CategorySettings dialog
+- **Deviation violations** highlighted: red exclamation icon in category header and on the subcategory row when a rule is violated
 
-#### 3.1.6 Resizable Sidebar
+#### 3.1.6 Category Deviation Settings
+- Per-project settings for which categories/aspects must not deviate
+- Checkbox tree in a dialog (CategorySettings component)
+- Category-level toggle applies to all child entries; entry-level overrides are supported
+- Default: deviations allowed (unchecked)
+
+#### 3.1.7 Reference Questionnaire
+- One questionnaire per project can be designated as the reference
+- When set: other questionnaires are compared against the reference
+  - Deviation = answer has different status than reference OR answer not present in reference
+  - Subset answers (fewer than reference) are NOT a deviation
+- When not set: questionnaires compared pairwise by technology+status
+
+#### 3.1.8 Resizable Sidebar
 - Drag handle on the right edge of the navigation drawer
 - Width adjustable between 160 px and 640 px
 - Width persisted across sessions (localStorage)
@@ -75,6 +93,9 @@ Create a centralized, accessible platform to:
 - The system shall support project import/export in JSON format.
 - The system shall allow configuration of categories and entries via UI.
 - The system shall allow multiple answers per aspect.
+- The system shall allow reordering questionnaires within a project via drag-and-drop.
+- The system shall persist the questionnaire order in the project JSON.
+- The system shall allow configuring deviation rules per project and highlight violations in the summary.
 - The system shall be responsive on desktop and tablet.
 
 ## 5. Non-Functional Requirements
@@ -109,17 +130,31 @@ fits our organization.
 As a Technology Architect, I want to open a project summary so that I can compare
 technology choices across all questionnaires in one view.
 
+### 6.7 Enforce Consistency Rules
+As a Technology Architect, I want to flag categories where deviations are not allowed
+so that violations are immediately visible in the project summary.
+
+### 6.8 Compare Against a Reference
+As a Solution Engineer, I want to designate one questionnaire as the reference so that
+all other questionnaires are compared against it instead of against each other.
+
+### 6.9 Reorder Questionnaires
+As a Team Lead, I want to drag questionnaires into a specific order within a project
+so that the export JSON reflects the intended sequence.
+
 ## 7. Product Scope
 
 ### In Scope
 - Project tree with questionnaires
 - Questionnaire tabs with close buttons
-- Project summary view (cross-questionnaire matrix)
-- Questionnaire editing and metadata
+- Project summary view (cross-questionnaire matrix with deviation highlights)
+- Questionnaire editing, metadata, and reference questionnaire toggle
+- Category deviation settings per project
 - Configuration editor in dialog
 - Project import/export
 - Auto-save and sample data loading
 - Resizable sidebar
+- Drag-and-drop move and reorder of questionnaires
 
 ### Out of Scope
 - Server-side storage or authentication
@@ -173,7 +208,6 @@ technology choices across all questionnaires in one view.
 ### Phase 3 Features
 - Backend database for persistent storage
 - User authentication and multi-user support
-- Comparison between different solutions
 - Revision history and change tracking
 - API for integrations
 - Advanced analytics dashboard
@@ -192,4 +226,6 @@ technology choices across all questionnaires in one view.
 - **localStorage**: Browser storage API for persistent data
 - **Tab**: Navigation element for switching between open questionnaires
 - **Configuration**: Editor interface for customizing questionnaire structure
-
+- **Deviation**: A difference in technology answers or statuses between questionnaires for the same aspect
+- **Reference Questionnaire**: The questionnaire designated as the baseline for comparison within a project
+- **Deviation Settings**: Per-project rules that flag specific categories/aspects as requiring consistency

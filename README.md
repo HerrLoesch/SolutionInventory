@@ -3,10 +3,12 @@
 Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.
 
 ## Features
-- Project tree with create/rename/delete and drag-and-drop questionnaires
+- Project tree with create/rename/delete and drag-and-drop (move and reorder questionnaires)
 - Questionnaire tabs with close buttons and per-tab state
 - Project Summary tab: cross-questionnaire matrix (aspect × questionnaire) with colored status chips, comment tooltips, search filter and collapsible categories
-- Category-based questionnaire with multi-answer entries
+- **Deviation analysis**: configure per-category/aspect rules; violations highlighted with red icons and orange row tint
+- **Reference questionnaire**: designate one questionnaire per project as the baseline for comparison
+- Category-based questionnaire with multi-answer entries and entry-level comments
 - Status and applicability selects with descriptions
 - Resizable sidebar: drag the right edge of the navigation drawer (160–640 px, persisted)
 - Configuration editor (dialog) for categories and entries
@@ -48,11 +50,11 @@ src/
 ├── App.vue
 ├── components/
 │   ├── ProjectTreeNav.vue
-│   ├── QuestionnaireWorkspace.vue
+│   ├── Workspace.vue
 │   ├── Questionnaire.vue
 │   ├── QuestionnaireConfig.vue
 │   ├── ProjectSummary.vue
-│   └── Summary.vue          # legacy, unused
+│   └── CategorySettings.vue
 ├── services/
 │   └── categoriesService.js
 └── stores/
@@ -67,7 +69,7 @@ tests/
 
 ## Data Model (high level)
 - workspace: projects[] + questionnaires[]
-- project: name + questionnaireIds[]
+- project: name + questionnaireIds[] + deviationSettings{} + referenceQuestionnaireId
 - questionnaire: name + categories[]
 
 Metadata includes execution type and architectural role with descriptions.
