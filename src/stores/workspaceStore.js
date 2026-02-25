@@ -337,6 +337,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     toProject.questionnaireIds.push(movedId)
   }
 
+  function reorderQuestionnaire(projectId, draggedId, beforeId) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    const ids = Array.isArray(project.questionnaireIds) ? [...project.questionnaireIds] : []
+    const fromIndex = ids.indexOf(draggedId)
+    if (fromIndex === -1) return
+    ids.splice(fromIndex, 1)
+    const toIndex = beforeId ? ids.indexOf(beforeId) : ids.length
+    ids.splice(toIndex === -1 ? ids.length : toIndex, 0, draggedId)
+    project.questionnaireIds = ids
+  }
+
   function getQuestionnaireById(questionnaireId) {
     return workspace.value.questionnaires.find((item) => item.id === questionnaireId)
   }
@@ -646,6 +658,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     addQuestionnaire,
     importProject,
     moveQuestionnaire,
+    reorderQuestionnaire,
     getQuestionnaireById,
     getProjectQuestionnaires,
     deleteQuestionnaire,

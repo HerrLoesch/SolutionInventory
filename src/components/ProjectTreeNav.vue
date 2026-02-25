@@ -360,6 +360,7 @@ export default {
     const targetProjectId = ref('')
     const dragState = ref(null)
     const activeDropTarget = ref('')
+    const reorderTarget = ref('')
 
     function openProjectDialog() {
       newProjectName.value = ''
@@ -525,13 +526,24 @@ export default {
     function treeItemProps(item) {
       if (item.type === 'questionnaire') {
         return {
-          class: 'questionnaire-item',
+          class: ['questionnaire-item', { 'reorder-target': isReorderTarget(item.id) }],
           draggable: true,
           onDragstart: (e) => {
             e.stopPropagation()
             onDragStart(item.projectId, item.id)
           },
-          onDragend: () => onDragEnd()
+          onDragend: () => onDragEnd(),
+          onDragover: (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onDragOverQuestionnaire(item.projectId, item.id)
+          },
+          onDragleave: () => onDragLeaveQuestionnaire(item.id),
+          onDrop: (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onDropOnQuestionnaire(item.projectId, item.id)
+          }
         }
       }
       if (item.type === 'project') {
@@ -613,49 +625,74 @@ export default {
     }
 
     let dragLeaveTimer = null
+    let dragLeaveQuestionnaireTimer = null
 
     function onDragStart(projectId, questionnaireId) {
       dragState.value = { projectId, questionnaireId }
     }
 
     function onDragEnd() {
-      if (dragLeaveTimer) {
-        clearTimeout(dragLeaveTimer)
-        dragLeaveTimer = null
-      }
+      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
       dragState.value = null
       activeDropTarget.value = ''
+      reorderTarget.value = ''
     }
 
     function onDragOver(projectId) {
       if (!dragState.value) return
-      if (dragLeaveTimer) {
-        clearTimeout(dragLeaveTimer)
-        dragLeaveTimer = null
-      }
+      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
       activeDropTarget.value = projectId
     }
 
     function onDragLeave(projectId) {
-      // Debounce: moving between prepend-icon and title within the same row
-      // fires dragleave/dragover in quick succession – avoid flickering.
       dragLeaveTimer = setTimeout(() => {
-        if (activeDropTarget.value === projectId) {
-          activeDropTarget.value = ''
-        }
+        if (activeDropTarget.value === projectId) activeDropTarget.value = ''
         dragLeaveTimer = null
       }, 60)
     }
 
     function onDrop(projectId) {
-      if (dragLeaveTimer) {
-        clearTimeout(dragLeaveTimer)
-        dragLeaveTimer = null
-      }
+      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
       if (!dragState.value) return
       if (dragState.value.projectId !== projectId) {
         store.moveQuestionnaire(dragState.value.projectId, projectId, dragState.value.questionnaireId)
       }
+      activeDropTarget.value = ''
+      reorderTarget.value = ''
+      dragState.value = null
+    }
+
+    function onDragOverQuestionnaire(projectId, questionnaireId) {
+      if (!dragState.value) return
+      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      // Clear project-level highlight – we're over a sibling, not the folder
+      activeDropTarget.value = ''
+      reorderTarget.value = questionnaireId
+    }
+
+    function onDragLeaveQuestionnaire(questionnaireId) {
+      dragLeaveQuestionnaireTimer = setTimeout(() => {
+        if (reorderTarget.value === questionnaireId) reorderTarget.value = ''
+        dragLeaveQuestionnaireTimer = null
+      }, 60)
+    }
+
+    function onDropOnQuestionnaire(projectId, beforeQuestionnaireId) {
+      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (!dragState.value) return
+      const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
+      if (draggedId === beforeQuestionnaireId) {
+        // Dropped on itself – no-op
+      } else if (fromProjectId === projectId) {
+        // Same project – reorder
+        store.reorderQuestionnaire(projectId, draggedId, beforeQuestionnaireId)
+      } else {
+        // Cross-project: move first, then insert before target
+        store.moveQuestionnaire(fromProjectId, projectId, draggedId)
+        store.reorderQuestionnaire(projectId, draggedId, beforeQuestionnaireId)
+      }
+      reorderTarget.value = ''
       activeDropTarget.value = ''
       dragState.value = null
     }
@@ -666,6 +703,10 @@ export default {
 
     function isDropTarget(projectId) {
       return activeDropTarget.value === projectId
+    }
+
+    function isReorderTarget(questionnaireId) {
+      return reorderTarget.value === questionnaireId
     }
 
     return {
@@ -723,7 +764,11 @@ export default {
       onDragOver,
       onDragLeave,
       onDrop,
+      onDragOverQuestionnaire,
+      onDragLeaveQuestionnaire,
+      onDropOnQuestionnaire,
       isDropTarget,
+      isReorderTarget,
       projectQuestionnaires
     }
   }
@@ -798,5 +843,9 @@ export default {
 
 .drag-handle:active {
   cursor: grabbing;
+}
+
+.tree-list :deep(.reorder-target) {
+  border-top: 2px solid rgb(21, 101, 192) !important;
 }
 </style>
