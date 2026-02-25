@@ -43,6 +43,7 @@
         <Questionnaire
           v-else
           :categories="tab.categories"
+          :questionnaire-id="tab.id"
           @update-categories="updateQuestionnaire(tab.id, $event)"
         />
       </v-window-item>

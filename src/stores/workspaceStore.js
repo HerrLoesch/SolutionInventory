@@ -415,6 +415,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     project.deviationSettings = settings || {}
   }
 
+  function setReferenceQuestionnaire(projectId, questionnaireId) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    // Toggle off if already set
+    if (project.referenceQuestionnaireId === questionnaireId) {
+      project.referenceQuestionnaireId = ''
+    } else {
+      project.referenceQuestionnaireId = questionnaireId
+    }
+  }
+
   function addAnswer(entryId) {
     const entry = findEntry(entryId)
     if (!entry || !isEntryApplicable(entry)) return
@@ -643,6 +654,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     saveActiveQuestionnaire,
     exportProject,
     addQuestionnaireFromCategories,
-    updateProjectDeviationSettings
+    updateProjectDeviationSettings,
+    setReferenceQuestionnaire
   }
 })

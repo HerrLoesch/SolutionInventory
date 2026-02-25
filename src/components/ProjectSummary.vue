@@ -418,6 +418,22 @@ export default {
     }
 
     function hasDeviation(entryId) {
+      const refId = project.value?.referenceQuestionnaireId
+      const refQuestionnaire = refId ? questionnaires.value.find((q) => q.id === refId) : null
+
+      if (refQuestionnaire) {
+        // Compare each non-reference questionnaire against the reference
+        const refLines = cellLines(refQuestionnaire.id, entryId).map((l) => l.option).sort().join('|')
+        if (!refLines) return false
+        return questionnaires.value
+          .filter((q) => q.id !== refQuestionnaire.id)
+          .some((q) => {
+            const qLines = cellLines(q.id, entryId).map((l) => l.option).sort().join('|')
+            return qLines.length > 0 && qLines !== refLines
+          })
+      }
+
+      // No reference: any variation among answered questionnaires is a deviation
       const answered = questionnaires.value
         .map((q) => cellLines(q.id, entryId).map((l) => l.option).sort().join('|'))
         .filter((s) => s.length > 0)

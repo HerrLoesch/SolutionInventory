@@ -134,6 +134,21 @@
                     auto-grow
                   />
                 </v-col>
+                <v-col v-if="parentProject" cols="12">
+                  <v-divider class="mb-3" />
+                  <v-switch
+                    :model-value="isReference"
+                    color="primary"
+                    hide-details
+                    density="compact"
+                    label="Referenzkatalog für Projektvergleich"
+                    @update:model-value="toggleReference"
+                  />
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    Wird dieser Fragenkatalog als Referenz markiert, werden alle anderen Kataloge
+                    im Projektvergleich gegen diesen verglichen.
+                  </div>
+                </v-col>
               </v-row>
             </div>
 
@@ -284,10 +299,30 @@ export default {
     categories: {
       type: Array,
       required: true
+    },
+    questionnaireId: {
+      type: String,
+      default: ''
     }
   },
   setup (props) {
     const store = useWorkspaceStore()
+
+    const parentProject = computed(() => {
+      if (!props.questionnaireId) return null
+      return (store.workspace.projects || []).find((p) =>
+        (p.questionnaireIds || []).includes(props.questionnaireId)
+      ) || null
+    })
+
+    const isReference = computed(() => {
+      return parentProject.value?.referenceQuestionnaireId === props.questionnaireId
+    })
+
+    function toggleReference() {
+      if (!parentProject.value || !props.questionnaireId) return
+      store.setReferenceQuestionnaire(parentProject.value.id, props.questionnaireId)
+    }
     const applicabilityDescriptions = {
       applicable: 'Entry applies and should be filled in.',
       'not applicable': 'Entry does not apply to this solution.',
@@ -491,7 +526,10 @@ export default {
       prevCategory,
       categoryHasVisibleEntries,
       setAllApplicability,
-      getSuggestions
+      getSuggestions,
+      isReference,
+      parentProject,
+      toggleReference
     }
   }
 }
