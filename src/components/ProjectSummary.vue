@@ -422,23 +422,40 @@ export default {
       const refQuestionnaire = refId ? questionnaires.value.find((q) => q.id === refId) : null
 
       if (refQuestionnaire) {
-        // Compare each non-reference questionnaire against the reference
-        const refLines = cellLines(refQuestionnaire.id, entryId).map((l) => l.option).sort().join('|')
-        if (!refLines) return false
+        const refLines = cellLines(refQuestionnaire.id, entryId)
+        if (!refLines.length) return false
+        // Build map: technology -> status from reference
+        const refMap = new Map(refLines.map((l) => [l.option, l.status]))
+
         return questionnaires.value
           .filter((q) => q.id !== refQuestionnaire.id)
           .some((q) => {
-            const qLines = cellLines(q.id, entryId).map((l) => l.option).sort().join('|')
-            return qLines.length > 0 && qLines !== refLines
+            const qLines = cellLines(q.id, entryId)
+            if (!qLines.length) return false
+            // Deviation: a present answer has a different status than in the reference
+            for (const line of qLines) {
+              if (refMap.has(line.option) && refMap.get(line.option) !== line.status) return true
+            }
+            // Deviation: questionnaire has answers not present in the reference
+            if (qLines.some((l) => !refMap.has(l.option))) return true
+            return false
+            // Note: fewer answers than the reference is NOT a deviation
           })
       }
 
-      // No reference: any variation among answered questionnaires is a deviation
-      const answered = questionnaires.value
-        .map((q) => cellLines(q.id, entryId).map((l) => l.option).sort().join('|'))
-        .filter((s) => s.length > 0)
-      if (answered.length < 2) return false
-      return new Set(answered).size > 1
+      // No reference: flag if the same technology appears with different statuses
+      // across questionnaires. Having fewer answers than others is not a deviation.
+      const techStatusMap = new Map()
+      for (const q of questionnaires.value) {
+        for (const line of cellLines(q.id, entryId)) {
+          if (!techStatusMap.has(line.option)) {
+            techStatusMap.set(line.option, line.status)
+          } else if (techStatusMap.get(line.option) !== line.status) {
+            return true
+          }
+        }
+      }
+      return false
     }
 
     function isViolation(row) {
