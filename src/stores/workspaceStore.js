@@ -420,6 +420,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     project.deviationSettings = settings || {}
   }
 
+  function updateProjectVisibilitySettings(projectId, settings) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    project.visibilitySettings = settings || {}
+  }
+
   function setReferenceQuestionnaire(projectId, questionnaireId) {
     const project = workspace.value.projects.find((item) => item.id === projectId)
     if (!project) return
@@ -660,6 +666,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     exportProject,
     addQuestionnaireFromCategories,
     updateProjectDeviationSettings,
+    updateProjectVisibilitySettings,
     setReferenceQuestionnaire
   }
 })

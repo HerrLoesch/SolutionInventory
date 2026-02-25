@@ -168,20 +168,22 @@
       <v-card>
         <v-card-title class="d-flex align-center" style="gap: 8px;">
           <v-icon size="18">mdi-cog</v-icon>
-          Kategorieeinstellungen
+          Category Settings
         </v-card-title>
         <v-divider />
         <v-card-text>
           <CategorySettings
             :categories="categoriesForSettings"
             :model-value="deviationSettings"
+            :visibility-settings="visibilitySettings"
             @update:model-value="saveDeviationSettings"
+            @update:visibility-settings="saveVisibilitySettings"
           />
         </v-card-text>
         <v-divider />
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="categorySettingsOpen = false">Schließen</v-btn>
+          <v-btn variant="text" @click="categorySettingsOpen = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -270,9 +272,23 @@ export default {
     })
 
     const deviationSettings = computed(() => project.value?.deviationSettings || {})
+    const visibilitySettings = computed(() => project.value?.visibilitySettings || {})
+
+    function isEntryVisible(row) {
+      const settings = visibilitySettings.value
+      if (row.id in settings) return settings[row.id]
+      if (row.categoryId in settings) return settings[row.categoryId]
+      return true // default: visible
+    }
+
+    const visibleRows = computed(() => rows.value.filter((row) => isEntryVisible(row)))
 
     function saveDeviationSettings(settings) {
       store.updateProjectDeviationSettings(props.projectId, settings)
+    }
+
+    function saveVisibilitySettings(settings) {
+      store.updateProjectVisibilitySettings(props.projectId, settings)
     }
 
     const headers = computed(() => {
@@ -312,9 +328,9 @@ export default {
     }
 
     const categoryGroups = computed(() => {
-      // Collect all category keys from rows (so groups are always shown)
+      // Collect all category keys from visibleRows (hidden categories won't appear)
       const counts = new Map()
-      rows.value.forEach((row) => {
+      visibleRows.value.forEach((row) => {
         const key = String(row.category || '').trim() || 'Other'
         counts.set(key, 0)
       })
@@ -322,7 +338,7 @@ export default {
       items.value.forEach((item) => {
         if (matchesSearch(item)) {
           const key = String(item.category || '').trim() || 'Other'
-          counts.set(key, (counts.get(key) || 0) + 1)
+          if (counts.has(key)) counts.set(key, (counts.get(key) || 0) + 1)
         }
       })
 
@@ -335,6 +351,7 @@ export default {
       const key = String(categoryTitle || '').trim() || 'Other'
       return items.value
         .filter((item) => (String(item.category || '').trim() || 'Other') === key)
+        .filter((item) => isEntryVisible(item))
         .slice()
         .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' }))
     }
@@ -466,7 +483,7 @@ export default {
 
     const categoryHasViolation = (categoryTitle) => {
       const key = String(categoryTitle || '').trim() || 'Other'
-      return rows.value
+      return visibleRows.value
         .filter((r) => (String(r.category || '').trim() || 'Other') === key)
         .some((r) => isViolation(r))
     }
@@ -519,7 +536,9 @@ export default {
       categorySettingsOpen,
       categoriesForSettings,
       deviationSettings,
+      visibilitySettings,
       saveDeviationSettings,
+      saveVisibilitySettings,
       isViolation,
       categoryHasViolation
     }
