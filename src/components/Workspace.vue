@@ -1,5 +1,5 @@
 <template>
-  <div class="questionnaire-workspace">
+  <div class="workspace">
     <div v-if="workspaceTabs.length" class="workspace-actions">
     </div>
 
@@ -100,7 +100,7 @@ export default {
 </script>
 
 <style scoped>
-.questionnaire-workspace {
+.workspace {
   min-height: 60vh;
 }
 

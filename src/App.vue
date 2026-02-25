@@ -40,7 +40,7 @@
       <v-container fluid class="pa-4 main-container">
         <v-window v-model="activeTab">
           <v-window-item value="questionnaire">
-            <QuestionnaireWorkspace />
+            <Workspace />
           </v-window-item>
         </v-window>
       </v-container>
@@ -69,14 +69,14 @@
 <script>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import QuestionnaireWorkspace from './components/QuestionnaireWorkspace.vue'
+import Workspace from './components/Workspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
 import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import sampleData from '../data/sample_export.json'
 
 export default {
-  components: { QuestionnaireWorkspace, QuestionnaireConfig, ProjectTreeNav },
+  components: { Workspace, QuestionnaireConfig, ProjectTreeNav },
   setup() {
     const activeTab = ref('questionnaire')
     const configOpen = ref(false)
