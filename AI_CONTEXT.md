@@ -20,9 +20,6 @@ Implemented features:
 - GitHub Pages build/deploy workflow for main, build-only for dev
 - Playwright E2E test for creating a new project
 
-Removed/changed:
-- `QuestionnaireWorkspace.vue` renamed to `Workspace.vue`
-- `Summary.vue` (legacy Technology Radar style) deleted — superseded by `ProjectSummary.vue`
 - Wizard removed
 - Save/Load/Delete buttons removed from the workspace
 
@@ -85,15 +82,6 @@ Metadata category includes fields:
 - **ProjectSummary.vue**: accordion per category with violation icons (red `!`), v-data-table matrix (aspect rows × questionnaire columns), colored status chips, search, comment tooltips, gear button opens CategorySettings dialog
 - **CategorySettings.vue**: expandable tree of categories and entries with checkboxes — checked = no deviations allowed
 
-## Store Actions (key)
-- addProject, deleteProject, renameProject
-- addQuestionnaire, deleteQuestionnaire, renameQuestionnaire
-- moveQuestionnaire(fromProjectId, toProjectId, questionnaireId)
-- reorderQuestionnaire(projectId, draggedId, beforeId)
-- updateProjectDeviationSettings(projectId, settings)
-- setReferenceQuestionnaire(projectId, questionnaireId) — toggles on/off
-- importProject, exportProject
-- openQuestionnaire, openProjectSummary, closeWorkspaceTab
 
 ## Commands
 - npm run dev

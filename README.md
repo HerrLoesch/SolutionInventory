@@ -6,8 +6,8 @@ Vue 3 + Vuetify application for documenting solution questionnaires across multi
 - Project tree with create/rename/delete and drag-and-drop (move and reorder questionnaires)
 - Questionnaire tabs with close buttons and per-tab state
 - Project Summary tab: cross-questionnaire matrix (aspect × questionnaire) with colored status chips, comment tooltips, search filter and collapsible categories
-- **Deviation analysis**: configure per-category/aspect rules; violations highlighted with red icons and orange row tint
-- **Reference questionnaire**: designate one questionnaire per project as the baseline for comparison
+- Deviation analysis: configure per-category/aspect rules; violations highlighted with red icons and orange row tint
+- Reference questionnaire: designate one questionnaire per project as the baseline for comparison
 - Category-based questionnaire with multi-answer entries and entry-level comments
 - Status and applicability selects with descriptions
 - Resizable sidebar: drag the right edge of the navigation drawer (160–640 px, persisted)
