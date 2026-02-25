@@ -30,7 +30,17 @@
       :item-props="treeItemProps"
     >
       <template #prepend="{ item }">
-        <span class="tree-click-prepend" @click="onNodeClick(item)">
+        <span
+          class="tree-click-prepend"
+          :class="{ 'drag-handle': item.type === 'questionnaire' }"
+          :draggable="item.type === 'questionnaire'"
+          @click="onNodeClick(item)"
+          @dragstart="item.type === 'questionnaire' && onDragStart(item.projectId, item.id)"
+          @dragend="item.type === 'questionnaire' && onDragEnd()"
+          @dragover.prevent="item.type === 'project' && onDragOver(item.id)"
+          @dragleave="item.type === 'project' && onDragLeave(item.id)"
+          @drop.prevent="item.type === 'project' && onDrop(item.id)"
+        >
           <v-icon v-if="item.type === 'project'" size="18">mdi-folder</v-icon>
           <v-icon v-else size="16">mdi-file-document-outline</v-icon>
         </span>
@@ -126,8 +136,17 @@
       <template #title="{ item }">
         <div
           class="tree-click-title"
-          :class="{ 'drop-target': item.type === 'project' && isDropTarget(item.id) }"
+          :class="{
+            'drop-target': item.type === 'project' && isDropTarget(item.id),
+            'drag-handle': item.type === 'questionnaire'
+          }"
+          :draggable="item.type === 'questionnaire'"
           @click="onNodeClick(item)"
+          @dragstart="item.type === 'questionnaire' && onDragStart(item.projectId, item.id)"
+          @dragend="item.type === 'questionnaire' && onDragEnd()"
+          @dragover.prevent="item.type === 'project' && onDragOver(item.id)"
+          @dragleave="item.type === 'project' && onDragLeave(item.id)"
+          @drop.prevent="item.type === 'project' && onDrop(item.id)"
         >
           {{ item.title }}
         </div>
@@ -504,6 +523,17 @@ export default {
     }
 
     function treeItemProps(item) {
+      if (item.type === 'questionnaire') {
+        return {
+          class: 'questionnaire-item',
+          draggable: true,
+          onDragstart: (e) => {
+            e.stopPropagation()
+            onDragStart(item.projectId, item.id)
+          },
+          onDragend: () => onDragEnd()
+        }
+      }
       if (item.type === 'project') {
         return {
           onDragover: (e) => {
@@ -517,14 +547,7 @@ export default {
           }
         }
       }
-
-      // questionnaire
-      return {
-        class: 'questionnaire-item',
-        draggable: true,
-        onDragstart: () => onDragStart(item.projectId, item.id),
-        onDragend: () => onDragEnd()
-      }
+      return {}
     }
 
     function openQuestionnaireImportDialog(projectId) {
@@ -589,30 +612,50 @@ export default {
       closeQuestionnaireNameDialog()
     }
 
+    let dragLeaveTimer = null
+
     function onDragStart(projectId, questionnaireId) {
       dragState.value = { projectId, questionnaireId }
     }
 
     function onDragEnd() {
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       dragState.value = null
       activeDropTarget.value = ''
     }
 
     function onDragOver(projectId) {
       if (!dragState.value) return
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       activeDropTarget.value = projectId
     }
 
     function onDragLeave(projectId) {
-      if (activeDropTarget.value === projectId) {
-        activeDropTarget.value = ''
-      }
+      // Debounce: moving between prepend-icon and title within the same row
+      // fires dragleave/dragover in quick succession – avoid flickering.
+      dragLeaveTimer = setTimeout(() => {
+        if (activeDropTarget.value === projectId) {
+          activeDropTarget.value = ''
+        }
+        dragLeaveTimer = null
+      }, 60)
     }
 
     function onDrop(projectId) {
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       if (!dragState.value) return
-      if (dragState.value.projectId === projectId) return
-      store.moveQuestionnaire(dragState.value.projectId, projectId, dragState.value.questionnaireId)
+      if (dragState.value.projectId !== projectId) {
+        store.moveQuestionnaire(dragState.value.projectId, projectId, dragState.value.questionnaireId)
+      }
       activeDropTarget.value = ''
       dragState.value = null
     }
@@ -733,7 +776,9 @@ export default {
 }
 
 .drop-target {
-  background: rgba(21, 101, 192, 0.08);
+  background: rgba(21, 101, 192, 0.12);
+  border-radius: 3px;
+  outline: 1px dashed rgba(21, 101, 192, 0.4);
 }
 
 .tree-click-title {
@@ -745,5 +790,13 @@ export default {
   display: inline-flex;
   align-items: center;
   cursor: pointer;
+}
+
+.drag-handle {
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 </style>
