@@ -25,9 +25,9 @@
         <v-tooltip activator="parent" location="bottom">Configuration</v-tooltip>
       </v-btn>
       
-      <v-btn @click="clearStorage" class="mr-2" variant="text" size="small">
-        <v-icon>mdi-delete</v-icon>
-        <v-tooltip activator="parent" location="bottom">Clear saved data</v-tooltip>
+      <v-btn icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
+        <v-icon>mdi-github</v-icon>
+        <v-tooltip activator="parent" location="bottom">GitHub Repository</v-tooltip>
       </v-btn>
     </v-app-bar>
 
@@ -155,8 +155,7 @@ export default {
       startResize,
       openConfig,
       loadSample,
-      updateCategories, 
-      clearStorage: store.clearStorage
+      updateCategories
     }
   }
 }

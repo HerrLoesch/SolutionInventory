@@ -165,13 +165,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     lastSaved.value = savedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
   }
 
-  function clearStorage() {
-    if (!confirm('Möchten Sie wirklich alle gespeicherten Daten löschen?')) return
-    localStorage.removeItem(STORAGE_KEY)
-    seedWorkspace()
-    lastSaved.value = ''
-  }
-
   function setActiveQuestionnaire(questionnaireId) {
     if (!openQuestionnaireIds.value.includes(questionnaireId)) return
     activeQuestionnaireId.value = questionnaireId
@@ -635,7 +628,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     initFromStorage,
     startAutoSave,
     persist,
-    clearStorage,
     setActiveQuestionnaire,
     setActiveWorkspaceTab,
     openQuestionnaire,
