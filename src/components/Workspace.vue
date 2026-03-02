@@ -45,25 +45,46 @@
           :categories="tab.categories"
           :questionnaire-id="tab.id"
           @update-categories="updateQuestionnaire(tab.id, $event)"
+          @open-config="openConfig(tab.id)"
         />
       </v-window-item>
     </v-window>
 
+    <!-- Config Dialog -->
+    <v-dialog v-model="configOpen" max-width="1200">
+      <v-card>
+        <v-card-title class="d-flex justify-space-between align-center">
+          <span>Configuration</span>
+          <v-btn icon variant="text" @click="configOpen = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <QuestionnaireConfig
+            :categories="activeCategories"
+            @update-categories="updateCategories"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script>
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Questionnaire from './Questionnaire.vue'
 import ProjectSummary from './ProjectSummary.vue'
+import QuestionnaireConfig from './QuestionnaireConfig.vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
-  components: { Questionnaire, ProjectSummary },
+  components: { Questionnaire, ProjectSummary, QuestionnaireConfig },
   setup() {
     const store = useWorkspaceStore()
-    const { workspaceTabs, activeWorkspaceTabId } = storeToRefs(store)
+    const { workspaceTabs, activeWorkspaceTabId, activeCategories, activeQuestionnaireId } = storeToRefs(store)
+    const configOpen = ref(false)
 
     const activeTab = computed({
       get: () => activeWorkspaceTabId.value,
@@ -90,11 +111,25 @@ export default {
     function closeTab(tabId) {
       store.closeWorkspaceTab(tabId)
     }
+
+    function openConfig(tabId) {
+      store.setActiveWorkspaceTab(tabId)
+      configOpen.value = true
+    }
+
+    function updateCategories(newCategories) {
+      store.updateQuestionnaireCategories(activeQuestionnaireId.value, newCategories)
+    }
+
     return {
       workspaceTabs,
       activeTab,
+      activeCategories,
+      configOpen,
       updateQuestionnaire,
-      closeTab
+      closeTab,
+      openConfig,
+      updateCategories
     }
   }
 }

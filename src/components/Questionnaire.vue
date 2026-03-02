@@ -31,7 +31,19 @@
         <v-card>
           <v-card-title>
             <div class="d-flex align-center justify-space-between w-100">
-              <h2>{{ currentCategory.title }}</h2>
+              <div class="d-flex align-center gap-2">
+                <h2>{{ currentCategory.title }}</h2>
+                <v-btn
+                  v-if="currentCategory.isMetadata"
+                  icon
+                  size="small"
+                  variant="text"
+                  @click="$emit('open-config')"
+                >
+                  <v-icon>mdi-cog</v-icon>
+                  <v-tooltip activator="parent" location="bottom">Configuration</v-tooltip>
+                </v-btn>
+              </div>
               <v-select
                 v-if="!currentCategory.isMetadata && visibleEntries.length > 0"
                 :items="applicabilityItems"
@@ -305,6 +317,7 @@ export default {
       default: ''
     }
   },
+  emits: ['update-categories', 'open-config'],
   setup (props) {
     const store = useWorkspaceStore()
 

@@ -20,10 +20,6 @@
         Sample
       </v-btn>
 
-      <v-btn class="mr-2" variant="text" size="small" icon @click="openConfig">
-        <v-icon size="small">mdi-cog</v-icon>
-        <v-tooltip activator="parent" location="bottom">Configuration</v-tooltip>
-      </v-btn>
       
       <v-btn icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
         <v-icon>mdi-github</v-icon>
@@ -46,23 +42,7 @@
       </v-container>
     </v-main>
 
-    <v-dialog v-model="configOpen" max-width="1200">
-      <v-card>
-        <v-card-title class="d-flex justify-space-between align-center">
-          <span>Configuration</span>
-          <v-btn icon variant="text" @click="configOpen = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
-        </v-card-title>
-        <v-divider />
-        <v-card-text>
-          <QuestionnaireConfig
-            :categories="activeCategories"
-            @update-categories="updateCategories"
-          />
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+
   </v-app>
 </template>
 
@@ -71,15 +51,13 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Workspace from './components/Workspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
-import QuestionnaireConfig from './components/QuestionnaireConfig.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import sampleData from '../data/sample_export.json'
 
 export default {
-  components: { Workspace, QuestionnaireConfig, ProjectTreeNav },
+  components: { Workspace, ProjectTreeNav },
   setup() {
     const activeTab = ref('questionnaire')
-    const configOpen = ref(false)
     const drawerOpen = ref(true)
     const drawerWidth = ref(parseInt(localStorage.getItem('sidebar-width') || '260', 10))
 
@@ -113,7 +91,7 @@ export default {
       document.removeEventListener('mouseup', stopResize)
     })
     const store = useWorkspaceStore()
-    const { activeCategories, lastSaved, activeQuestionnaireId, workspace } = storeToRefs(store)
+    const { lastSaved } = storeToRefs(store)
 
     // Beim Start versuchen, gespeicherte Daten zu laden
     onMounted(() => {
@@ -121,41 +99,17 @@ export default {
       store.startAutoSave()
     })
 
-    watch(activeQuestionnaireId, (value) => {
-      if (value && activeTab.value !== 'config') {
-        activeTab.value = 'questionnaire'
-      }
-    })
-
-    function openConfig() {
-      if (!activeQuestionnaireId.value) {
-        const firstId = workspace.value.questionnaires?.[0]?.id
-        if (firstId) {
-          store.openQuestionnaire(firstId)
-        }
-      }
-      configOpen.value = true
-    }
-
-    function updateCategories(newCategories) {
-      store.updateQuestionnaireCategories(activeQuestionnaireId.value, newCategories)
-    }
-
     function loadSample() {
       store.addQuestionnaireFromCategories('Sample', sampleData.categories)
     }
 
     return { 
-      activeTab, 
-      activeCategories,
+      activeTab,
       lastSaved,
-      configOpen,
       drawerOpen,
       drawerWidth,
       startResize,
-      openConfig,
-      loadSample,
-      updateCategories
+      loadSample
     }
   }
 }
