@@ -153,6 +153,67 @@
       </template>
     </v-treeview>
 
+    <!-- Standalone / Unassigned Questionnaires -->
+    <template v-if="standaloneQuestionnaires.length || isDragging">
+    <div class="tree-header mt-3">
+      <div class="tree-title">Nicht zugeordnet</div>
+    </div>
+    <div
+      class="standalone-list"
+      :class="{ 'drop-target': unassignDropTarget }"
+      @dragover.prevent="onDragOverUnassigned"
+      @dragleave="onDragLeaveUnassigned"
+      @drop.prevent="onDropUnassigned"
+    >
+      <div
+        v-if="!standaloneQuestionnaires.length"
+        class="text-caption px-2 py-2"
+        :class="isDragging ? 'drop-hint-text' : 'text-medium-emphasis'"
+      >
+        {{ isDragging ? 'Ablegen zum Entfernen aus Projekt' : 'Keine Fragenkataloge' }}
+      </div>
+
+      <div
+        v-for="q in standaloneQuestionnaires"
+        :key="q.id"
+        class="standalone-item"
+        :class="{ 'reorder-target': isReorderTarget(q.id) }"
+        draggable="true"
+        @click="openQuestionnaire(q.id)"
+        @dragstart.stop="onDragStart(null, q.id)"
+        @dragend="onDragEnd()"
+        @dragover.prevent.stop="onDragOverQuestionnaire(null, q.id)"
+        @dragleave="onDragLeaveQuestionnaire(q.id)"
+        @drop.prevent.stop="onDropOnStandaloneItem(q.id)"
+      >
+        <v-icon size="16" class="mr-1">mdi-file-document-outline</v-icon>
+        <span class="standalone-title">{{ q.name }}</span>
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
+              <v-icon size="16">mdi-dots-vertical</v-icon>
+            </v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item @click.stop="downloadQuestionnaire(q.id)">
+              <template #prepend><v-icon size="16">mdi-download</v-icon></template>
+              <v-list-item-title>Download</v-list-item-title>
+            </v-list-item>
+            <v-divider />
+            <v-list-item @click.stop="openRenameQuestionnaireDialog(q)">
+              <template #prepend><v-icon size="16">mdi-pencil</v-icon></template>
+              <v-list-item-title>Rename</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="deleteQuestionnaire(q)">
+              <template #prepend><v-icon size="16" color="error">mdi-delete</v-icon></template>
+              <v-list-item-title>Delete</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+      </div>
+    </div>
+    </template>
+
     <v-dialog v-model="projectDialogOpen" max-width="420">
       <v-card>
         <v-card-title>New project</v-card-title>
@@ -361,6 +422,15 @@ export default {
     const dragState = ref(null)
     const activeDropTarget = ref('')
     const reorderTarget = ref('')
+    const unassignDropTarget = ref(false)
+
+    const standaloneQuestionnaires = computed(() => {
+      const assigned = new Set()
+      projects.value.forEach((p) => (p.questionnaireIds || []).forEach((id) => assigned.add(id)))
+      return (store.workspace.questionnaires || []).filter((q) => !assigned.has(q.id))
+    })
+
+    const isDragging = computed(() => !!dragState.value)
 
     function openProjectDialog() {
       newProjectName.value = ''
@@ -637,6 +707,7 @@ export default {
       dragState.value = null
       activeDropTarget.value = ''
       reorderTarget.value = ''
+      unassignDropTarget.value = false
     }
 
     function onDragOver(projectId) {
@@ -655,8 +726,11 @@ export default {
     function onDrop(projectId) {
       if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
       if (!dragState.value) return
-      if (dragState.value.projectId !== projectId) {
-        store.moveQuestionnaire(dragState.value.projectId, projectId, dragState.value.questionnaireId)
+      const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
+      if (fromProjectId === null) {
+        store.assignQuestionnaireToProject(projectId, draggedId)
+      } else if (fromProjectId !== projectId) {
+        store.moveQuestionnaire(fromProjectId, projectId, draggedId)
       }
       activeDropTarget.value = ''
       reorderTarget.value = ''
@@ -684,6 +758,10 @@ export default {
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (draggedId === beforeQuestionnaireId) {
         // Dropped on itself – no-op
+      } else if (fromProjectId === null) {
+        // Standalone → assign to project, then reorder before target
+        store.assignQuestionnaireToProject(projectId, draggedId)
+        store.reorderQuestionnaire(projectId, draggedId, beforeQuestionnaireId)
       } else if (fromProjectId === projectId) {
         // Same project – reorder
         store.reorderQuestionnaire(projectId, draggedId, beforeQuestionnaireId)
@@ -694,6 +772,46 @@ export default {
       }
       reorderTarget.value = ''
       activeDropTarget.value = ''
+      dragState.value = null
+    }
+
+    let unassignDragLeaveTimer = null
+
+    function onDragOverUnassigned() {
+      if (!dragState.value) return
+      if (unassignDragLeaveTimer) { clearTimeout(unassignDragLeaveTimer); unassignDragLeaveTimer = null }
+      activeDropTarget.value = ''
+      unassignDropTarget.value = true
+    }
+
+    function onDragLeaveUnassigned() {
+      unassignDragLeaveTimer = setTimeout(() => {
+        unassignDropTarget.value = false
+        unassignDragLeaveTimer = null
+      }, 60)
+    }
+
+    function onDropUnassigned() {
+      if (unassignDragLeaveTimer) { clearTimeout(unassignDragLeaveTimer); unassignDragLeaveTimer = null }
+      if (!dragState.value) return
+      const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
+      if (fromProjectId !== null) {
+        store.unassignQuestionnaire(draggedId)
+      }
+      unassignDropTarget.value = false
+      reorderTarget.value = ''
+      dragState.value = null
+    }
+
+    function onDropOnStandaloneItem(beforeId) {
+      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (!dragState.value) return
+      const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
+      if (draggedId !== beforeId && fromProjectId !== null) {
+        store.unassignQuestionnaire(draggedId)
+      }
+      reorderTarget.value = ''
+      unassignDropTarget.value = false
       dragState.value = null
     }
 
@@ -767,9 +885,16 @@ export default {
       onDragOverQuestionnaire,
       onDragLeaveQuestionnaire,
       onDropOnQuestionnaire,
+      onDragOverUnassigned,
+      onDragLeaveUnassigned,
+      onDropUnassigned,
+      onDropOnStandaloneItem,
       isDropTarget,
       isReorderTarget,
-      projectQuestionnaires
+      projectQuestionnaires,
+      standaloneQuestionnaires,
+      isDragging,
+      unassignDropTarget
     }
   }
 }
@@ -847,5 +972,59 @@ export default {
 
 .tree-list :deep(.reorder-target) {
   border-top: 2px solid rgb(21, 101, 192) !important;
+}
+
+.standalone-list {
+  min-height: 32px;
+  border-radius: 4px;
+  padding: 2px 0;
+  transition: background 0.15s, outline 0.15s;
+  margin-bottom: 8px;
+}
+
+.standalone-list.drop-target {
+  background: rgba(21, 101, 192, 0.08);
+  outline: 1px dashed rgba(21, 101, 192, 0.5);
+}
+
+.standalone-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+  cursor: grab;
+}
+
+.standalone-item:active {
+  cursor: grabbing;
+}
+
+.standalone-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.standalone-item:hover .item-menu {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.standalone-item.reorder-target {
+  border-top: 2px solid rgb(21, 101, 192);
+}
+
+.standalone-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drop-hint-text {
+  color: rgb(21, 101, 192);
+  font-style: italic;
 }
 </style>

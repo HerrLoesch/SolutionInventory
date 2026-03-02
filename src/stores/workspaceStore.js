@@ -319,6 +319,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     questionnaire.name = nextName
   }
 
+  function unassignQuestionnaire(questionnaireId) {
+    workspace.value.projects.forEach((project) => {
+      project.questionnaireIds = (project.questionnaireIds || []).filter((id) => id !== questionnaireId)
+    })
+  }
+
+  function assignQuestionnaireToProject(projectId, questionnaireId) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return
+    if (!(project.questionnaireIds || []).includes(questionnaireId)) {
+      project.questionnaireIds = [...(project.questionnaireIds || []), questionnaireId]
+    }
+  }
+
   function moveQuestionnaire(fromProjectId, toProjectId, questionnaireId) {
     if (fromProjectId === toProjectId) return
     const fromProject = workspace.value.projects.find((item) => item.id === fromProjectId)
@@ -657,6 +671,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     importProject,
     moveQuestionnaire,
     reorderQuestionnaire,
+    unassignQuestionnaire,
+    assignQuestionnaireToProject,
     getQuestionnaireById,
     getProjectQuestionnaires,
     deleteQuestionnaire,

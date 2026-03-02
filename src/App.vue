@@ -20,7 +20,11 @@
         Sample
       </v-btn>
 
-      
+      <v-btn class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
+        <v-icon size="small">mdi-database-cog</v-icon>
+        <v-tooltip activator="parent" location="bottom">Workspace verwalten</v-tooltip>
+      </v-btn>
+
       <v-btn icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
         <v-icon>mdi-github</v-icon>
         <v-tooltip activator="parent" location="bottom">GitHub Repository</v-tooltip>
@@ -43,6 +47,21 @@
     </v-main>
 
 
+    <!-- Workspace Config Dialog -->
+    <v-dialog v-model="workspaceConfigOpen" max-width="800">
+      <v-card>
+        <v-card-title class="d-flex justify-space-between align-center">
+          <span>Workspace verwalten</span>
+          <v-btn icon variant="text" @click="workspaceConfigOpen = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <WorkspaceConfig @close="workspaceConfigOpen = false" />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -51,14 +70,16 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Workspace from './components/Workspace.vue'
 import ProjectTreeNav from './components/ProjectTreeNav.vue'
+import WorkspaceConfig from './components/WorkspaceConfig.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import sampleData from '../data/sample_export.json'
 
 export default {
-  components: { Workspace, ProjectTreeNav },
+  components: { Workspace, ProjectTreeNav, WorkspaceConfig },
   setup() {
     const activeTab = ref('questionnaire')
     const drawerOpen = ref(true)
+    const workspaceConfigOpen = ref(false)
     const drawerWidth = ref(parseInt(localStorage.getItem('sidebar-width') || '260', 10))
 
     let resizeStartX = 0
@@ -109,7 +130,8 @@ export default {
       drawerOpen,
       drawerWidth,
       startResize,
-      loadSample
+      loadSample,
+      workspaceConfigOpen
     }
   }
 }
