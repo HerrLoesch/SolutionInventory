@@ -454,7 +454,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function addAnswer(entryId) {
     const entry = findEntry(entryId)
     if (!entry || !isEntryApplicable(entry)) return
-    entry.answers = [...entry.answers, { technology: '', status: '', comments: '' }]
+    entry.answers = [...entry.answers, { technology: '', status: '', comments: '', answerType: '' }]
   }
 
   function deleteAnswer(entryId, answerIdx) {
@@ -472,14 +472,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     entry.applicability = value
 
     if (['does not apply', 'unknown'].includes(value)) {
-      entry.answers = [{ technology: value, status: '', comments: '' }]
+      entry.answers = [{ technology: value, status: '', comments: '', answerType: '' }]
     } else {
       const filteredAnswers = (entry.answers || []).filter(
         (answer) => !['does not apply', 'unknown'].includes(answer.technology)
       )
       entry.answers = filteredAnswers.length > 0
         ? filteredAnswers
-        : [{ technology: '', status: '', comments: '' }]
+        : [{ technology: '', status: '', comments: '', answerType: '' }]
     }
   }
 

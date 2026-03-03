@@ -226,10 +226,28 @@
                     <div class="text-subtitle-2 mb-3 text--secondary">Answers</div>
                     <div v-for="(answer, aIdx) in entry.answers" :key="aIdx" class="mt-4 pa-2 border-l-4 border-info">
                       <v-row dense>
-                        <v-col cols="12" md="9">
-                          <v-combobox 
-                            label="Solution" 
-                            v-model="answer.technology" 
+                        <v-col cols="12" md="2">
+                          <v-select
+                            label="Type"
+                            v-model="answer.answerType"
+                            :items="answerTypeOptions"
+                            item-title="label"
+                            item-value="value"
+                            clearable
+                            hide-details
+                          >
+                            <template #item="{ props, item }">
+                              <v-list-item v-bind="props">
+                                <v-list-item-subtitle>{{ item.raw.description }}</v-list-item-subtitle>
+                              </v-list-item>
+                            </template>
+                          </v-select>
+                        </v-col>
+
+                        <v-col cols="12" md="7">
+                          <v-combobox
+                            label="Solution"
+                            v-model="answer.technology"
                             :items="getSuggestions(entry)"
                             clearable
                             hide-details
@@ -245,6 +263,7 @@
                               item-value="label"
                               v-model="answer.status"
                               class="flex-grow-1"
+                              hide-details
                             >
                               <template #item="{ props, item }">
                                 <v-list-item v-bind="props">
@@ -515,6 +534,11 @@ export default {
       return suggestions.sort()
     }
 
+    const answerTypeOptions = [
+      { label: 'Tool', value: 'Tool', description: 'A concrete library, framework, or technology.' },
+      { label: 'Practice', value: 'Practice', description: 'A methodology, pattern, or approach.' }
+    ]
+
     return {
       categories: props.categories,
       visibleCategories,
@@ -540,6 +564,7 @@ export default {
       categoryHasVisibleEntries,
       setAllApplicability,
       getSuggestions,
+      answerTypeOptions,
       isReference,
       parentProject,
       toggleReference
