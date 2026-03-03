@@ -143,7 +143,7 @@
 
 <script>
 import { computed, ref, watch } from 'vue'
-import { useWorkspaceStore } from '../stores/workspaceStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 export default {
   props: {

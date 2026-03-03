@@ -90,7 +90,7 @@
 
 <script>
 import { computed, ref } from 'vue'
-import { useWorkspaceStore } from '../stores/workspaceStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 import ProjectMatrix from './ProjectMatrix.vue'
 import ProjectSuggestions from './ProjectSuggestions.vue'
 import CategorySettings from './CategorySettings.vue'
@@ -173,4 +173,3 @@ export default {
   min-height: 60vh;
 }
 </style>
-

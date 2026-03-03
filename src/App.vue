@@ -32,7 +32,7 @@
     </v-app-bar>
 
     <v-navigation-drawer v-model="drawerOpen" app :width="drawerWidth" class="side-nav">
-      <ProjectTreeNav />
+      <TreeNav />
       <div class="resize-handle" @mousedown.prevent="startResize" />
     </v-navigation-drawer>
 
@@ -68,14 +68,14 @@
 <script>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import Workspace from './components/Workspace.vue'
-import ProjectTreeNav from './components/ProjectTreeNav.vue'
-import WorkspaceConfig from './components/WorkspaceConfig.vue'
+import Workspace from './components/workspace/Workspace.vue'
+import TreeNav from './components/TreeNav.vue'
+import WorkspaceConfig from './components/workspace/WorkspaceConfig.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import sampleData from '../data/sample_export.json'
 
 export default {
-  components: { Workspace, ProjectTreeNav, WorkspaceConfig },
+  components: { Workspace, TreeNav, WorkspaceConfig },
   setup() {
     const activeTab = ref('questionnaire')
     const drawerOpen = ref(true)

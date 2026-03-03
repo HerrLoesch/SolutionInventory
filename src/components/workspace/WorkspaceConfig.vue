@@ -204,7 +204,7 @@
 <script>
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useWorkspaceStore } from '../stores/workspaceStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 const STORAGE_KEY = 'solution-inventory-data'
 const STORAGE_VERSION = 1

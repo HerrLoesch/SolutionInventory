@@ -30,20 +30,26 @@
 ### Core Files
 - src/App.vue
   - App shell, app bar actions, navigation drawer, configuration dialog
-- src/components/ProjectTreeNav.vue
+- src/components/TreeNav.vue
   - Project tree UI, context menus, import/export dialog
   - Drag-and-drop: move questionnaires between projects and reorder within a project
-- src/components/Workspace.vue
+- src/components/workspace/Workspace.vue
   - Questionnaire tabs, empty-state, active tab routing
-- src/components/Questionnaire.vue
+- src/components/workspace/WorkspaceConfig.vue
+  - Workspace configuration dialog
+- src/components/questionaire/Questionnaire.vue
   - Category navigation and questionnaire editor
   - Reference questionnaire toggle in metadata section
-- src/components/QuestionnaireConfig.vue
+- src/components/questionaire/QuestionnaireConfig.vue
   - Configuration editor for categories and entries
-- src/components/ProjectSummary.vue
+- src/components/projects/ProjectSummary.vue
   - Cross-questionnaire summary matrix with deviation violation highlights
   - Gear button opens CategorySettings dialog
-- src/components/CategorySettings.vue
+- src/components/projects/ProjectMatrix.vue
+  - Matrix view component (part of ProjectSummary)
+- src/components/projects/ProjectSuggestions.vue
+  - Suggestions view component (part of ProjectSummary)
+- src/components/projects/CategorySettings.vue
   - Expandable category/entry tree with checkboxes for deviation rules
 - src/services/categoriesService.js
   - Default category data and metadata options
@@ -149,7 +155,7 @@ interface Answer {
 - Last-saved indicator
 - Resizable sidebar: 5 px drag handle on right edge of `v-navigation-drawer`, width clamped 160–640 px, persisted under `sidebar-width`
 
-### ProjectTreeNav.vue
+### TreeNav.vue
 - v-treeview with context menus
 - Import dialog with JSON validation; export project JSON download
 - Click on a project node opens ProjectSummary tab
@@ -157,19 +163,19 @@ interface Answer {
 - **Reorder within project**: drag a questionnaire row over another questionnaire row; blue top-border indicator shows insertion point; drop calls `reorderQuestionnaire`
 - Both operations use debounced `dragleave` (60 ms) to avoid flicker; `dragstart` uses `stopPropagation` to prevent parent capture
 
-### Workspace.vue
+### Workspace.vue (src/components/workspace/)
 - Tabs for open items (type `questionnaire` or `project-summary`)
 - Empty-state when no tabs are open
 - Passes `:questionnaire-id` prop to `Questionnaire.vue`
 
-### Questionnaire.vue
+### Questionnaire.vue (src/components/questionaire/)
 - Category navigation within a questionnaire
 - Metadata form with execution type and architectural role
 - `'Not specified'` in either dropdown bypasses `appliesToMatches` filtering (all entries visible)
 - Multi-answer entries with status and applicability selects
 - **Reference questionnaire toggle**: visible only when questionnaire belongs to a project; stored as `project.referenceQuestionnaireId`; toggles off if clicked again
 
-### ProjectSummary.vue
+### ProjectSummary.vue (src/components/projects/)
 - Opened via `store.openProjectSummary(projectId)` from project tree
 - Gear button (⚙) before the search field opens the CategorySettings dialog for the current project
 - Accordion sections per category; v-data-table matrix (aspect × questionnaire)
@@ -182,7 +188,7 @@ interface Answer {
   - *With reference*: for each non-reference questionnaire, flag if an answer has a different status than the reference for the same technology, or if there are answers not present in the reference. Subset (fewer answers) is NOT a deviation.
   - *Without reference*: flag if the same technology appears with different statuses across questionnaires.
 
-### CategorySettings.vue
+### CategorySettings.vue (src/components/projects/)
 - Used inside ProjectSummary dialog
 - Receives `categories` (unique list from all questionnaires) and `modelValue` (deviationSettings object)
 - Checkbox tree: checked = no deviation allowed (default unchecked)
@@ -190,7 +196,7 @@ interface Answer {
 - Entry toggle creates entry-level override only when it differs from the inherited category value
 - Emits `update:modelValue` on every change → immediately saved via `updateProjectDeviationSettings`
 
-### QuestionnaireConfig.vue
+### QuestionnaireConfig.vue (src/components/questionaire/)
 - Category and entry editor
 - Examples list supports label + description
 

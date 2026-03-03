@@ -49,12 +49,18 @@ src/
 ├── main.js
 ├── App.vue
 ├── components/
-│   ├── ProjectTreeNav.vue
-│   ├── Workspace.vue
-│   ├── Questionnaire.vue
-│   ├── QuestionnaireConfig.vue
-│   ├── ProjectSummary.vue
-│   └── CategorySettings.vue
+│   ├── TreeNav.vue
+│   ├── workspace/
+│   │   ├── Workspace.vue
+│   │   └── WorkspaceConfig.vue
+│   ├── questionaire/
+│   │   ├── Questionnaire.vue
+│   │   └── QuestionnaireConfig.vue
+│   └── projects/
+│       ├── ProjectSummary.vue
+│       ├── ProjectMatrix.vue
+│       ├── ProjectSuggestions.vue
+│       └── CategorySettings.vue
 ├── services/
 │   └── categoriesService.js
 └── stores/

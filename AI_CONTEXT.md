@@ -35,12 +35,18 @@ Implemented features:
 ```
 /src
   /components
-    ProjectTreeNav.vue       ← v-treeview nav, context menus, import/export, drag-and-drop reorder
-    Questionnaire.vue        ← questionnaire editor, metadata form, reference questionnaire toggle
-    Workspace.vue            ← tabs (questionnaire | project-summary) + empty-state
-    QuestionnaireConfig.vue  ← category/entry editor
-    ProjectSummary.vue       ← cross-questionnaire summary matrix, deviation highlights, settings gear
-    CategorySettings.vue     ← per-category/entry deviation settings (checkbox tree)
+    TreeNav.vue                      ← v-treeview nav, context menus, import/export, drag-and-drop reorder
+    /workspace
+      Workspace.vue                  ← tabs (questionnaire | project-summary) + empty-state
+      WorkspaceConfig.vue            ← workspace configuration dialog
+    /questionaire
+      Questionnaire.vue              ← questionnaire editor, metadata form, reference questionnaire toggle
+      QuestionnaireConfig.vue        ← category/entry editor
+    /projects
+      ProjectSummary.vue             ← cross-questionnaire summary matrix, deviation highlights, settings gear
+      ProjectMatrix.vue              ← matrix view component
+      ProjectSuggestions.vue         ← suggestions view component
+      CategorySettings.vue           ← per-category/entry deviation settings (checkbox tree)
   /services
     categoriesService.js
   /stores
@@ -75,12 +81,14 @@ Metadata category includes fields:
 
 ## Key Components
 - **App.vue**: app bar, drawer (resizable via drag handle), config dialog, sample loader, clear storage
-- **ProjectTreeNav.vue**: v-treeview navigation, context menus, import/export dialog; drag-and-drop moves and reorders questionnaires; clicking a project node opens ProjectSummary tab
-- **Workspace.vue**: tabs (type `questionnaire` | `project-summary`) + empty-state
-- **Questionnaire.vue**: questionnaire editor, metadata form, reference questionnaire toggle (visible when questionnaire belongs to a project)
-- **QuestionnaireConfig.vue**: category/entry editor with editable examples list
-- **ProjectSummary.vue**: accordion per category with violation icons (red `!`), v-data-table matrix (aspect rows × questionnaire columns), colored status chips, search, comment tooltips, gear button opens CategorySettings dialog
-- **CategorySettings.vue**: expandable tree of categories and entries with checkboxes — checked = no deviations allowed
+- **TreeNav.vue**: v-treeview navigation, context menus, import/export dialog; drag-and-drop moves and reorders questionnaires; clicking a project node opens ProjectSummary tab
+- **Workspace.vue** (src/components/workspace/): tabs (type `questionnaire` | `project-summary`) + empty-state
+- **Questionnaire.vue** (src/components/questionaire/): questionnaire editor, metadata form, reference questionnaire toggle (visible when questionnaire belongs to a project)
+- **QuestionnaireConfig.vue** (src/components/questionaire/): category/entry editor with editable examples list
+- **ProjectSummary.vue** (src/components/projects/): accordion per category with violation icons (red `!`), v-data-table matrix (aspect rows × questionnaire columns), colored status chips, search, comment tooltips, gear button opens CategorySettings dialog
+- **ProjectMatrix.vue** (src/components/projects/): matrix view component for cross-questionnaire visualization
+- **ProjectSuggestions.vue** (src/components/projects/): suggestions view component
+- **CategorySettings.vue** (src/components/projects/): expandable tree of categories and entries with checkboxes — checked = no deviations allowed
 
 
 ## Commands

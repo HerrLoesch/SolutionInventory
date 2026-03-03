@@ -74,10 +74,10 @@
 <script>
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import Questionnaire from './Questionnaire.vue'
-import ProjectSummary from './ProjectSummary.vue'
-import QuestionnaireConfig from './QuestionnaireConfig.vue'
-import { useWorkspaceStore } from '../stores/workspaceStore'
+import Questionnaire from '../questionaire/Questionnaire.vue'
+import ProjectSummary from '../projects/ProjectSummary.vue'
+import QuestionnaireConfig from '../questionaire/QuestionnaireConfig.vue'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 export default {
   components: { Questionnaire, ProjectSummary, QuestionnaireConfig },
