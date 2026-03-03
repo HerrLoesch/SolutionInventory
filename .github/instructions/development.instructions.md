@@ -167,29 +167,6 @@ store.addQuestionnaire('New Questionnaire', null, projectId)
 
 ## Code Organization
 
-### Directory Structure
-
-```
-src/
-├── components/
-│   ├── TreeNav.vue                    (navigation, delegates to store)
-│   ├── workspace/
-│   │   ├── Workspace.vue              (tab management, delegates to store)
-│   │   └── WorkspaceConfig.vue        (config UI, delegates to store)
-│   ├── questionaire/
-│   │   ├── Questionnaire.vue          (editing UI, delegates to store)
-│   │   └── QuestionnaireConfig.vue    (config UI, delegates to store)
-│   └── projects/
-│       ├── ProjectSummary.vue         (display, delegates to store)
-│       ├── ProjectMatrix.vue          (matrix view)
-│       ├── ProjectSuggestions.vue     (suggestions view)
-│       └── CategorySettings.vue       (settings UI, delegates to store)
-├── services/
-│   └── categoriesService.js           (pure functions, no state)
-└── stores/
-    └── workspaceStore.js              (ALL state mutations)
-```
-
 ### Component Separation
 
 - **Presentation Components**: Focus on rendering (ProjectMatrix, ProjectSuggestions)
