@@ -51,14 +51,9 @@
     </v-window>
 
     <!-- Config Dialog -->
-    <v-dialog v-model="configOpen" max-width="1200">
+    <v-dialog v-model="configOpen" max-width="1200" scrollable>
       <v-card>
-        <v-card-title class="d-flex justify-space-between align-center">
-          <span>Configuration</span>
-          <v-btn icon variant="text" @click="configOpen = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
-        </v-card-title>
+        <v-card-title>Configuration</v-card-title>
         <v-divider />
         <v-card-text>
           <QuestionnaireConfig
@@ -66,6 +61,11 @@
             @update-categories="updateCategories"
           />
         </v-card-text>
+        <v-divider />
+        <v-card-actions class="gap-3">
+          <v-spacer />
+          <v-btn variant="text" @click="configOpen = false">Close</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>

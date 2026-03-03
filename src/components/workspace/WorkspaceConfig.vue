@@ -7,7 +7,7 @@
           <v-card-text class="d-flex align-center gap-3">
             <v-icon size="32">mdi-database</v-icon>
             <div>
-              <div class="text-caption text-medium-emphasis">Speichergröße</div>
+              <div class="text-caption text-medium-emphasis">Storage size</div>
               <div class="text-h6 font-weight-bold">{{ storageSize }}</div>
             </div>
           </v-card-text>
@@ -18,7 +18,7 @@
           <v-card-text class="d-flex align-center gap-3">
             <v-icon size="32">mdi-folder-multiple</v-icon>
             <div>
-              <div class="text-caption text-medium-emphasis">Projekte</div>
+              <div class="text-caption text-medium-emphasis">Projects</div>
               <div class="text-h6 font-weight-bold">{{ workspace.projects.length }}</div>
             </div>
           </v-card-text>
@@ -29,7 +29,7 @@
           <v-card-text class="d-flex align-center gap-3">
             <v-icon size="32">mdi-file-document-multiple</v-icon>
             <div>
-              <div class="text-caption text-medium-emphasis">Fragenkataloge</div>
+              <div class="text-caption text-medium-emphasis">Questionnaires</div>
               <div class="text-h6 font-weight-bold">{{ workspace.questionnaires.length }}</div>
             </div>
           </v-card-text>
@@ -40,7 +40,7 @@
     <!-- Storage Metadata -->
     <v-card class="mb-4">
       <v-card-title class="text-subtitle-1">
-        <v-icon class="mr-2">mdi-information-outline</v-icon>Speicher-Details
+        <v-icon class="mr-2">mdi-information-outline</v-icon>Storage metadata
       </v-card-title>
       <v-divider />
       <v-card-text>
@@ -70,15 +70,15 @@
     <!-- Projects & Questionnaires -->
     <v-card class="mb-4">
       <v-card-title class="text-subtitle-1">
-        <v-icon class="mr-2">mdi-sitemap</v-icon>Struktur
-        <span class="text-caption text-medium-emphasis ml-2">Fragenkataloge per Drag &amp; Drop verschieben</span>
+        <v-icon class="mr-2">mdi-sitemap</v-icon>Structure
+        <span class="text-caption text-medium-emphasis ml-2">Drag and drop questionnaires to reorganize</span>
       </v-card-title>
       <v-divider />
       <v-card-text class="pa-3">
 
         <div v-if="!workspace.projects.length && !workspace.questionnaires.length" class="pa-4 text-center text-medium-emphasis">
           <v-icon size="48">mdi-tray-remove</v-icon>
-          <p class="mt-2">Keine Daten gespeichert</p>
+          <p class="mt-2">No data stored</p>
         </div>
 
         <!-- Project Cards -->
@@ -95,7 +95,7 @@
             <v-icon size="18" class="mr-2">mdi-folder</v-icon>
             <strong>{{ project.name }}</strong>
             <span class="text-caption text-medium-emphasis ml-2">
-              {{ projectQuestionnaires(project).length }} Katalog(e)
+              {{ projectQuestionnaires(project).length }} questionnaire(s)
             </span>
           </div>
 
@@ -115,8 +115,8 @@
               <v-icon size="14" class="drag-icon mr-2">mdi-drag</v-icon>
               <v-icon size="14" class="mr-2">mdi-file-document-outline</v-icon>
               <span class="q-name">{{ q.name }}</span>
-              <span class="text-caption text-medium-emphasis ml-2">{{ q.categories.length }} Kat.</span>
-              <v-chip v-if="project.referenceQuestionnaireId === q.id" size="x-small" color="primary" class="ml-2">Referenz</v-chip>
+              <span class="text-caption text-medium-emphasis ml-2">{{ q.categories.length }} cat.</span>
+              <v-chip v-if="project.referenceQuestionnaireId === q.id" size="x-small" color="primary" class="ml-2">Reference</v-chip>
             </div>
 
             <div
@@ -124,7 +124,7 @@
               class="q-empty"
               :class="{ 'q-empty-active': activeDropTarget === project.id }"
             >
-              {{ activeDropTarget === project.id ? 'Hier ablegen' : 'Keine Fragenkataloge' }}
+              {{ activeDropTarget === project.id ? 'Drop here' : 'No questionnaires' }}
             </div>
           </div>
         </div>
@@ -139,8 +139,8 @@
         >
           <div class="project-header">
             <v-icon size="18" class="mr-2">mdi-folder-off-outline</v-icon>
-            <strong>Nicht zugeordnet</strong>
-            <span class="text-caption text-medium-emphasis ml-2">{{ standaloneQuestionnaires.length }} Katalog(e)</span>
+            <strong>Unassigned</strong>
+            <span class="text-caption text-medium-emphasis ml-2">{{ standaloneQuestionnaires.length }} questionnaire(s)</span>
           </div>
 
           <div class="questionnaire-list">
@@ -164,7 +164,7 @@
 
             <div v-if="!standaloneQuestionnaires.length" class="q-empty"
               :class="{ 'q-empty-active': unassignDropTarget }">
-              {{ unassignDropTarget ? 'Hier ablegen zum Entfernen aus Projekt' : 'Keine nicht zugeordneten Kataloge' }}
+              {{ unassignDropTarget ? 'Drop here to unassign from project' : 'No unassigned questionnaires' }}
             </div>
           </div>
         </div>
@@ -173,28 +173,30 @@
     </v-card>
 
     <!-- Actions -->
-    <div class="d-flex gap-2 flex-wrap">
+    <div class="d-flex align-center flex-wrap" style="gap: 24px;">
       <v-btn color="primary" @click="exportAll">
-        <v-icon class="mr-1">mdi-download</v-icon>Alles exportieren
+        <v-icon class="mr-1">mdi-download</v-icon>Export all
       </v-btn>
       <v-btn color="error" variant="outlined" @click="confirmClear = true">
-        <v-icon class="mr-1">mdi-delete-sweep</v-icon>Lokale Daten löschen
+        <v-icon class="mr-1">mdi-delete-sweep</v-icon>Clear local data
       </v-btn>
+      <v-spacer />
+      <v-btn variant="text" @click="emit('close')">Close</v-btn>
     </div>
 
     <!-- Clear Confirmation Dialog -->
     <v-dialog v-model="confirmClear" max-width="420">
       <v-card>
         <v-card-title class="d-flex align-center gap-2">
-          <v-icon color="error">mdi-alert</v-icon> Daten löschen
+          <v-icon color="error">mdi-alert</v-icon> Delete data
         </v-card-title>
         <v-card-text>
-          Alle lokal gespeicherten Daten werden unwiderruflich gelöscht. Die Anwendung wird danach neu initialisiert.
+          All locally stored data will be permanently deleted. The application will be reinitialized afterward.
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
-          <v-btn @click="confirmClear = false">Abbrechen</v-btn>
-          <v-btn color="error" @click="clearStorage">Löschen</v-btn>
+          <v-btn @click="confirmClear = false">Cancel</v-btn>
+          <v-btn color="error" @click="clearStorage">Delete</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -233,7 +235,7 @@ export default {
       try {
         const data = JSON.parse(raw)
         if (!data.timestamp) return null
-        return new Date(data.timestamp).toLocaleString('de-DE')
+        return new Date(data.timestamp).toLocaleString('en-US')
       } catch {
         return null
       }
@@ -416,6 +418,7 @@ export default {
     }
 
     return {
+      emit,
       workspace,
       lastSaved,
       lastSavedFull,

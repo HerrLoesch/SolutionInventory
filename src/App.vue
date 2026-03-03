@@ -22,7 +22,7 @@
 
       <v-btn class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
         <v-icon size="small">mdi-database-cog</v-icon>
-        <v-tooltip activator="parent" location="bottom">Workspace verwalten</v-tooltip>
+        <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
       </v-btn>
 
       <v-btn icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
@@ -48,14 +48,9 @@
 
 
     <!-- Workspace Config Dialog -->
-    <v-dialog v-model="workspaceConfigOpen" max-width="800">
+    <v-dialog v-model="workspaceConfigOpen" max-width="800" scrollable>
       <v-card>
-        <v-card-title class="d-flex justify-space-between align-center">
-          <span>Workspace verwalten</span>
-          <v-btn icon variant="text" @click="workspaceConfigOpen = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
-        </v-card-title>
+        <v-card-title>Manage workspace</v-card-title>
         <v-divider />
         <v-card-text>
           <WorkspaceConfig @close="workspaceConfigOpen = false" />

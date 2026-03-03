@@ -80,7 +80,7 @@
         />
       </v-card-text>
       <v-divider />
-      <v-card-actions>
+      <v-card-actions class="gap-3">
         <v-spacer />
         <v-btn variant="text" @click="categorySettingsOpen = false">Close</v-btn>
       </v-card-actions>

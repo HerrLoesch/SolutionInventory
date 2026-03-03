@@ -177,18 +177,15 @@
     <!-- JSON Preview Dialog -->
     <v-dialog v-model="showJsonDialog" max-width="900px">
       <v-card>
-        <v-card-title class="d-flex justify-space-between align-center">
-          <h3>JSON Structure</h3>
-          <v-btn icon variant="text" @click="showJsonDialog = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
+        <v-card-title>
+          <span class="text-h6">JSON Structure</span>
         </v-card-title>
         <v-card-text>
           <v-sheet class="pa-3" color="grey-lighten-4" style="max-height: 70vh; overflow-y: auto;">
             <pre style="font-size: 11px; line-height: 1.4;">{{ jsonPreview }}</pre>
           </v-sheet>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn color="primary" @click="showJsonDialog = false">Close</v-btn>
         </v-card-actions>

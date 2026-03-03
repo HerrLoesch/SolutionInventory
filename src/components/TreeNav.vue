@@ -156,7 +156,7 @@
     <!-- Standalone / Unassigned Questionnaires -->
     <template v-if="standaloneQuestionnaires.length || isDragging">
     <div class="tree-header mt-3">
-      <div class="tree-title">Nicht zugeordnet</div>
+      <div class="tree-title">Unassigned</div>
     </div>
     <div
       class="standalone-list"
@@ -170,7 +170,7 @@
         class="text-caption px-2 py-2"
         :class="isDragging ? 'drop-hint-text' : 'text-medium-emphasis'"
       >
-        {{ isDragging ? 'Ablegen zum Entfernen aus Projekt' : 'Keine Fragenkataloge' }}
+        {{ isDragging ? 'Drop to unassign from project' : 'No questionnaires' }}
       </div>
 
       <div
@@ -226,7 +226,7 @@
             @keyup.enter="createProject"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeProjectDialog">Cancel</v-btn>
           <v-btn color="primary" @click="createProject">Create</v-btn>
@@ -246,7 +246,7 @@
             @keyup.enter="createQuestionnaire"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeQuestionnaireDialog">Cancel</v-btn>
           <v-btn color="primary" @click="createQuestionnaire">Create</v-btn>
@@ -266,7 +266,7 @@
             @keyup.enter="confirmRenameProject"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeRenameProjectDialog">Cancel</v-btn>
           <v-btn color="primary" @click="confirmRenameProject">Rename</v-btn>
@@ -286,7 +286,7 @@
             @keyup.enter="confirmRenameQuestionnaire"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeRenameQuestionnaireDialog">Cancel</v-btn>
           <v-btn color="primary" @click="confirmRenameQuestionnaire">Rename</v-btn>
@@ -310,7 +310,7 @@
             {{ importError }}
           </v-alert>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeImportDialog">Cancel</v-btn>
           <v-btn color="primary" :disabled="!importFile" @click="confirmImport">Import</v-btn>
@@ -334,7 +334,7 @@
             {{ questionnaireImportError }}
           </v-alert>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeQuestionnaireImportDialog">Cancel</v-btn>
           <v-btn color="primary" :disabled="!questionnaireImportFile" @click="proceedToNameDialog">Next</v-btn>
@@ -354,7 +354,7 @@
             @keyup.enter="confirmQuestionnaireImport"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeQuestionnaireNameDialog">Cancel</v-btn>
           <v-btn color="primary" @click="confirmQuestionnaireImport">Import</v-btn>
