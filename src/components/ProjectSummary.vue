@@ -36,6 +36,26 @@
                   />
                 </template>
               </v-tooltip>
+              <v-btn-toggle
+                v-model="answerTypeFilter"
+                density="compact"
+                variant="outlined"
+                divided
+                mandatory
+                rounded="lg"
+                class="mx-2"
+                style="white-space: nowrap;"
+              >
+                <v-btn value="all" size="small">All</v-btn>
+                <v-btn value="Tool" size="small">
+                  <v-icon start size="14">mdi-puzzle</v-icon>
+                  Tools
+                </v-btn>
+                <v-btn value="Practice" size="small">
+                  <v-icon start size="14">mdi-map-marker-path</v-icon>
+                  Practices
+                </v-btn>
+              </v-btn-toggle>
               <v-text-field
                 v-model="search"
                 label="Search"
@@ -208,6 +228,7 @@ export default {
     const search = ref('')
     const openPanels = ref([])
     const categorySettingsOpen = ref(false)
+    const answerTypeFilter = ref('all')
 
     const project = computed(() => {
       return (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
@@ -327,15 +348,23 @@ export default {
       return Object.values(item).some((v) => String(v).toLowerCase().includes(term))
     }
 
+    function entryHasFilteredAnswers(entryId) {
+      if (answerTypeFilter.value === 'all') return true
+      return questionnaires.value.some((q) => cellLines(q.id, entryId).length > 0)
+    }
+
     const categoryGroups = computed(() => {
       // Collect all category keys from visibleRows (hidden categories won't appear)
+      // When a type filter is active, skip rows with no matching answers entirely
       const counts = new Map()
       visibleRows.value.forEach((row) => {
+        if (!entryHasFilteredAnswers(row.id)) return
         const key = String(row.category || '').trim() || 'Other'
         counts.set(key, 0)
       })
       // Count only items that pass the current search filter
       items.value.forEach((item) => {
+        if (!entryHasFilteredAnswers(item.id)) return
         if (matchesSearch(item)) {
           const key = String(item.category || '').trim() || 'Other'
           if (counts.has(key)) counts.set(key, (counts.get(key) || 0) + 1)
@@ -352,6 +381,7 @@ export default {
       return items.value
         .filter((item) => (String(item.category || '').trim() || 'Other') === key)
         .filter((item) => isEntryVisible(item))
+        .filter((item) => entryHasFilteredAnswers(item.id))
         .slice()
         .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' }))
     }
@@ -382,7 +412,8 @@ export default {
         .map((answer) => ({
           option: String(answer?.technology || '').trim(),
           status: String(answer?.status || '').trim(),
-          comment: String(answer?.comments || '').trim()
+          comment: String(answer?.comments || '').trim(),
+          answerType: String(answer?.answerType || '').trim()
         }))
         .filter((line) => Boolean(line.option))
 
@@ -391,7 +422,9 @@ export default {
     }
 
     function cellLines(questionnaireId, entryId) {
-      return matrix.value?.[questionnaireId]?.[entryId] || []
+      const lines = matrix.value?.[questionnaireId]?.[entryId] || []
+      if (answerTypeFilter.value === 'all') return lines
+      return lines.filter((line) => line.answerType === answerTypeFilter.value)
     }
 
     function toQuestionnaireKey(questionnaireId) {
@@ -540,7 +573,8 @@ export default {
       saveDeviationSettings,
       saveVisibilitySettings,
       isViolation,
-      categoryHasViolation
+      categoryHasViolation,
+      answerTypeFilter
     }
   }
 }
