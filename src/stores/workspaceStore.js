@@ -527,6 +527,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  function setProjectRadarCategoryOrder(projectId, categoryOrder) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return
+    project.radarCategoryOrder = Array.isArray(categoryOrder) ? [...categoryOrder] : []
+  }
+
+  function getProjectRadarCategoryOrder(projectId) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return []
+    return Array.isArray(project.radarCategoryOrder) ? [...project.radarCategoryOrder] : []
+  }
+
   function setApplicability(entry, value) {
     if (!applicabilityOptions.includes(value)) {
       entry.applicability = 'applicable'
@@ -725,6 +737,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isProjectRadarRef,
     getRadarOverride,
     setRadarOverride,
+    setProjectRadarCategoryOrder,
+    getProjectRadarCategoryOrder,
     setApplicability,
     isEntryApplicable,
     getStatusTooltip,

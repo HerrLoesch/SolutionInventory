@@ -49,8 +49,13 @@
             density="compact"
             :variant="selectedCategories.includes(cat) ? 'tonal' : 'outlined'"
             :color="selectedCategories.includes(cat) ? 'primary' : undefined"
-            style="cursor:pointer;"
+            style="cursor:grab;"
+            draggable="true"
             @click="toggleCategory(cat)"
+            @dragstart="handleDragStart($event, cat)"
+            @dragover.prevent="handleDragOver($event, cat)"
+            @drop="handleDrop($event, cat)"
+            @dragend="handleDragEnd"
           >{{ cat }}</v-chip>
         </div>
         <v-menu location="bottom end">
@@ -660,6 +665,7 @@ export default {
       { title: 'Hold',   value: 'hold' },
       { title: 'Retire', value: 'retire' }
     ]
+    const draggedCategory = ref(null)
 
     // ── Dynamic ring radii – capacity-based solver ───────────────────────────
     // Computes how many blip slots fit in one quadrant of a ring band.
@@ -903,13 +909,39 @@ export default {
       return result
     })
 
-    // All unique categories that have at least one radar blip (alphabetically sorted)
+    // All unique categories that have at least one radar blip (respecting stored order)
     const availableCategories = computed(() => {
       const categories = new Set()
       for (const blip of allBlips.value) {
         if (blip.categoryTitle) categories.add(blip.categoryTitle)
       }
-      return [...categories].sort((a, b) => a.localeCompare(b))
+      
+      const categoryList = [...categories]
+      
+      // Get stored order
+      const storedOrder = store.getProjectRadarCategoryOrder(props.projectId)
+      
+      if (!storedOrder || storedOrder.length === 0) {
+        // No stored order, use alphabetical and save it
+        const sorted = categoryList.sort((a, b) => a.localeCompare(b))
+        store.setProjectRadarCategoryOrder(props.projectId, sorted)
+        return sorted
+      }
+      
+      // Sort by stored order, then append any new categories alphabetically
+      const ordered = []
+      const remaining = new Set(categoryList)
+      
+      for (const cat of storedOrder) {
+        if (remaining.has(cat)) {
+          ordered.push(cat)
+          remaining.delete(cat)
+        }
+      }
+      
+      // Add any newly appeared categories at the end (alphabetically)
+      const newCategories = [...remaining].sort((a, b) => a.localeCompare(b))
+      return [...ordered, ...newCategories]
     })
 
     // All category titles across ALL questionnaires in the project – used for the move-category dropdown
@@ -954,33 +986,42 @@ export default {
       return blips
     })
 
-    // Map category titles to quadrant indices (up to 4, sorted alphabetically)
+    // Map category titles to quadrant indices
+    // Chip 1→Q1 (top-left), Chip 2→Q0 (top-right), Chip 3→Q2 (bottom-left), rest→Q3 (bottom-right)
     const categoryToQuadrant = computed(() => {
-      const categories = new Set()
-      for (const blip of visibleBlips.value) {
-        if (blip.categoryTitle) categories.add(blip.categoryTitle)
-      }
-      
-      const sorted = [...categories].sort((a, b) => a.localeCompare(b))
       const map = new Map()
+      const categories = availableCategories.value
       
-      for (let i = 0; i < sorted.length; i++) {
-        map.set(sorted[i], Math.min(i, 3))
+      const quadrantMapping = [1, 0, 2] // Indices 0,1,2 map to Q1,Q0,Q2
+      
+      for (let i = 0; i < categories.length; i++) {
+        if (i < 3) {
+          map.set(categories[i], quadrantMapping[i])
+        } else {
+          map.set(categories[i], 3) // All remaining go to Q3 (bottom-right)
+        }
       }
       
       return map
     })
 
     // Dynamic quadrant corner labels from category titles
+    // Chip 1→Q1 (top-left), Chip 2→Q0 (top-right), Chip 3→Q2 (bottom-left), rest→Q3 (bottom-right)
     const activeQuadrantLabels = computed(() => {
       const labels = ['', '', '', '']
+      const categories = availableCategories.value
       
-      for (const [cat, qIdx] of categoryToQuadrant.value) {
-        if (!labels[qIdx]) {
-          labels[qIdx] = cat
-        } else if (labels[qIdx] !== cat) {
-          labels[qIdx] += ' …' // overflow indicator
-        }
+      // Map categories to quadrants: Q1, Q0, Q2 for first 3 chips
+      if (categories.length >= 1) labels[1] = categories[0] // Chip 1 → Q1 (top-left)
+      if (categories.length >= 2) labels[0] = categories[1] // Chip 2 → Q0 (top-right)
+      if (categories.length >= 3) labels[2] = categories[2] // Chip 3 → Q2 (bottom-left)
+      
+      // Q3 (quadrant 3) contains all remaining categories
+      if (categories.length > 3) {
+        const overflowCategories = categories.slice(3)
+        labels[3] = overflowCategories.length === 1
+          ? overflowCategories[0]
+          : `${overflowCategories[0]} (+${overflowCategories.length - 1})`
       }
       
       return Q_LABEL_POSITIONS.map((pos, i) => ({ ...pos, text: labels[i] }))
@@ -1128,6 +1169,42 @@ export default {
       detailDialog.value = true
     }
 
+    // Drag-and-drop handlers for category reordering
+    function handleDragStart (event, category) {
+      draggedCategory.value = category
+      event.dataTransfer.effectAllowed = 'move'
+      event.target.style.opacity = '0.5'
+    }
+
+    function handleDragOver (event, targetCategory) {
+      if (draggedCategory.value && draggedCategory.value !== targetCategory) {
+        event.dataTransfer.dropEffect = 'move'
+      }
+    }
+
+    function handleDrop (event, targetCategory) {
+      event.preventDefault()
+      if (!draggedCategory.value || draggedCategory.value === targetCategory) return
+      
+      const currentOrder = [...availableCategories.value]
+      const draggedIndex = currentOrder.indexOf(draggedCategory.value)
+      const targetIndex = currentOrder.indexOf(targetCategory)
+      
+      if (draggedIndex === -1 || targetIndex === -1) return
+      
+      // Remove dragged item and insert at target position
+      currentOrder.splice(draggedIndex, 1)
+      currentOrder.splice(targetIndex, 0, draggedCategory.value)
+      
+      // Save new order
+      store.setProjectRadarCategoryOrder(props.projectId, currentOrder)
+    }
+
+    function handleDragEnd (event) {
+      event.target.style.opacity = '1'
+      draggedCategory.value = null
+    }
+
     // Flatten a CSS rgba() colour against a white background so the exported
     // PNG looks correct regardless of dark/light mode.
     function flattenRgba (rgba) {
@@ -1268,6 +1345,10 @@ export default {
       detailDialog,
       detailBlip,
       openDetail,
+      handleDragStart,
+      handleDragOver,
+      handleDrop,
+      handleDragEnd,
       radarLayoutRef,
       isDownloading,
       downloadRadar,
