@@ -1,8 +1,8 @@
-  Feature: Questionnaire management
+﻿Feature: Questionnaire management
 
   Background:
     Given I open the application
-  
+
   # ---------------------------------------------------------------------------
   # Questionnaire CRUD
   # ---------------------------------------------------------------------------
@@ -13,8 +13,9 @@
     And I click "Add" in the context menu
     And I fill in the questionnaire name "Playwright Test Questionnaire"
     And I confirm with "Create"
-    Then the questionnaire "Playwright Test Questionnaire" should be visible in the tree
+    Then the questionnaire "Playwright Test Questionnaire" should be visible in project "Playwright Test Project"
     And the questionnaire name dialog should be closed
+    And the questionnaire "Playwright Test Questionnaire" should be visible in the tabs of the workspace
 
   Scenario: Delete a questionnaire from a project
     Given a project "Playwright Test Project" exists
@@ -22,4 +23,5 @@
     When I open the context menu for questionnaire "Playwright Test Questionnaire"
     And I click "Delete" in the context menu
     And I confirm with "Delete"
-    Then the questionnaire "Playwright Test Questionnaire" should not be visible in the tree
+    Then the questionnaire "Playwright Test Questionnaire" should not be visible in project "Playwright Test Project"
+    And the questionnaire "Playwright Test Questionnaire" should not be visible in the tabs of the workspace

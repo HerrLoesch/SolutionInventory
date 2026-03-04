@@ -111,6 +111,30 @@ Then('the questionnaire {string} should not be visible in the tree', async funct
   ).not.toBeVisible()
 })
 
+Then('the questionnaire {string} should be visible in project {string}', async function (questName, _projName) {
+  await expect(
+    this.page.locator('.project-tree-nav .tree-click-title', { hasText: questName })
+  ).toBeVisible()
+})
+
+Then('the questionnaire {string} should not be visible in project {string}', async function (questName, _projName) {
+  await expect(
+    this.page.locator('.project-tree-nav .tree-click-title', { hasText: questName })
+  ).not.toBeVisible()
+})
+
+Then('the questionnaire {string} should be visible in the tabs of the workspace', async function (name) {
+  await expect(
+    this.page.locator('.workspace-tabs .tab-title', { hasText: name })
+  ).toBeVisible()
+})
+
+Then('the questionnaire {string} should not be visible in the tabs of the workspace', async function (name) {
+  await expect(
+    this.page.locator('.workspace-tabs .tab-title', { hasText: name })
+  ).not.toBeVisible()
+})
+
 Then('the questionnaire name dialog should be closed', async function () {
   await expect(this.page.getByLabel('Questionnaire name')).not.toBeVisible()
 })
