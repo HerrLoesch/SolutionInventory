@@ -166,7 +166,7 @@
           />
 
           <!-- Ring boundary circles (stroke only) -->
-          <circle v-for="r in computedRings.slice(1)" :key="`rc-${r}`"
+          <circle v-for="r in visibleRingRadii" :key="`rc-${r}`"
             :cx="CX" :cy="CY" :r="r"
             fill="none"
             stroke="var(--radar-line)"
@@ -292,7 +292,14 @@
 
       <!-- Ring key -->
       <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap:16px;">
-        <div v-for="ring in RING_META" :key="ring.label" class="d-flex align-center" style="gap:6px;">
+        <div 
+          v-for="ring in RING_META" 
+          :key="ring.label" 
+          class="ring-key-item d-flex align-center" 
+          :class="{ 'ring-key-item--inactive': !isStatusVisible(ring.label) }"
+          style="gap:6px; cursor:pointer; user-select:none;"
+          @click="toggleStatusVisibility(ring.label)"
+        >
           <span class="ring-dot" :style="{ background: ring.color }" />
           <span class="text-caption">{{ ring.label }}</span>
         </div>
@@ -666,6 +673,25 @@ export default {
       { title: 'Retire', value: 'retire' }
     ]
     const draggedCategory = ref(null)
+    const visibleStatuses = ref(new Set(['adopt', 'trial', 'assess', 'hold', 'retire']))
+
+    // ── Visible ring tracking ────────────────────────────────────────────────
+    // List of visible ring indices (0-4 corresponding to RING_META)
+    const visibleRingIndices = computed(() => {
+      return [0, 1, 2, 3, 4].filter(i => {
+        const statusName = RING_META[i].label.toLowerCase()
+        return visibleStatuses.value.has(statusName)
+      })
+    })
+
+    // Mapping from original ring index (0-4) to new array index in computedRings
+    const ringIndexMapping = computed(() => {
+      const mapping = {}
+      visibleRingIndices.value.forEach((origIdx, newIdx) => {
+        mapping[origIdx] = newIdx
+      })
+      return mapping
+    })
 
     // ── Dynamic ring radii – capacity-based solver ───────────────────────────
     // Computes how many blip slots fit in one quadrant of a ring band.
@@ -692,6 +718,8 @@ export default {
 
     const computedRings = computed(() => {
       const blips = visibleBlips.value
+      const visibleIndices = visibleRingIndices.value
+      const numVisibleRings = visibleIndices.length
 
       // Replicate categoryToQuadrant assignment inline (avoids circular dep)
       const catToQ = new Map()
@@ -707,11 +735,14 @@ export default {
         catToQ.set(seenCats[i], Math.min(i, 3))
       }
 
-      // Count blips per [ring][quadrant]
-      const perRQ = Array.from({ length: 5 }, () => new Array(4).fill(0))
+      // Count blips per [ring][quadrant] - only for visible rings
+      const perRQ = Array.from({ length: numVisibleRings }, () => new Array(4).fill(0))
       for (const b of blips) {
         const q = catToQ.get(b.categoryTitle) ?? 3
-        perRQ[b.ring][q]++
+        const newRingIdx = ringIndexMapping.value[b.ring]
+        if (newRingIdx !== undefined) {
+          perRQ[newRingIdx][q]++
+        }
       }
       // Worst-case quadrant load per ring
       const needed = perRQ.map(qCounts => Math.max(...qCounts, 0))
@@ -719,7 +750,7 @@ export default {
       const MIN_EMPTY = 22   // just enough to show the ring label
       const MIN_ACTIVE = 36  // minimum for at least one blip row
 
-      // Starting widths
+      // Starting widths - only for visible rings
       const widths = needed.map(n => n === 0 ? MIN_EMPTY : MIN_ACTIVE)
 
       // Iterative growth: if a ring's capacity is too small, grow it by 20 %
@@ -728,10 +759,10 @@ export default {
         const total = widths.reduce((s, w) => s + w, 0)
         const scale = OUTER_R / total
         const radii = [0]
-        for (let i = 0; i < 5; i++) radii.push(radii[i] + widths[i] * scale)
+        for (let i = 0; i < numVisibleRings; i++) radii.push(radii[i] + widths[i] * scale)
 
         let changed = false
-        for (let ri = 0; ri < 5; ri++) {
+        for (let ri = 0; ri < numVisibleRings; ri++) {
           if (needed[ri] === 0) continue
           const cap = ringSlotCapacity(radii[ri], radii[ri + 1])
           if (cap < needed[ri]) {
@@ -745,23 +776,35 @@ export default {
       // Normalise to exactly OUTER_R
       const total = widths.reduce((s, w) => s + w, 0)
       const radii = [0]
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < numVisibleRings; i++) {
         radii.push(Math.round(radii[i] + (widths[i] / total) * OUTER_R))
       }
-      radii[5] = OUTER_R
+      radii[numVisibleRings] = OUTER_R
       return radii
     })
 
     // ── Radar geometry (reactive to dynamic ring sizes) ──────────────────────
     const ringsBg = computed(() => {
       const cr = computedRings.value
-      return [
-        { r: cr[5], fill: 'rgba(244,67,54,0.08)' },
-        { r: cr[4], fill: 'rgba(158,158,158,0.10)' },
-        { r: cr[3], fill: 'rgba(255,152,0,0.10)' },
-        { r: cr[2], fill: 'rgba(33,150,243,0.10)' },
-        { r: cr[1], fill: 'rgba(76,175,80,0.15)' }
-      ]
+      const visibleIndices = visibleRingIndices.value
+      
+      // Create ring backgrounds only for visible rings, in reverse order (outer to inner)
+      return visibleIndices.map((origIdx, newIdx) => {
+        const ringRadius = cr[newIdx + 1]
+        const meta = RING_META[origIdx]
+        const fills = [
+          'rgba(76,175,80,0.15)',   // adopt
+          'rgba(33,150,243,0.10)',  // trial
+          'rgba(255,152,0,0.10)',   // assess
+          'rgba(158,158,158,0.10)', // hold
+          'rgba(244,67,54,0.08)'    // retire
+        ]
+        return {
+          r: ringRadius,
+          fill: fills[origIdx],
+          label: meta.label.toLowerCase()
+        }
+      }).reverse() // Paint from outside-in
     })
 
     const quadrantTints = Q_ANGLES.map((qa, qi) => ({
@@ -771,12 +814,23 @@ export default {
 
     const ringLabels = computed(() => {
       const cr = computedRings.value
-      return cr.slice(1).map((r, i) => ({
-        x: CX,
-        y: CY - (cr[i] + r) / 2,
-        text: RING_META[i].label,
-        color: RING_META[i].color
-      }))
+      const visibleIndices = visibleRingIndices.value
+      
+      return visibleIndices.map((origIdx, newIdx) => {
+        const meta = RING_META[origIdx]
+        return {
+          x: CX,
+          y: CY - (cr[newIdx] + cr[newIdx + 1]) / 2,
+          text: meta.label,
+          color: meta.color
+        }
+      })
+    })
+
+    // Visible ring radii for boundary circles
+    const visibleRingRadii = computed(() => {
+      const cr = computedRings.value
+      return cr.slice(1) // All computed rings except the center point (0)
     })
 
     // Quadrant corner position templates (geometry only, label comes from data)
@@ -974,7 +1028,7 @@ export default {
       }
     }
 
-    // Blips filtered by answerType AND selected categories
+    // Blips filtered by answerType, selected categories AND visible statuses
     const visibleBlips = computed(() => {
       let blips = answerTypeFilter.value === 'all'
         ? allBlips.value
@@ -983,6 +1037,11 @@ export default {
         const sel = new Set(selectedCategories.value)
         blips = blips.filter((b) => sel.has(b.categoryTitle))
       }
+      // Filter by visible statuses
+      blips = blips.filter((b) => {
+        const statusName = RING_META[b.ring]?.label.toLowerCase()
+        return visibleStatuses.value.has(statusName)
+      })
       return blips
     })
 
@@ -1030,20 +1089,27 @@ export default {
     // ── Blip placement ───────────────────────────────────────────────────────
     const positionedBlips = computed(() => {
       const counter = {}
+      const mapping = ringIndexMapping.value
+      
       return visibleBlips.value.map((blip, globalIdx) => {
         const quadrant = categoryToQuadrant.value.get(blip.categoryTitle) ?? 3
-        const sectorKey = `${quadrant}-${blip.ring}`
+        const newRingIdx = mapping[blip.ring]
+        
+        // Skip blips whose ring is not visible (shouldn't happen due to filtering, but be safe)
+        if (newRingIdx === undefined) return null
+        
+        const sectorKey = `${quadrant}-${newRingIdx}`
         counter[sectorKey] = (counter[sectorKey] ?? 0)
         const slotIdx = counter[sectorKey]++
         const cr = computedRings.value
-        const slots = getSlots(quadrant, blip.ring, cr)
+        const slots = getSlots(quadrant, newRingIdx, cr)
         let pos
         if (slotIdx < slots.length) {
           pos = slots[slotIdx]
         } else {
           const { a1, a2 } = Q_ANGLES[quadrant]
           const midA = (a1 + a2) / 2
-          const midR = (cr[blip.ring] + cr[blip.ring + 1]) / 2
+          const midR = (cr[newRingIdx] + cr[newRingIdx + 1]) / 2
           pos = {
             x: CX + midR * Math.cos(midA) + (slotIdx % 5 - 2) * 6,
             y: CY + midR * Math.sin(midA) + Math.floor(slotIdx / 5) * 6
@@ -1058,7 +1124,7 @@ export default {
           statusLabel: statusLabel(blip.status),
           typeLabel: typeLabelOf(blip.answerType)
         }
-      })
+      }).filter(Boolean) // Remove any null entries
     })
 
     // ── Legend grouping by quadrant + status ───────────────────────────────
@@ -1205,6 +1271,27 @@ export default {
       draggedCategory.value = null
     }
 
+    // Toggle status visibility
+    function toggleStatusVisibility (statusLabel) {
+      const statusName = statusLabel.toLowerCase()
+      const newSet = new Set(visibleStatuses.value)
+      
+      if (newSet.has(statusName)) {
+        // Don't allow hiding all statuses - keep at least one visible
+        if (newSet.size > 1) {
+          newSet.delete(statusName)
+        }
+      } else {
+        newSet.add(statusName)
+      }
+      
+      visibleStatuses.value = newSet
+    }
+
+    function isStatusVisible (statusLabel) {
+      return visibleStatuses.value.has(statusLabel.toLowerCase())
+    }
+
     // Flatten a CSS rgba() colour against a white background so the exported
     // PNG looks correct regardless of dark/light mode.
     function flattenRgba (rgba) {
@@ -1315,7 +1402,10 @@ export default {
       answerTypeFilter,
       searchQuery,
       highlightedBlipKeys,
+      visibleRingIndices,
+      ringIndexMapping,
       ringsBg,
+      visibleRingRadii,
       quadrantTints,
       ringLabels,
       activeQuadrantLabels,
@@ -1349,6 +1439,8 @@ export default {
       handleDragOver,
       handleDrop,
       handleDragEnd,
+      toggleStatusVisibility,
+      isStatusVisible,
       radarLayoutRef,
       isDownloading,
       downloadRadar,
@@ -1484,6 +1576,24 @@ export default {
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.ring-key-item {
+  transition: opacity 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.ring-key-item:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.ring-key-item--inactive {
+  opacity: 0.3;
+}
+
+.ring-key-item--inactive:hover {
+  opacity: 0.5;
 }
 
 .legend-row {
