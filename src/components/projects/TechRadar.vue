@@ -688,17 +688,25 @@ export default {
       const blips = visibleBlips.value
 
       // Replicate categoryToQuadrant assignment inline (avoids circular dep)
-      const cats = [...new Set(blips.map(b => b.categoryTitle).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b))
       const catToQ = new Map()
-      cats.forEach((cat, i) => catToQ.set(cat, Math.min(i, 3)))
+      const seenCats = []
+      
+      for (const b of blips) {
+        if (b.categoryTitle && !catToQ.has(b.categoryTitle)) {
+          seenCats.push(b.categoryTitle)
+        }
+      }
+      seenCats.sort((a, b) => a.localeCompare(b))
+      for (let i = 0; i < seenCats.length; i++) {
+        catToQ.set(seenCats[i], Math.min(i, 3))
+      }
 
       // Count blips per [ring][quadrant]
       const perRQ = Array.from({ length: 5 }, () => new Array(4).fill(0))
-      blips.forEach(b => {
+      for (const b of blips) {
         const q = catToQ.get(b.categoryTitle) ?? 3
         perRQ[b.ring][q]++
-      })
+      }
       // Worst-case quadrant load per ring
       const needed = perRQ.map(qCounts => Math.max(...qCounts, 0))
 
@@ -778,50 +786,102 @@ export default {
       (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
     )
 
+    // Lookup table: entryId -> { categoryTitle, entryTitle, candidates }
+    // Only rebuilds when questionnaires change (not on every radar ref update)
+    const entryLookup = computed(() => {
+      if (!project.value) return new Map()
+      const questionnaires = store.getProjectQuestionnaires(project.value)
+      const lookup = new Map()
+      
+      for (const q of questionnaires) {
+        const cats = q?.categories
+        if (!Array.isArray(cats)) continue
+        
+        for (const cat of cats) {
+          if (cat?.isMetadata) continue
+          
+          const catTitle = String(cat?.title || '').trim()
+          const entries = cat?.entries
+          if (!Array.isArray(entries)) continue
+          
+          for (const entry of entries) {
+            const entryId = String(entry?.id || '').trim()
+            if (!entryId) continue
+            
+            const entryTitle = String(entry?.aspect || entry?.title || entryId).trim()
+            
+            if (!lookup.has(entryId)) {
+              lookup.set(entryId, { 
+                categoryTitle: catTitle, 
+                entryTitle, 
+                candidates: [] 
+              })
+            }
+            
+            const entryData = lookup.get(entryId)
+            const answers = entry?.answers
+            if (!Array.isArray(answers)) continue
+            
+            for (const a of answers) {
+              const tech = String(a?.technology || '').trim()
+              if (!tech) continue
+              
+              entryData.candidates.push({ 
+                tech, 
+                answer: a, 
+                questionnaireName: q.name || q.id, 
+                questionnaireId: q.id 
+              })
+            }
+          }
+        }
+      }
+      
+      return lookup
+    })
+
     // All radar-referenced blips (unfiltered), includes categoryTitle
     const allBlips = computed(() => {
       if (!project.value) return []
       const refs = Array.isArray(project.value.radarRefs) ? project.value.radarRefs : []
       if (!refs.length) return []
 
-      const questionnaires = store.getProjectQuestionnaires(project.value)
-
-      // Build lookup: entryId -> { categoryTitle, entryTitle, candidates: [{tech, answer, questionnaireName}] }
-      const entryLookup = new Map()
-      questionnaires.forEach((q) => {
-        const cats = Array.isArray(q?.categories) ? q.categories : []
-        cats.filter((c) => !c?.isMetadata).forEach((cat) => {
-          const catTitle = String(cat?.title || '').trim()
-          const entries = Array.isArray(cat?.entries) ? cat.entries : []
-          entries.forEach((entry) => {
-            const entryId = String(entry?.id || '').trim()
-            if (!entryId) return
-            const entryTitle = String(entry?.aspect || entry?.title || entryId).trim()
-            if (!entryLookup.has(entryId)) entryLookup.set(entryId, { categoryTitle: catTitle, entryTitle, candidates: [] })
-            const answers = Array.isArray(entry?.answers) ? entry.answers : []
-            answers.forEach((a) => {
-              const tech = String(a?.technology || '').trim()
-              if (tech) entryLookup.get(entryId).candidates.push({ tech, answer: a, questionnaireName: q.name || q.id, questionnaireId: q.id })
-            })
-          })
-        })
-      })
-
-      return refs.map((ref) => {
+      const lookup = entryLookup.value
+      const result = []
+      
+      for (const ref of refs) {
         const norm = String(ref.option || '').trim().toLowerCase()
-        const entryData = entryLookup.get(ref.entryId)
+        const entryData = lookup.get(ref.entryId)
         const candidates = entryData?.candidates || []
-        // Prefer the questionnaire that was active when the blip was added.
-        // Fall back to the first matching candidate if no stored questionnaire ID.
+        
+        // Prefer the questionnaire that was active when the blip was added
         const preferredQId = String(ref.questionnaireId || '').trim()
-        const match = (preferredQId
-          ? candidates.find((c) => c.tech.toLowerCase() === norm && c.questionnaireId === preferredQId)
-          : null) ?? candidates.find((c) => c.tech.toLowerCase() === norm)
+        let match = null
+        
+        if (preferredQId) {
+          for (const c of candidates) {
+            if (c.tech.toLowerCase() === norm && c.questionnaireId === preferredQId) {
+              match = c
+              break
+            }
+          }
+        }
+        
+        if (!match) {
+          for (const c of candidates) {
+            if (c.tech.toLowerCase() === norm) {
+              match = c
+              break
+            }
+          }
+        }
+        
         const answer = match?.answer
         const override = store.getRadarOverride(props.projectId, ref.entryId, ref.option)
         const effectiveStatus = (override?.status || '').trim() || String(answer?.status || '').trim()
         const effectiveCategory = (override?.categoryOverride || '').trim() || entryData?.categoryTitle || ''
-        return {
+        
+        result.push({
           key: `${ref.entryId}||${ref.option}`,
           entryId: ref.entryId,
           option: String(ref.option || '').trim(),
@@ -837,27 +897,28 @@ export default {
           categoryTitle: effectiveCategory,
           entryTitle: entryData?.entryTitle || '',
           ring: statusToRing(effectiveStatus)
-        }
-      })
+        })
+      }
+      
+      return result
     })
 
     // All unique categories that have at least one radar blip (alphabetically sorted)
     const availableCategories = computed(() => {
-      return [...new Set(allBlips.value.map((b) => b.categoryTitle).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b))
+      const categories = new Set()
+      for (const blip of allBlips.value) {
+        if (blip.categoryTitle) categories.add(blip.categoryTitle)
+      }
+      return [...categories].sort((a, b) => a.localeCompare(b))
     })
 
     // All category titles across ALL questionnaires in the project – used for the move-category dropdown
+    // Derives from entryLookup to avoid re-scanning questionnaires
     const availableCategoriesForEdit = computed(() => {
-      const questionnaires = store.getProjectQuestionnaires(project.value || {})
       const titles = new Set()
-      questionnaires.forEach((q) => {
-        const cats = Array.isArray(q?.categories) ? q.categories : []
-        cats.filter((c) => !c?.isMetadata).forEach((c) => {
-          const t = String(c?.title || '').trim()
-          if (t) titles.add(t)
-        })
-      })
+      for (const entryData of entryLookup.value.values()) {
+        if (entryData.categoryTitle) titles.add(entryData.categoryTitle)
+      }
       return [...titles].sort((a, b) => a.localeCompare(b))
     })
 
@@ -895,24 +956,33 @@ export default {
 
     // Map category titles to quadrant indices (up to 4, sorted alphabetically)
     const categoryToQuadrant = computed(() => {
-      const cats = [...new Set(visibleBlips.value.map((b) => b.categoryTitle).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b))
-      const map = new Map()
-      cats.forEach((cat, i) => map.set(cat, Math.min(i, 3)))
-      // If more than 4, overflow into last slot
-      if (cats.length > 4) {
-        cats.slice(4).forEach((cat) => map.set(cat, 3))
+      const categories = new Set()
+      for (const blip of visibleBlips.value) {
+        if (blip.categoryTitle) categories.add(blip.categoryTitle)
       }
+      
+      const sorted = [...categories].sort((a, b) => a.localeCompare(b))
+      const map = new Map()
+      
+      for (let i = 0; i < sorted.length; i++) {
+        map.set(sorted[i], Math.min(i, 3))
+      }
+      
       return map
     })
 
     // Dynamic quadrant corner labels from category titles
     const activeQuadrantLabels = computed(() => {
       const labels = ['', '', '', '']
-      categoryToQuadrant.value.forEach((qIdx, cat) => {
-        if (!labels[qIdx]) labels[qIdx] = cat
-        else if (labels[qIdx] !== cat) labels[qIdx] += ' …' // overflow indicator
-      })
+      
+      for (const [cat, qIdx] of categoryToQuadrant.value) {
+        if (!labels[qIdx]) {
+          labels[qIdx] = cat
+        } else if (labels[qIdx] !== cat) {
+          labels[qIdx] += ' …' // overflow indicator
+        }
+      }
+      
       return Q_LABEL_POSITIONS.map((pos, i) => ({ ...pos, text: labels[i] }))
     })
 
@@ -952,16 +1022,31 @@ export default {
 
     // ── Legend grouping by quadrant + status ───────────────────────────────
     const blipsByQuadrant = computed(() => {
+      // Pre-bin blips by quadrant+ring to avoid repeated filtering
+      const bins = Array.from({ length: 4 }, () => 
+        Array.from({ length: 5 }, () => [])
+      )
+      
+      for (const blip of positionedBlips.value) {
+        bins[blip.quadrant][blip.ring].push(blip)
+      }
+      
       const groups = []
       for (let qi = 0; qi < 4; qi++) {
         const label = activeQuadrantLabels.value[qi]?.text || ''
-        const allQBlips = positionedBlips.value.filter((b) => b.quadrant === qi)
-        if (!allQBlips.length) continue
+        const hasBlips = bins[qi].some(ringBlips => ringBlips.length > 0)
+        if (!hasBlips) continue
+        
         const statusGroups = []
         for (let ri = 0; ri < 5; ri++) {
-          const ringBlips = allQBlips.filter((b) => b.ring === ri)
+          const ringBlips = bins[qi][ri]
           if (ringBlips.length) {
-            statusGroups.push({ ring: ri, statusLabel: RING_META[ri].label, color: RING_META[ri].color, blips: ringBlips })
+            statusGroups.push({ 
+              ring: ri, 
+              statusLabel: RING_META[ri].label, 
+              color: RING_META[ri].color, 
+              blips: ringBlips 
+            })
           }
         }
         groups.push({ quadrant: qi, label, statusGroups })

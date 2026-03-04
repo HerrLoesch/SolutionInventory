@@ -312,28 +312,37 @@ export default {
     const rows = computed(() => {
       const result = []
       const seen = new Set()
-      questionnaires.value.forEach((questionnaire) => {
-        const categories = Array.isArray(questionnaire?.categories) ? questionnaire.categories : []
-        categories
-          .filter((category) => !category?.isMetadata)
-          .forEach((category) => {
-            const entries = Array.isArray(category?.entries) ? category.entries : []
-            entries.forEach((entry) => {
-              const id = String(entry?.id || '').trim()
-              if (!id || seen.has(id)) return
-              seen.add(id)
-              result.push({
-                id,
-                title: String(entry?.aspect || entry?.title || id),
-                category: String(category?.title || ''),
-                categoryId: String(category?.id || '')
-              })
+      
+      for (const questionnaire of questionnaires.value) {
+        const categories = questionnaire?.categories
+        if (!Array.isArray(categories)) continue
+        
+        for (const category of categories) {
+          if (category?.isMetadata) continue
+          
+          const entries = category?.entries
+          if (!Array.isArray(entries)) continue
+          
+          const catTitle = String(category?.title || '').trim()
+          const catId = String(category?.id || '').trim()
+          
+          for (const entry of entries) {
+            const id = String(entry?.id || '').trim()
+            if (!id || seen.has(id)) continue
+            
+            seen.add(id)
+            result.push({
+              id,
+              title: String(entry?.aspect || entry?.title || id).trim(),
+              category: catTitle,
+              categoryId: catId
             })
-          })
-      })
-      return result.sort((a, b) =>
-        String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' })
-      )
+          }
+        }
+      }
+      
+      result.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+      return result
     })
 
     const deviationSettings = computed(() => props.deviationSettings)
@@ -350,21 +359,29 @@ export default {
 
     const matrix = computed(() => {
       const out = {}
-      questionnaires.value.forEach((questionnaire) => {
+      
+      for (const questionnaire of questionnaires.value) {
         const qId = questionnaire.id
         out[qId] = {}
-        const categories = Array.isArray(questionnaire?.categories) ? questionnaire.categories : []
-        categories
-          .filter((category) => !category?.isMetadata)
-          .forEach((category) => {
-            const entries = Array.isArray(category?.entries) ? category.entries : []
-            entries.forEach((entry) => {
-              const entryId = String(entry?.id || '').trim()
-              if (!entryId) return
-              out[qId][entryId] = extractLines(entry)
-            })
-          })
-      })
+        
+        const categories = questionnaire?.categories
+        if (!Array.isArray(categories)) continue
+        
+        for (const category of categories) {
+          if (category?.isMetadata) continue
+          
+          const entries = category?.entries
+          if (!Array.isArray(entries)) continue
+          
+          for (const entry of entries) {
+            const entryId = String(entry?.id || '').trim()
+            if (!entryId) continue
+            
+            out[qId][entryId] = extractLines(entry)
+          }
+        }
+      }
+      
       return out
     })
 
@@ -575,21 +592,38 @@ export default {
     // settings dialog and hidden-count badge.
     const allCategoryEntries = computed(() => {
       const map = new Map()
-      questionnaires.value.forEach((q) => {
-        const cats = Array.isArray(q?.categories) ? q.categories : []
-        cats.filter((c) => !c?.isMetadata).forEach((cat) => {
-          const title = String(cat?.title || '')
+      
+      for (const q of questionnaires.value) {
+        const cats = q?.categories
+        if (!Array.isArray(cats)) continue
+        
+        for (const cat of cats) {
+          if (cat?.isMetadata) continue
+          
+          const title = String(cat?.title || '').trim()
           const catId = String(cat?.id || '').trim()
-          if (!map.has(title)) map.set(title, { id: catId, title, entries: new Map() })
+          if (!title) continue
+          
+          if (!map.has(title)) {
+            map.set(title, { id: catId, title, entries: new Map() })
+          }
+          
           const catData = map.get(title)
-          const entries = Array.isArray(cat?.entries) ? cat.entries : []
-          entries.forEach((entry) => {
+          const entries = cat?.entries
+          if (!Array.isArray(entries)) continue
+          
+          for (const entry of entries) {
             const id = String(entry?.id || '').trim()
-            if (!id || catData.entries.has(id)) return
-            catData.entries.set(id, { id, aspect: String(entry?.aspect || entry?.title || id) })
-          })
-        })
-      })
+            if (!id || catData.entries.has(id)) continue
+            
+            catData.entries.set(id, { 
+              id, 
+              aspect: String(entry?.aspect || entry?.title || id).trim()
+            })
+          }
+        }
+      }
+      
       return map
     })
 
