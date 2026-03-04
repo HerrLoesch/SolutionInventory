@@ -41,22 +41,70 @@
           style="max-width:220px;"
           @click:clear="searchQuery = ''"
         />
-        <div v-if="availableCategories.length > 1" class="d-flex align-center flex-wrap ml-auto" style="gap:4px;">         
+        <!-- Unassigned categories -->
+        <div 
+          class="d-flex align-center flex-wrap unassigned-zone" 
+          style="gap:4px; min-height: 32px; padding: 4px 8px; border: 1px dashed #ccc; border-radius: 4px;"
+          @dragover.prevent="handleUnassignedDragOver"
+          @drop="handleUnassignedDrop"
+        >
+          <span class="text-caption text-medium-emphasis">Unassigned:</span>
           <v-chip
-            v-for="cat in availableCategories"
+            v-for="cat in unassignedCategories"
             :key="cat"
-            size="small"
-            density="compact"
-            :variant="selectedCategories.includes(cat) ? 'tonal' : 'outlined'"
-            :color="selectedCategories.includes(cat) ? 'primary' : undefined"
+            size="x-small"
+            variant="tonal"
+            color="grey"
+            class="category-badge"
             style="cursor:grab;"
             draggable="true"
-            @click="toggleCategory(cat)"
-            @dragstart="handleDragStart($event, cat)"
-            @dragover.prevent="handleDragOver($event, cat)"
-            @drop="handleDrop($event, cat)"
-            @dragend="handleDragEnd"
+            @dragstart="handleCategoryDragStart($event, cat)"
+            @dragend="handleCategoryDragEnd"
+            @click.stop="toggleCategory(cat)"
           >{{ cat }}</v-chip>
+          <span v-if="unassignedCategories.length === 0" class="text-caption text-disabled ml-1">(drag categories here to unassign)</span>
+        </div>
+        <!-- Quadrant chips with assigned categories -->
+        <div class="d-flex align-center flex-wrap ml-auto" style="gap:8px;">
+          <v-chip
+            v-for="q in quadrants"
+            :key="q.index"
+            size="small"
+            density="compact"
+            variant="tonal"
+            :color="q.color"
+            class="quadrant-chip"
+            @dragover.prevent="handleQuadrantDragOver($event, q.index)"
+            @drop="handleQuadrantDrop($event, q.index)"
+          >
+            <span class="font-weight-bold">{{ q.label }}</span>
+            <template v-if="q.categories.length > 0">
+              <span class="mx-1">:</span>
+              <v-chip
+                v-for="cat in q.categories"
+                :key="cat"
+                size="x-small"
+                variant="tonal"
+                color="grey"
+                class="category-badge"
+                style="cursor:grab;"
+                draggable="true"
+                @dragstart="handleCategoryDragStart($event, cat)"
+                @dragend="handleCategoryDragEnd"
+                @click.stop="toggleCategory(cat)"
+              >{{ cat }}</v-chip>
+            </template>
+            <span v-else class="text-caption text-medium-emphasis ml-1">(empty)</span>
+          </v-chip>
+        </div>
+        <!-- Drop zone to remove categories -->
+        <div
+          class="category-trash-zone"
+          :class="{ 'category-trash-zone--active': draggedCategory }"
+          @dragover.prevent="handleTrashDragOver"
+          @drop="handleTrashDrop"
+        >
+          <v-icon size="small">mdi-close</v-icon>
         </div>
         <v-menu location="bottom end">
           <template #activator="{ props: menuProps }">
@@ -963,39 +1011,13 @@ export default {
       return result
     })
 
-    // All unique categories that have at least one radar blip (respecting stored order)
+    // All unique categories that have at least one radar blip
     const availableCategories = computed(() => {
       const categories = new Set()
       for (const blip of allBlips.value) {
         if (blip.categoryTitle) categories.add(blip.categoryTitle)
       }
-      
-      const categoryList = [...categories]
-      
-      // Get stored order
-      const storedOrder = store.getProjectRadarCategoryOrder(props.projectId)
-      
-      if (!storedOrder || storedOrder.length === 0) {
-        // No stored order, use alphabetical and save it
-        const sorted = categoryList.sort((a, b) => a.localeCompare(b))
-        store.setProjectRadarCategoryOrder(props.projectId, sorted)
-        return sorted
-      }
-      
-      // Sort by stored order, then append any new categories alphabetically
-      const ordered = []
-      const remaining = new Set(categoryList)
-      
-      for (const cat of storedOrder) {
-        if (remaining.has(cat)) {
-          ordered.push(cat)
-          remaining.delete(cat)
-        }
-      }
-      
-      // Add any newly appeared categories at the end (alphabetically)
-      const newCategories = [...remaining].sort((a, b) => a.localeCompare(b))
-      return [...ordered, ...newCategories]
+      return [...categories].sort((a, b) => a.localeCompare(b))
     })
 
     // All category titles across ALL questionnaires in the project – used for the move-category dropdown
@@ -1028,15 +1050,133 @@ export default {
       }
     }
 
+    // Map category titles to quadrant indices based on stored assignments
+    const categoryToQuadrant = computed(() => {
+      const map = new Map()
+      const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
+      const categories = availableCategories.value
+      
+      // Apply stored assignments only (no side-effects)
+      for (const cat of categories) {
+        const quadrant = assignments[cat]
+        if (quadrant !== undefined && quadrant !== null) {
+          map.set(cat, quadrant)
+        }
+      }
+      
+      return map
+    })
+
+    // Auto-assign unassigned categories on initialization
+    watch(
+      () => availableCategories.value,
+      (categories) => {
+        const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
+        const unassigned = categories.filter(cat => {
+          const quadrant = assignments[cat]
+          return quadrant === undefined || quadrant === null
+        })
+        
+        if (unassigned.length > 0) {
+          // Count current assignments per quadrant
+          const quadrantCounts = [0, 0, 0, 0]
+          for (const cat of categories) {
+            const q = assignments[cat]
+            if (q !== undefined && q !== null) {
+              quadrantCounts[q]++
+            }
+          }
+          
+          // Distribute evenly across Q1 (index 1), Q2 (index 0), Q3 (index 2)
+          // Remaining go to Q4 (index 3)
+          const newAssignments = { ...assignments }
+          
+          for (const cat of unassigned) {
+            // Find which of the first 3 quadrants has fewest items
+            const firstThreeQuadrants = [1, 0, 2] // Q1, Q2, Q3
+            const minQuadrant = firstThreeQuadrants.reduce((min, q) => 
+              quadrantCounts[q] < quadrantCounts[min] ? q : min
+            , firstThreeQuadrants[0])
+            
+            // If first 3 quadrants are balanced, put rest in Q4
+            const maxInFirstThree = Math.max(quadrantCounts[1], quadrantCounts[0], quadrantCounts[2])
+            const minInFirstThree = Math.min(quadrantCounts[1], quadrantCounts[0], quadrantCounts[2])
+            
+            let targetQuadrant
+            if (maxInFirstThree - minInFirstThree > 0) {
+              // Still balancing first 3 quadrants
+              targetQuadrant = minQuadrant
+            } else {
+              // First 3 are balanced, use Q4
+              targetQuadrant = 3
+            }
+            
+            quadrantCounts[targetQuadrant]++
+            newAssignments[cat] = targetQuadrant
+          }
+          
+          // Save auto-assignments
+          store.setProjectRadarCategoryQuadrants(props.projectId, newAssignments)
+        }
+      },
+      { immediate: true }
+    )
+
+    // Categories not yet assigned to any quadrant
+    const unassignedCategories = computed(() => {
+      const mapping = categoryToQuadrant.value
+      return availableCategories.value.filter(cat => !mapping.has(cat))
+    })
+
+    // Quadrant data with assigned categories
+    // Q0 (index 0) = top-right = Quadrant 2
+    // Q1 (index 1) = top-left = Quadrant 1
+    // Q2 (index 2) = bottom-left = Quadrant 3
+    // Q3 (index 3) = bottom-right = Quadrant 4
+    // Display order: Q1, Q2, Q3, Q4
+    const quadrants = computed(() => {
+      const q = [
+        { index: 1, label: 'Quadrant 1', color: 'blue-grey-lighten-4', categories: [] },
+        { index: 0, label: 'Quadrant 2', color: 'blue-grey-lighten-4', categories: [] },
+        { index: 2, label: 'Quadrant 3', color: 'blue-grey-lighten-4', categories: [] },
+        { index: 3, label: 'Quadrant 4', color: 'blue-grey-lighten-4', categories: [] }
+      ]
+      
+      const mapping = categoryToQuadrant.value
+      for (const [cat, quadrantIdx] of mapping) {
+        if (quadrantIdx >= 0 && quadrantIdx < 4) {
+          // Find the quadrant object by its index property (not array index)
+          const quadrant = q.find(quad => quad.index === quadrantIdx)
+          if (quadrant) {
+            quadrant.categories.push(cat)
+          }
+        }
+      }
+      
+      // Sort categories within each quadrant alphabetically
+      for (const quadrant of q) {
+        quadrant.categories.sort((a, b) => a.localeCompare(b))
+      }
+      
+      return q
+    })
+
     // Blips filtered by answerType, selected categories AND visible statuses
     const visibleBlips = computed(() => {
       let blips = answerTypeFilter.value === 'all'
         ? allBlips.value
         : allBlips.value.filter((b) => b.answerType === answerTypeFilter.value)
+      
+      // Filter by selected categories
       if (selectedCategories.value.length < availableCategories.value.length) {
         const sel = new Set(selectedCategories.value)
         blips = blips.filter((b) => sel.has(b.categoryTitle))
       }
+      
+      // Filter out categories not assigned to any quadrant
+      const mapping = categoryToQuadrant.value
+      blips = blips.filter((b) => mapping.has(b.categoryTitle))
+      
       // Filter by visible statuses
       blips = blips.filter((b) => {
         const statusName = RING_META[b.ring]?.label.toLowerCase()
@@ -1045,42 +1185,19 @@ export default {
       return blips
     })
 
-    // Map category titles to quadrant indices
-    // Chip 1→Q1 (top-left), Chip 2→Q0 (top-right), Chip 3→Q2 (bottom-left), rest→Q3 (bottom-right)
-    const categoryToQuadrant = computed(() => {
-      const map = new Map()
-      const categories = availableCategories.value
-      
-      const quadrantMapping = [1, 0, 2] // Indices 0,1,2 map to Q1,Q0,Q2
-      
-      for (let i = 0; i < categories.length; i++) {
-        if (i < 3) {
-          map.set(categories[i], quadrantMapping[i])
-        } else {
-          map.set(categories[i], 3) // All remaining go to Q3 (bottom-right)
-        }
-      }
-      
-      return map
-    })
-
-    // Dynamic quadrant corner labels from category titles
-    // Chip 1→Q1 (top-left), Chip 2→Q0 (top-right), Chip 3→Q2 (bottom-left), rest→Q3 (bottom-right)
+    // Dynamic quadrant corner labels from assigned categories
     const activeQuadrantLabels = computed(() => {
       const labels = ['', '', '', '']
-      const categories = availableCategories.value
+      const quads = quadrants.value
       
-      // Map categories to quadrants: Q1, Q0, Q2 for first 3 chips
-      if (categories.length >= 1) labels[1] = categories[0] // Chip 1 → Q1 (top-left)
-      if (categories.length >= 2) labels[0] = categories[1] // Chip 2 → Q0 (top-right)
-      if (categories.length >= 3) labels[2] = categories[2] // Chip 3 → Q2 (bottom-left)
-      
-      // Q3 (quadrant 3) contains all remaining categories
-      if (categories.length > 3) {
-        const overflowCategories = categories.slice(3)
-        labels[3] = overflowCategories.length === 1
-          ? overflowCategories[0]
-          : `${overflowCategories[0]} (+${overflowCategories.length - 1})`
+      for (const q of quads) {
+        if (q.categories.length === 0) {
+          labels[q.index] = ''
+        } else if (q.categories.length === 1) {
+          labels[q.index] = q.categories[0]
+        } else {
+          labels[q.index] = `${q.categories[0]} (+${q.categories.length - 1})`
+        }
       }
       
       return Q_LABEL_POSITIONS.map((pos, i) => ({ ...pos, text: labels[i] }))
@@ -1235,39 +1352,69 @@ export default {
       detailDialog.value = true
     }
 
-    // Drag-and-drop handlers for category reordering
-    function handleDragStart (event, category) {
+    // Drag-and-drop handlers for category<->quadrant assignment
+    function handleCategoryDragStart (event, category) {
       draggedCategory.value = category
       event.dataTransfer.effectAllowed = 'move'
       event.target.style.opacity = '0.5'
     }
 
-    function handleDragOver (event, targetCategory) {
-      if (draggedCategory.value && draggedCategory.value !== targetCategory) {
+    function handleCategoryDragEnd (event) {
+      event.target.style.opacity = '1'
+      draggedCategory.value = null
+    }
+
+    function handleQuadrantDragOver (event, quadrantIndex) {
+      if (draggedCategory.value) {
         event.dataTransfer.dropEffect = 'move'
       }
     }
 
-    function handleDrop (event, targetCategory) {
+    function handleQuadrantDrop (event, quadrantIndex) {
       event.preventDefault()
-      if (!draggedCategory.value || draggedCategory.value === targetCategory) return
+      if (!draggedCategory.value) return
       
-      const currentOrder = [...availableCategories.value]
-      const draggedIndex = currentOrder.indexOf(draggedCategory.value)
-      const targetIndex = currentOrder.indexOf(targetCategory)
+      const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
+      assignments[draggedCategory.value] = quadrantIndex
+      store.setProjectRadarCategoryQuadrants(props.projectId, assignments)
       
-      if (draggedIndex === -1 || targetIndex === -1) return
-      
-      // Remove dragged item and insert at target position
-      currentOrder.splice(draggedIndex, 1)
-      currentOrder.splice(targetIndex, 0, draggedCategory.value)
-      
-      // Save new order
-      store.setProjectRadarCategoryOrder(props.projectId, currentOrder)
+      draggedCategory.value = null
     }
 
-    function handleDragEnd (event) {
-      event.target.style.opacity = '1'
+    function handleTrashDragOver (event) {
+      if (draggedCategory.value) {
+        event.dataTransfer.dropEffect = 'move'
+      }
+    }
+
+    function handleTrashDrop (event) {
+      event.preventDefault()
+      if (!draggedCategory.value) return
+      
+      const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
+      delete assignments[draggedCategory.value]
+      store.setProjectRadarCategoryQuadrants(props.projectId, assignments)
+      
+      // Also deselect the category
+      selectedCategories.value = selectedCategories.value.filter(c => c !== draggedCategory.value)
+      
+      draggedCategory.value = null
+    }
+
+    function handleUnassignedDragOver (event) {
+      if (draggedCategory.value) {
+        event.dataTransfer.dropEffect = 'move'
+      }
+    }
+
+    function handleUnassignedDrop (event) {
+      event.preventDefault()
+      if (!draggedCategory.value) return
+      
+      const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
+      delete assignments[draggedCategory.value]
+      store.setProjectRadarCategoryQuadrants(props.projectId, assignments)
+      
       draggedCategory.value = null
     }
 
@@ -1414,6 +1561,8 @@ export default {
       availableCategoriesForEdit,
       selectedCategories,
       toggleCategory,
+      unassignedCategories,
+      quadrants,
       positionedBlips,
       blipsByQuadrant,
       leftGroups,
@@ -1435,10 +1584,14 @@ export default {
       detailDialog,
       detailBlip,
       openDetail,
-      handleDragStart,
-      handleDragOver,
-      handleDrop,
-      handleDragEnd,
+      handleCategoryDragStart,
+      handleCategoryDragEnd,
+      handleQuadrantDragOver,
+      handleQuadrantDrop,
+      handleTrashDragOver,
+      handleTrashDrop,
+      handleUnassignedDragOver,
+      handleUnassignedDrop,
       toggleStatusVisibility,
       isStatusVisible,
       radarLayoutRef,
@@ -1714,5 +1867,46 @@ export default {
   text-transform: uppercase;
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-bottom: 3px;
+}
+
+/* Quadrant chips */
+.quadrant-chip {
+  padding: 6px 12px !important;
+  height: auto !important;
+  min-height: 32px;
+}
+
+.category-badge {
+  margin: 2px;
+  opacity: 0.9;
+}
+
+.category-badge:hover {
+  opacity: 1;
+}
+
+/* Category trash zone */
+.category-trash-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px dashed transparent;
+  opacity: 0;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.category-trash-zone--active {
+  opacity: 0.5;
+  border-color: rgba(var(--v-theme-error), 0.5);
+}
+
+.category-trash-zone--active:hover {
+  opacity: 1;
+  background: rgba(var(--v-theme-error), 0.1);
+  border-color: rgb(var(--v-theme-error));
 }
 </style>

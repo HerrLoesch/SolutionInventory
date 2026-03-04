@@ -539,6 +539,19 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return Array.isArray(project.radarCategoryOrder) ? [...project.radarCategoryOrder] : []
   }
 
+  function setProjectRadarCategoryQuadrants(projectId, categoryQuadrants) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return
+    // categoryQuadrants is an object: { categoryName: quadrantIndex | null }
+    project.radarCategoryQuadrants = { ...categoryQuadrants }
+  }
+
+  function getProjectRadarCategoryQuadrants(projectId) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project || !project.radarCategoryQuadrants) return {}
+    return { ...project.radarCategoryQuadrants }
+  }
+
   function setApplicability(entry, value) {
     if (!applicabilityOptions.includes(value)) {
       entry.applicability = 'applicable'
@@ -739,6 +752,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     setRadarOverride,
     setProjectRadarCategoryOrder,
     getProjectRadarCategoryOrder,
+    setProjectRadarCategoryQuadrants,
+    getProjectRadarCategoryQuadrants,
     setApplicability,
     isEntryApplicable,
     getStatusTooltip,
