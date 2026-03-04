@@ -83,7 +83,7 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
                 </div>
               </div>
               <div class="legend-row-actions">
@@ -295,7 +295,7 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
                 </div>
               </div>
               <div class="legend-row-actions">
@@ -355,7 +355,13 @@
               </div>
               <div class="detail-field">
                 <div class="detail-label">Quadrant</div>
-                <div class="text-body-2">{{ detailBlip.categoryTitle || '—' }}</div>
+                <div class="text-body-2 d-flex align-center" style="gap:4px;">
+                  {{ detailBlip.categoryTitle || '—' }}
+                  <v-icon v-if="detailBlip.overrideCategoryTitle" size="10" class="text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                </div>
+                <div v-if="detailBlip.overrideCategoryTitle" class="text-caption text-medium-emphasis">
+                  <v-icon size="10">mdi-pencil-circle</v-icon> Radar override (default: {{ detailBlip.naturalCategoryTitle }})
+                </div>
               </div>
               <div class="detail-field">
                 <div class="detail-label">Sub-category</div>
@@ -436,6 +442,17 @@
               variant="outlined"
               clearable
               :hint="blipToEdit?.status && !editForm.status ? `Inherited from questionnaire: ${blipToEdit.status}` : ''"
+              persistent-hint
+              class="mb-3"
+            />
+            <v-select
+              v-model="editForm.categoryOverride"
+              :items="availableCategoriesForEdit"
+              label="Category (Quadrant)"
+              density="compact"
+              variant="outlined"
+              clearable
+              :hint="editForm.categoryOverride ? 'Overrides the questionnaire-defined quadrant' : (blipToEdit ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}` : '')"
               persistent-hint
               class="mb-3"
             />
@@ -600,7 +617,7 @@ export default {
     const blipToRemove = ref(null)
     const editDialog = ref(false)
     const blipToEdit = ref(null)
-    const editForm = ref({ status: '', comment: '' })
+    const editForm = ref({ status: '', comment: '', categoryOverride: '' })
     const detailDialog = ref(false)
     const detailBlip = ref(null)
     const RADAR_STATUS_OPTIONS = [
@@ -717,6 +734,7 @@ export default {
         const answer = match?.answer
         const override = store.getRadarOverride(props.projectId, ref.entryId, ref.option)
         const effectiveStatus = (override?.status || '').trim() || String(answer?.status || '').trim()
+        const effectiveCategory = (override?.categoryOverride || '').trim() || entryData?.categoryTitle || ''
         return {
           key: `${ref.entryId}||${ref.option}`,
           entryId: ref.entryId,
@@ -727,8 +745,10 @@ export default {
           comment: String(answer?.comments || '').trim(),
           radarComment: String(override?.comment || '').trim(),
           overrideStatus: String(override?.status || '').trim(),
+          overrideCategoryTitle: String(override?.categoryOverride || '').trim(),
+          naturalCategoryTitle: entryData?.categoryTitle || '',
           questionnaireName: match?.questionnaireName || '',
-          categoryTitle: entryData?.categoryTitle || '',
+          categoryTitle: effectiveCategory,
           entryTitle: entryData?.entryTitle || '',
           ring: statusToRing(effectiveStatus)
         }
@@ -739,6 +759,20 @@ export default {
     const availableCategories = computed(() => {
       return [...new Set(allBlips.value.map((b) => b.categoryTitle).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b))
+    })
+
+    // All category titles across ALL questionnaires in the project – used for the move-category dropdown
+    const availableCategoriesForEdit = computed(() => {
+      const questionnaires = store.getProjectQuestionnaires(project.value || {})
+      const titles = new Set()
+      questionnaires.forEach((q) => {
+        const cats = Array.isArray(q?.categories) ? q.categories : []
+        cats.filter((c) => !c?.isMetadata).forEach((c) => {
+          const t = String(c?.title || '').trim()
+          if (t) titles.add(t)
+        })
+      })
+      return [...titles].sort((a, b) => a.localeCompare(b))
     })
 
     // Selected categories (array of titles). Initialised / synced via watcher.
@@ -898,7 +932,8 @@ export default {
       blipToEdit.value = blip
       editForm.value = {
         status: (blip.overrideStatus || blip.status || '').toLowerCase(),
-        comment: blip.radarComment || ''
+        comment: blip.radarComment || '',
+        categoryOverride: blip.overrideCategoryTitle || ''
       }
       editDialog.value = true
     }
@@ -907,7 +942,8 @@ export default {
       if (!blipToEdit.value) return
       store.setRadarOverride(props.projectId, blipToEdit.value.entryId, blipToEdit.value.option, {
         status: editForm.value.status,
-        comment: editForm.value.comment
+        comment: editForm.value.comment,
+        categoryOverride: editForm.value.categoryOverride
       })
       editDialog.value = false
       blipToEdit.value = null
@@ -930,6 +966,7 @@ export default {
       activeQuadrantLabels,
       allBlips,
       availableCategories,
+      availableCategoriesForEdit,
       selectedCategories,
       toggleCategory,
       positionedBlips,
