@@ -361,6 +361,34 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="deleteProjectDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Delete project</v-card-title>
+        <v-card-text>
+          This project contains questionnaires. Are you sure you want to delete it and all its questionnaires?
+        </v-card-text>
+        <v-card-actions class="gap-3">
+          <v-spacer />
+          <v-btn variant="text" @click="closeDeleteProjectDialog">Cancel</v-btn>
+          <v-btn color="error" @click="confirmDeleteProject">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="deleteQuestionnaireDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Delete questionnaire</v-card-title>
+        <v-card-text>
+          Are you sure you want to delete this questionnaire?
+        </v-card-text>
+        <v-card-actions class="gap-3">
+          <v-spacer />
+          <v-btn variant="text" @click="closeDeleteQuestionnaireDialog">Cancel</v-btn>
+          <v-btn color="error" @click="confirmDeleteQuestionnaire">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -419,6 +447,10 @@ export default {
     const renameQuestionnaireId = ref('')
     const renameQuestionnaireName = ref('')
     const targetProjectId = ref('')
+    const deleteProjectDialogOpen = ref(false)
+    const pendingDeleteProjectId = ref('')
+    const deleteQuestionnaireDialogOpen = ref(false)
+    const pendingDeleteQuestionnaire = ref(null)
     const dragState = ref(null)
     const activeDropTarget = ref('')
     const reorderTarget = ref('')
@@ -465,8 +497,24 @@ export default {
     }
 
     function deleteProject(projectId) {
-      if (!confirm('Delete this project and its questionnaires?')) return
-      store.deleteProject(projectId)
+      const project = projects.value.find((p) => p.id === projectId)
+      const hasQuestionnaires = project && (project.questionnaireIds || []).length > 0
+      if (hasQuestionnaires) {
+        pendingDeleteProjectId.value = projectId
+        deleteProjectDialogOpen.value = true
+      } else {
+        store.deleteProject(projectId)
+      }
+    }
+
+    function closeDeleteProjectDialog() {
+      deleteProjectDialogOpen.value = false
+      pendingDeleteProjectId.value = ''
+    }
+
+    function confirmDeleteProject() {
+      store.deleteProject(pendingDeleteProjectId.value)
+      closeDeleteProjectDialog()
     }
 
     function downloadProject(projectId) {
@@ -548,9 +596,18 @@ export default {
     }
 
     function deleteQuestionnaire(questionnaire) {
-      const name = questionnaire.name || 'questionnaire'
-      if (!confirm(`Delete questionnaire "${name}"?`)) return
-      store.deleteQuestionnaire(questionnaire.id)
+      pendingDeleteQuestionnaire.value = questionnaire
+      deleteQuestionnaireDialogOpen.value = true
+    }
+
+    function closeDeleteQuestionnaireDialog() {
+      deleteQuestionnaireDialogOpen.value = false
+      pendingDeleteQuestionnaire.value = null
+    }
+
+    function confirmDeleteQuestionnaire() {
+      store.deleteQuestionnaire(pendingDeleteQuestionnaire.value.id)
+      closeDeleteQuestionnaireDialog()
     }
 
     function downloadQuestionnaire(questionnaireId) {
@@ -856,6 +913,12 @@ export default {
       confirmImport,
       closeProjectDialog,
       createProject,
+      deleteProjectDialogOpen,
+      closeDeleteProjectDialog,
+      confirmDeleteProject,
+      deleteQuestionnaireDialogOpen,
+      closeDeleteQuestionnaireDialog,
+      confirmDeleteQuestionnaire,
       deleteProject,
       downloadProject,
       openRenameProjectDialog,

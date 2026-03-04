@@ -52,8 +52,14 @@ When('I fill in the questionnaire name {string}', async function (name) {
   await this.page.getByLabel('Questionnaire name').fill(name)
 })
 
+When('I fill in the new project name {string}', async function (name) {
+  await expect(this.page.getByLabel('Project name')).toBeVisible()
+  await this.page.getByLabel('Project name').clear()
+  await this.page.getByLabel('Project name').fill(name)
+})
+
 When('I confirm with {string}', async function (buttonLabel) {
-  await this.page.getByRole('button', { name: buttonLabel }).click()
+  await this.page.getByRole('button', { name: buttonLabel, exact: true }).click()
 })
 
 When('I open the context menu for {string}', async function (name) {
@@ -70,6 +76,11 @@ When('I open the context menu for questionnaire {string}', async function (name)
 
 When('I click {string} in the context menu', async function (label) {
   await this.page.getByRole('listitem').filter({ hasText: label }).click()
+})
+
+When('I confirm the deletion in the confirmation dialog', async function () {
+  await expect(this.page.getByRole('button', { name: 'Delete' })).toBeVisible()
+  await this.page.getByRole('button', { name: 'Delete' }).click()
 })
 
 // ---------------------------------------------------------------------------
