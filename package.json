@@ -8,15 +8,14 @@
   "scripts": {
     "postinstall": "npx playwright install",
     "dev": "vite",
-    "build": "npx playwright test && vite build",
+    "build": "cucumber-js && vite build",
     "preview": "vite preview",
     "test-export": "node scripts/test_export_node.js data/sample_export.json solution_inventory_test.xlsx",
     "electron:dev": "vite --mode electron",
     "electron:build": "vite build --mode electron && electron-builder",
     "electron:preview": "vite build --mode electron && electron .",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e": "cucumber-js",
+    "test:e2e:report": "start ./cucumber-report.html"
   },
   "dependencies": {
     "pinia": "^2.3.1",
@@ -24,6 +23,7 @@
     "vuetify": "^3.3.0"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^12.7.0",
     "@playwright/test": "^1.58.2",
     "@vitejs/plugin-vue": "^4.0.0",
     "electron": "^28.0.0",
