@@ -53,9 +53,22 @@
             @click="toggleCategory(cat)"
           >{{ cat }}</v-chip>
         </div>
+        <v-tooltip text="Download as PNG" location="top">
+          <template #activator="{ props: tipProps }">
+            <v-btn
+              v-bind="tipProps"
+              :loading="isDownloading"
+              size="small"
+              variant="text"
+              icon="mdi-download"
+              :class="availableCategories.length > 1 ? '' : 'ml-auto'"
+              @click="downloadRadar"
+            />
+          </template>
+        </v-tooltip>
       </div>
 
-      <div class="radar-layout">
+      <div ref="radarLayoutRef" class="radar-layout">
       <!-- Left legend: Q1 (top-left) + Q2 (bottom-left) -->
       <div class="radar-legend">
         <div v-for="group in leftGroups" :key="group.quadrant" class="mb-4">
@@ -480,6 +493,7 @@
 
 <script>
 import { computed, ref, watch } from 'vue'
+import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 // ── Radar geometry constants ─────────────────────────────────────────────────
@@ -610,6 +624,8 @@ export default {
   setup (props) {
     const store = useWorkspaceStore()
     const hoveredBlip = ref(null)
+    const radarLayoutRef = ref(null)
+    const isDownloading = ref(false)
     const answerTypeFilter = ref('all')
     const searchQuery = ref('')
     const tooltipWidth = TOOLTIP_W
@@ -954,6 +970,85 @@ export default {
       detailDialog.value = true
     }
 
+    // Flatten a CSS rgba() colour against a white background so the exported
+    // PNG looks correct regardless of dark/light mode.
+    function flattenRgba (rgba) {
+      const m = rgba.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
+      if (!m) return rgba
+      const [r, g, b, a] = [+m[1], +m[2], +m[3], +m[4]]
+      const blend = (c) => Math.round(c * a + 255 * (1 - a))
+      return `rgb(${blend(r)},${blend(g)},${blend(b)})`
+    }
+
+    // Flatten an rgb/hex colour with a separate opacity attribute against white.
+    function flattenOpacity (fill, opacity) {
+      let r, g, b
+      if (fill.startsWith('#') && fill.length === 7) {
+        r = parseInt(fill.slice(1, 3), 16)
+        g = parseInt(fill.slice(3, 5), 16)
+        b = parseInt(fill.slice(5, 7), 16)
+      } else {
+        const m = fill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+        if (!m) return fill
+        ;[, r, g, b] = m.map(Number)
+      }
+      const blend = (c) => Math.round(c * opacity + 255 * (1 - opacity))
+      return `rgb(${blend(r)},${blend(g)},${blend(b)})`
+    }
+
+    async function downloadRadar () {
+      if (!radarLayoutRef.value || isDownloading.value) return
+      isDownloading.value = true
+      try {
+        const el = radarLayoutRef.value
+
+        // --- Temporarily patch SVG fills on the LIVE element ---
+        // (scoped CSS only works on real DOM nodes; clones lose it)
+        const restoreFills = []
+        el.querySelectorAll('[fill]').forEach(node => {
+          const fill = node.getAttribute('fill')
+          if (fill && fill.startsWith('rgba')) {
+            restoreFills.push({ node, attr: 'fill', original: fill })
+            node.setAttribute('fill', flattenRgba(fill))
+          }
+        })
+        const restoreOpacity = []
+        el.querySelectorAll('path[opacity], circle[opacity], rect[opacity]').forEach(node => {
+          const opacity = parseFloat(node.getAttribute('opacity') || '1')
+          if (opacity >= 1) return
+          const fill = node.getAttribute('fill') || ''
+          if (fill && !fill.startsWith('url') && !fill.startsWith('var')) {
+            restoreOpacity.push({
+              node,
+              origFill: fill,
+              origOpacity: node.getAttribute('opacity')
+            })
+            node.setAttribute('fill', flattenOpacity(fill, opacity))
+            node.removeAttribute('opacity')
+          }
+        })
+
+        await new Promise(r => requestAnimationFrame(r))
+
+        const dataUrl = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2 })
+
+        // --- Restore original attributes ---
+        for (const { node, attr, original } of restoreFills)
+          node.setAttribute(attr, original)
+        for (const { node, origFill, origOpacity } of restoreOpacity) {
+          node.setAttribute('fill', origFill)
+          node.setAttribute('opacity', origOpacity)
+        }
+
+        const link = document.createElement('a')
+        link.download = `tech-radar-${project.value?.name || 'export'}.png`
+        link.href = dataUrl
+        link.click()
+      } finally {
+        isDownloading.value = false
+      }
+    }
+
     return {
       SIZE, CX, CY, OUTER_R, computedRings, BLIP_R, RING_META,
       tooltipWidth,
@@ -989,7 +1084,10 @@ export default {
       saveEdit,
       detailDialog,
       detailBlip,
-      openDetail
+      openDetail,
+      radarLayoutRef,
+      isDownloading,
+      downloadRadar
     }
   }
 }
