@@ -272,7 +272,9 @@ export default {
             })
           })
       })
-      return result
+      return result.sort((a, b) =>
+        String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' })
+      )
     })
 
     const deviationSettings = computed(() => props.deviationSettings)

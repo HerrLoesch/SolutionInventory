@@ -41,7 +41,7 @@
                 </template>
               </v-list-item>
               <template v-if="isExpanded('vis', cat.id)">
-                <v-list-item v-for="entry in cat.entries" :key="entry.id" class="cs-entry-row">
+                <v-list-item v-for="entry in sortedEntries(cat)" :key="entry.id" class="cs-entry-row">
                   <template #prepend>
                     <span class="cs-indent" />
                     <v-icon size="14" class="mr-2 text-medium-emphasis">mdi-file-document-outline</v-icon>
@@ -94,7 +94,7 @@
                 </template>
               </v-list-item>
               <template v-if="isExpanded('dev', cat.id)">
-                <v-list-item v-for="entry in cat.entries" :key="entry.id" class="cs-entry-row">
+                <v-list-item v-for="entry in sortedEntries(cat)" :key="entry.id" class="cs-entry-row">
                   <template #prepend>
                     <span class="cs-indent" />
                     <v-icon size="14" class="mr-2 text-medium-emphasis">mdi-file-document-outline</v-icon>
@@ -160,6 +160,12 @@ export default {
 
     function isExpanded(tab, catId) {
       return tab === 'vis' ? expandedVis.value.has(catId) : expandedDev.value.has(catId)
+    }
+
+    function sortedEntries(cat) {
+      return [...(cat.entries || [])].sort((a, b) =>
+        (a.aspect || a.id || '').localeCompare(b.aspect || b.id || '')
+      )
     }
 
     // ── VISIBILITY (default: true = visible) ──────────────────────────────────
@@ -244,6 +250,7 @@ export default {
       activeTab,
       toggleExpand,
       isExpanded,
+      sortedEntries,
       // Visibility
       visEntryChecked,
       visCategoryChecked,
