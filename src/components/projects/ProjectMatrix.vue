@@ -125,6 +125,20 @@
                                   >
                                     <v-icon size="12">mdi-radar</v-icon>
                                   </v-btn>
+                                  <v-tooltip text="Jump to entry in questionnaire" location="top">
+                                    <template #activator="{ props: navProps }">
+                                      <v-btn
+                                        v-bind="navProps"
+                                        size="x-small"
+                                        variant="text"
+                                        icon
+                                        class="cell-nav-btn"
+                                        @click.stop="navigateToCellEntry(col.key, rowFromItem(item).categoryId, rowFromItem(item).id)"
+                                      >
+                                        <v-icon size="12">mdi-open-in-new</v-icon>
+                                      </v-btn>
+                                    </template>
+                                  </v-tooltip>
                                   <span class="cell-option">{{ line.option }}</span>
                                   <v-chip
                                     v-if="line.status"
@@ -160,6 +174,20 @@
                               >
                                 <v-icon size="12">mdi-radar</v-icon>
                               </v-btn>
+                              <v-tooltip text="Jump to entry in questionnaire" location="top">
+                                <template #activator="{ props: navProps }">
+                                  <v-btn
+                                    v-bind="navProps"
+                                    size="x-small"
+                                    variant="text"
+                                    icon
+                                    class="cell-nav-btn"
+                                    @click.stop="navigateToCellEntry(col.key, rowFromItem(item).categoryId, rowFromItem(item).id)"
+                                  >
+                                    <v-icon size="12">mdi-open-in-new</v-icon>
+                                  </v-btn>
+                                </template>
+                              </v-tooltip>
                               <span class="cell-option">{{ line.option }}</span>
                               <v-chip
                                 v-if="line.status"
@@ -475,6 +503,12 @@ export default {
       return 'warning'
     }
 
+    function navigateToCellEntry (columnKey, categoryId, entryId) {
+      const questionnaireId = fromQuestionnaireKey(columnKey)
+      if (!questionnaireId) return
+      store.navigateToEntry(questionnaireId, categoryId, entryId)
+    }
+
     return {
       project,
       questionnaires,
@@ -494,7 +528,8 @@ export default {
       categoryHasViolation,
       answerTypeFilter,
       toggleProjectRadarRef: store.toggleProjectRadarRef,
-      isProjectRadarRef: store.isProjectRadarRef
+      isProjectRadarRef: store.isProjectRadarRef,
+      navigateToCellEntry
     }
   }
 }
@@ -568,6 +603,20 @@ export default {
 .cell-radar-btn:hover,
 .cell-line--radar .cell-radar-btn {
   opacity: 1;
+}
+
+.cell-nav-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+  width: 18px !important;
+  height: 18px !important;
+}
+.cell-line:hover .cell-nav-btn {
+  opacity: 0.7;
+}
+.cell-nav-btn:hover {
+  opacity: 1 !important;
 }
 
 .cell-option {
