@@ -1,13 +1,82 @@
 <template>
   <div class="tech-radar">
     <!-- Empty state -->
-    <v-alert v-if="!blips.length" type="info" variant="tonal" density="compact" class="ma-4">
+    <v-alert v-if="!allBlips.length" type="info" variant="tonal" density="compact" class="ma-4">
       No radar references yet. In the <strong>Matrix</strong> or <strong>All Suggestions</strong> tab, click
       <v-icon size="14" class="mx-1">mdi-radar</v-icon>
       next to any entry to add it to the Tech Radar.
     </v-alert>
 
-    <div v-else class="radar-layout">
+    <div v-else>
+      <!-- Toolbar -->
+      <div class="d-flex align-center flex-wrap mb-3" style="gap:8px;">
+        <v-btn-toggle
+          v-model="answerTypeFilter"
+          density="compact"
+          color="primary"
+          variant="outlined"
+          divided
+          mandatory
+          rounded="lg"
+          style="white-space:nowrap;"
+        >
+          <v-btn value="all" size="small">All</v-btn>
+          <v-btn value="Tool" size="small">
+            <v-icon start size="14">mdi-puzzle</v-icon>
+            Tools
+          </v-btn>
+          <v-btn value="Practice" size="small">
+            <v-icon start size="14">mdi-map-marker-path</v-icon>
+            Practices
+          </v-btn>
+        </v-btn-toggle>
+        <v-text-field
+          v-model="searchQuery"
+          density="compact"
+          variant="outlined"
+          hide-details
+          clearable
+          prepend-inner-icon="mdi-magnify"
+          placeholder="Search"
+          style="max-width:220px;"
+          @click:clear="searchQuery = ''"
+        />
+      </div>
+
+      <div class="radar-layout">
+      <!-- Left legend: Q1 (top-left) + Q2 (bottom-left) -->
+      <div class="radar-legend">
+        <div v-for="group in leftGroups" :key="group.quadrant" class="mb-4">
+          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1">
+            {{ group.label || `Quadrant ${group.quadrant + 1}` }}
+          </div>
+          <div v-for="sg in group.statusGroups" :key="sg.ring">
+            <div class="legend-status-header" :style="{ '--status-color': sg.color }">
+              {{ sg.statusLabel }}
+            </div>
+            <div
+              v-for="blip in sg.blips"
+              :key="blip.key"
+              class="legend-row"
+              :class="{
+                'legend-row--hovered': hoveredBlip?.key === blip.key,
+                'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
+                'legend-row--dimmed': highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)
+              }"
+              @mouseenter="hoveredBlip = blip"
+              @mouseleave="hoveredBlip = null"
+            >
+              <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
+              <div class="legend-info">
+                <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center: SVG + ring key -->
+      <div class="radar-center">
       <!-- SVG Radar -->
       <div class="radar-svg-wrapper">
         <svg
@@ -63,7 +132,7 @@
           >{{ label.text }}</text>
 
           <!-- Quadrant corner labels -->
-          <text v-for="(ql, qi) in quadrantLabels" :key="`ql-${qi}`"
+          <text v-for="(ql, qi) in activeQuadrantLabels" :key="`ql-${qi}`"
             :x="ql.x" :y="ql.y"
             :text-anchor="ql.anchor"
             class="quadrant-label"
@@ -71,7 +140,21 @@
           >{{ ql.text }}</text>
 
           <!-- Blip circles -->
-          <g v-for="blip in positionedBlips" :key="blip.key">
+          <g
+            v-for="blip in positionedBlips"
+            :key="blip.key"
+            :opacity="highlightedBlipKeys && !highlightedBlipKeys.has(blip.key) ? 0.12 : 1"
+          >
+            <!-- Glow ring for search-matching blips -->
+            <circle
+              v-if="highlightedBlipKeys && highlightedBlipKeys.has(blip.key)"
+              :cx="blip.x"
+              :cy="blip.y"
+              :r="BLIP_R + 7"
+              :fill="blip.ringColor"
+              opacity="0.35"
+              class="blip-glow"
+            />
             <circle
               :cx="blip.x"
               :cy="blip.y"
@@ -122,41 +205,54 @@
               :y="clampTooltipY(hoveredBlip.y - 14) + 46"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text-dim)"
-            >{{ truncate(hoveredBlip.questionnaireName, 32) }}</text>
+            >{{ truncate(hoveredBlip.categoryTitle || hoveredBlip.questionnaireName, 32) }}</text>
           </g>
         </svg>
       </div>
 
-      <!-- Legend -->
-      <div class="radar-legend">
-        <div class="legend-rings mb-4">
-          <div v-for="ring in RING_META" :key="ring.label" class="d-flex align-center mb-1" style="gap:8px;">
-            <span class="ring-dot" :style="{ background: ring.color }" />
-            <span class="text-body-2">{{ ring.label }}</span>
-          </div>
+      <!-- Ring key -->
+      <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap:16px;">
+        <div v-for="ring in RING_META" :key="ring.label" class="d-flex align-center" style="gap:6px;">
+          <span class="ring-dot" :style="{ background: ring.color }" />
+          <span class="text-caption">{{ ring.label }}</span>
         </div>
+      </div>
+      <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
+        <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
+        <span v-else>No blips with type "{{ answerTypeFilter }}". Set the <strong>Type</strong> field on answers to classify them.</span>
+      </div>
+      </div>
 
-        <v-divider class="mb-3" />
-
-        <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis">No blips.</div>
-        <div
-          v-for="blip in positionedBlips"
-          :key="blip.key"
-          class="legend-row"
-          :class="{ 'legend-row--hovered': hoveredBlip?.key === blip.key }"
-          @mouseenter="hoveredBlip = blip"
-          @mouseleave="hoveredBlip = null"
-        >
-          <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
-          <div class="legend-info">
-            <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
-            <div class="text-caption text-medium-emphasis">
-              {{ blip.statusLabel }}
-              <span v-if="blip.typeLabel"> · {{ blip.typeLabel }}</span>
-              <span v-if="blip.questionnaireName"> · {{ blip.questionnaireName }}</span>
+      <!-- Right legend: Q0 (top-right) + Q3 (bottom-right) -->
+      <div class="radar-legend">
+        <div v-for="group in rightGroups" :key="group.quadrant" class="mb-4">
+          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1">
+            {{ group.label || `Quadrant ${group.quadrant + 1}` }}
+          </div>
+          <div v-for="sg in group.statusGroups" :key="sg.ring">
+            <div class="legend-status-header" :style="{ '--status-color': sg.color }">
+              {{ sg.statusLabel }}
+            </div>
+            <div
+              v-for="blip in sg.blips"
+              :key="blip.key"
+              class="legend-row"
+              :class="{
+                'legend-row--hovered': hoveredBlip?.key === blip.key,
+                'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
+                'legend-row--dimmed': highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)
+              }"
+              @mouseenter="hoveredBlip = blip"
+              @mouseleave="hoveredBlip = null"
+            >
+              <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
+              <div class="legend-info">
+                <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
+              </div>
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -173,7 +269,8 @@ const CY = SIZE / 2
 const OUTER_R = SIZE / 2 - 30  // 250
 
 // Ring outer radii (innermost to outermost): adopt / trial / assess / hold
-const RINGS = [0, 62, 124, 192, OUTER_R]
+// Adopt gets the largest inner ring so frequently-used blips have more room
+const RINGS = [0, 100, 162, 214, OUTER_R]
 
 const BLIP_R = 12
 const TOOLTIP_W = 200
@@ -195,13 +292,6 @@ const RING_META = [
   { label: 'Trial', color: '#2196f3' },
   { label: 'Assess', color: '#ff9800' },
   { label: 'Hold', color: '#9e9e9e' }
-]
-
-const QUADRANT_META = [
-  { label: 'Tools', anchor: 'start' },
-  { label: 'Practices', anchor: 'end' },
-  { label: 'Other', anchor: 'end' },
-  { label: '—', anchor: 'start' }
 ]
 
 // ── Sector path builder ──────────────────────────────────────────────────────
@@ -274,13 +364,6 @@ function statusToRing (status) {
   return 3
 }
 
-function typeToQuadrant (type) {
-  const t = String(type || '').trim()
-  if (t === 'Tool') return 0
-  if (t === 'Practice') return 1
-  return 2
-}
-
 function statusLabel (status) {
   const s = String(status || '').trim()
   return s || 'Unset'
@@ -301,14 +384,16 @@ export default {
   setup (props) {
     const store = useWorkspaceStore()
     const hoveredBlip = ref(null)
+    const answerTypeFilter = ref('all')
+    const searchQuery = ref('')
     const tooltipWidth = TOOLTIP_W
 
-    // ── Radar geometry (used in template) ──────────────────────────────────
+    // ── Radar geometry (static, used in template) ───────────────────────────
     const ringsBg = [
-      { r: RINGS[4], fill: 'rgba(158,158,158,0.10)' },  // Hold – outermost
-      { r: RINGS[3], fill: 'rgba(255,152,0,0.10)' },    // Assess
-      { r: RINGS[2], fill: 'rgba(33,150,243,0.10)' },   // Trial
-      { r: RINGS[1], fill: 'rgba(76,175,80,0.15)' }     // Adopt – innermost
+      { r: RINGS[4], fill: 'rgba(158,158,158,0.10)' },
+      { r: RINGS[3], fill: 'rgba(255,152,0,0.10)' },
+      { r: RINGS[2], fill: 'rgba(33,150,243,0.10)' },
+      { r: RINGS[1], fill: 'rgba(76,175,80,0.15)' }
     ]
 
     const quadrantTints = Q_ANGLES.map((qa, qi) => ({
@@ -323,11 +408,12 @@ export default {
       color: RING_META[i].color
     }))
 
-    const quadrantLabels = [
-      { x: CX + OUTER_R - 12, y: CY - OUTER_R + 18, anchor: 'end', text: 'Tools' },
-      { x: CX - OUTER_R + 12, y: CY - OUTER_R + 18, anchor: 'start', text: 'Practices' },
-      { x: CX - OUTER_R + 12, y: CY + OUTER_R - 10, anchor: 'start', text: 'Other' },
-      { x: CX + OUTER_R - 12, y: CY + OUTER_R - 10, anchor: 'end', text: '' }
+    // Quadrant corner position templates (geometry only, label comes from data)
+    const Q_LABEL_POSITIONS = [
+      { x: CX + OUTER_R - 12, y: CY - OUTER_R + 18, anchor: 'end' },
+      { x: CX - OUTER_R + 12, y: CY - OUTER_R + 18, anchor: 'start' },
+      { x: CX - OUTER_R + 12, y: CY + OUTER_R - 10, anchor: 'start' },
+      { x: CX + OUTER_R - 12, y: CY + OUTER_R - 10, anchor: 'end' }
     ]
 
     // ── Data collection ──────────────────────────────────────────────────────
@@ -335,27 +421,29 @@ export default {
       (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
     )
 
-    const blips = computed(() => {
+    // All radar-referenced blips (unfiltered), includes categoryTitle
+    const allBlips = computed(() => {
       if (!project.value) return []
       const refs = Array.isArray(project.value.radarRefs) ? project.value.radarRefs : []
       if (!refs.length) return []
 
       const questionnaires = store.getProjectQuestionnaires(project.value)
 
-      // Build a lookup: entryId -> array of {answer, questionnaireName}
-      const answerLookup = new Map()
+      // Build lookup: entryId -> { categoryTitle, candidates: [{tech, answer, questionnaireName}] }
+      const entryLookup = new Map()
       questionnaires.forEach((q) => {
         const cats = Array.isArray(q?.categories) ? q.categories : []
         cats.filter((c) => !c?.isMetadata).forEach((cat) => {
+          const catTitle = String(cat?.title || '').trim()
           const entries = Array.isArray(cat?.entries) ? cat.entries : []
           entries.forEach((entry) => {
             const entryId = String(entry?.id || '').trim()
             if (!entryId) return
-            if (!answerLookup.has(entryId)) answerLookup.set(entryId, [])
+            if (!entryLookup.has(entryId)) entryLookup.set(entryId, { categoryTitle: catTitle, candidates: [] })
             const answers = Array.isArray(entry?.answers) ? entry.answers : []
             answers.forEach((a) => {
               const tech = String(a?.technology || '').trim()
-              if (tech) answerLookup.get(entryId).push({ tech, answer: a, questionnaireName: q.name || q.id })
+              if (tech) entryLookup.get(entryId).candidates.push({ tech, answer: a, questionnaireName: q.name || q.id })
             })
           })
         })
@@ -363,7 +451,8 @@ export default {
 
       return refs.map((ref) => {
         const norm = String(ref.option || '').trim().toLowerCase()
-        const candidates = answerLookup.get(ref.entryId) || []
+        const entryData = entryLookup.get(ref.entryId)
+        const candidates = entryData?.candidates || []
         const match = candidates.find((c) => c.tech.toLowerCase() === norm)
         const answer = match?.answer
         return {
@@ -373,26 +462,55 @@ export default {
           answerType: String(answer?.answerType || '').trim(),
           comment: String(answer?.comments || '').trim(),
           questionnaireName: match?.questionnaireName || '',
-          ring: statusToRing(answer?.status),
-          quadrant: typeToQuadrant(answer?.answerType)
+          categoryTitle: entryData?.categoryTitle || '',
+          ring: statusToRing(answer?.status)
         }
       })
     })
 
+    // Blips filtered by the current answerType selection
+    const visibleBlips = computed(() => {
+      if (answerTypeFilter.value === 'all') return allBlips.value
+      return allBlips.value.filter((b) => b.answerType === answerTypeFilter.value)
+    })
+
+    // Map category titles to quadrant indices (up to 4, sorted alphabetically)
+    const categoryToQuadrant = computed(() => {
+      const cats = [...new Set(visibleBlips.value.map((b) => b.categoryTitle).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b))
+      const map = new Map()
+      cats.forEach((cat, i) => map.set(cat, Math.min(i, 3)))
+      // If more than 4, overflow into last slot
+      if (cats.length > 4) {
+        cats.slice(4).forEach((cat) => map.set(cat, 3))
+      }
+      return map
+    })
+
+    // Dynamic quadrant corner labels from category titles
+    const activeQuadrantLabels = computed(() => {
+      const labels = ['', '', '', '']
+      categoryToQuadrant.value.forEach((qIdx, cat) => {
+        if (!labels[qIdx]) labels[qIdx] = cat
+        else if (labels[qIdx] !== cat) labels[qIdx] += ' …' // overflow indicator
+      })
+      return Q_LABEL_POSITIONS.map((pos, i) => ({ ...pos, text: labels[i] }))
+    })
+
     // ── Blip placement ───────────────────────────────────────────────────────
     const positionedBlips = computed(() => {
-      const counter = {} // sector usage counter
-      return blips.value.map((blip, globalIdx) => {
-        const sectorKey = `${blip.quadrant}-${blip.ring}`
+      const counter = {}
+      return visibleBlips.value.map((blip, globalIdx) => {
+        const quadrant = categoryToQuadrant.value.get(blip.categoryTitle) ?? 3
+        const sectorKey = `${quadrant}-${blip.ring}`
         counter[sectorKey] = (counter[sectorKey] ?? 0)
         const slotIdx = counter[sectorKey]++
-        const slots = getSlots(blip.quadrant, blip.ring)
+        const slots = getSlots(quadrant, blip.ring)
         let pos
         if (slotIdx < slots.length) {
           pos = slots[slotIdx]
         } else {
-          // Overflow: scatter around center of sector
-          const { a1, a2 } = Q_ANGLES[blip.quadrant]
+          const { a1, a2 } = Q_ANGLES[quadrant]
           const midA = (a1 + a2) / 2
           const midR = (RINGS[blip.ring] + RINGS[blip.ring + 1]) / 2
           pos = {
@@ -402,6 +520,7 @@ export default {
         }
         return {
           ...blip,
+          quadrant,
           ...pos,
           index: globalIdx + 1,
           ringColor: RING_META[blip.ring].color,
@@ -409,6 +528,47 @@ export default {
           typeLabel: typeLabelOf(blip.answerType)
         }
       })
+    })
+
+    // ── Legend grouping by quadrant + status ───────────────────────────────
+    const blipsByQuadrant = computed(() => {
+      const groups = []
+      for (let qi = 0; qi < 4; qi++) {
+        const label = activeQuadrantLabels.value[qi]?.text || ''
+        const allQBlips = positionedBlips.value.filter((b) => b.quadrant === qi)
+        if (!allQBlips.length) continue
+        const statusGroups = []
+        for (let ri = 0; ri < 4; ri++) {
+          const ringBlips = allQBlips.filter((b) => b.ring === ri)
+          if (ringBlips.length) {
+            statusGroups.push({ ring: ri, statusLabel: RING_META[ri].label, color: RING_META[ri].color, blips: ringBlips })
+          }
+        }
+        groups.push({ quadrant: qi, label, statusGroups })
+      }
+      return groups
+    })
+
+    // Q1 (top-left) + Q2 (bottom-left) go to the left side
+    const leftGroups = computed(() => blipsByQuadrant.value.filter((g) => g.quadrant === 1 || g.quadrant === 2))
+    // Q0 (top-right) + Q3 (bottom-right) go to the right side
+    const rightGroups = computed(() => blipsByQuadrant.value.filter((g) => g.quadrant === 0 || g.quadrant === 3))
+
+    // ── Search highlight ──────────────────────────────────────────────────────
+    // Returns a Set of matching blip keys, or null when no query is active
+    const highlightedBlipKeys = computed(() => {
+      const q = String(searchQuery.value || '').trim().toLowerCase()
+      if (!q) return null
+      return new Set(
+        positionedBlips.value
+          .filter((b) =>
+            b.name.toLowerCase().includes(q) ||
+            b.categoryTitle.toLowerCase().includes(q) ||
+            b.questionnaireName.toLowerCase().includes(q) ||
+            b.statusLabel.toLowerCase().includes(q)
+          )
+          .map((b) => b.key)
+      )
     })
 
     // ── Tooltip helpers ───────────────────────────────────────────────────────
@@ -423,14 +583,20 @@ export default {
     }
 
     return {
-      SIZE, CX, CY, OUTER_R, RINGS, BLIP_R, RING_META, QUADRANT_META,
+      SIZE, CX, CY, OUTER_R, RINGS, BLIP_R, RING_META,
       tooltipWidth,
+      answerTypeFilter,
+      searchQuery,
+      highlightedBlipKeys,
       ringsBg,
       quadrantTints,
       ringLabels,
-      quadrantLabels,
-      blips,
+      activeQuadrantLabels,
+      allBlips,
       positionedBlips,
+      blipsByQuadrant,
+      leftGroups,
+      rightGroups,
       hoveredBlip,
       clampTooltipX,
       clampTooltipY,
@@ -446,16 +612,14 @@ export default {
 }
 
 .radar-layout {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 24px;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: start;
 }
 
 .radar-svg-wrapper {
-  flex: 1 1 auto;
-  min-width: 240px;
-  max-width: 560px;
+  width: 100%;
   overflow: visible;
 }
 
@@ -515,9 +679,14 @@ export default {
 
 /* Legend */
 .radar-legend {
-  flex: 1;
-  min-width: 200px;
-  max-width: 320px;
+  min-width: 0;
+  overflow: hidden;
+  columns: 2;
+  column-gap: 12px;
+}
+
+.radar-center {
+  min-width: 0;
 }
 
 .ring-dot {
@@ -537,6 +706,7 @@ export default {
   cursor: default;
   transition: background 0.12s;
   margin-bottom: 2px;
+  break-inside: avoid;
 }
 .legend-row--hovered {
   background: rgba(var(--v-theme-on-surface), 0.06);
@@ -568,5 +738,39 @@ export default {
 
 .legend-rings {
   padding: 8px 0;
+}
+
+.legend-quadrant-header {
+  column-span: all;
+  break-inside: avoid;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-left: 3px solid rgba(var(--v-theme-primary), 0.5);
+  margin-bottom: 4px;
+}
+
+.legend-status-header {
+  break-inside: avoid;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--status-color);
+  padding: 4px 6px 2px;
+  margin-top: 2px;
+}
+
+.legend-row--highlighted {
+  background: rgba(var(--v-theme-primary), 0.12);
+  outline: 1px solid rgba(var(--v-theme-primary), 0.35);
+  border-radius: 6px;
+}
+.legend-row--dimmed {
+  opacity: 0.25;
+}
+
+.blip-glow {
+  pointer-events: none;
 }
 </style>
