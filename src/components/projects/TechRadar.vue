@@ -655,31 +655,79 @@ export default {
       { title: 'Retire', value: 'retire' }
     ]
 
-    // ── Dynamic ring radii – stepped width based on blip count ──────────────
-    // Steps: enough for label | enough for a few blips | medium | large | very large
-    // Units are relative weights that get scaled to fill OUTER_R.
-    function ringWeight (count) {
-      if (count === 0)  return 1      // label-only band
-      if (count <= 3)   return 2.5    // just a bit bigger than a blip
-      if (count <= 8)   return 4      // medium band
-      if (count <= 15)  return 6      // large
-      return 8                        // very large
+    // ── Dynamic ring radii – capacity-based solver ───────────────────────────
+    // Computes how many blip slots fit in one quadrant of a ring band.
+    // Mirrors the slot-grid logic in computeSlots() so the numbers agree.
+    function ringSlotCapacity (innerR, outerR) {
+      const marginR = 7
+      const rStep = 26
+      const effInner = Math.max(innerR + marginR, BLIP_R + 2)
+      const effOuter = outerR - marginR
+      if (effOuter <= effInner) return 0
+      const midR = (innerR + outerR) / 2
+      const nR = Math.max(1, Math.round((effOuter - effInner) / rStep))
+      let cap = 0
+      for (let ri = 0; ri < nR; ri++) {
+        const r = nR === 1
+          ? midR
+          : Math.max(effInner, Math.min(effOuter, midR + (ri - (nR - 1) / 2) * rStep))
+        // Each quadrant spans π/2 radians, with marginA cut from both edges
+        const arcLen = r * (Math.PI / 2 - 0.28)
+        cap += Math.max(1, Math.round(arcLen / 30))
+      }
+      return cap
     }
 
-    const ringBlipCounts = computed(() => {
-      const counts = new Array(5).fill(0)
-      visibleBlips.value.forEach(b => { counts[b.ring]++ })
-      return counts
-    })
     const computedRings = computed(() => {
-      const counts = ringBlipCounts.value
-      const weights = counts.map(ringWeight)
-      const totalWeight = weights.reduce((s, w) => s + w, 0)
+      const blips = visibleBlips.value
+
+      // Replicate categoryToQuadrant assignment inline (avoids circular dep)
+      const cats = [...new Set(blips.map(b => b.categoryTitle).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b))
+      const catToQ = new Map()
+      cats.forEach((cat, i) => catToQ.set(cat, Math.min(i, 3)))
+
+      // Count blips per [ring][quadrant]
+      const perRQ = Array.from({ length: 5 }, () => new Array(4).fill(0))
+      blips.forEach(b => {
+        const q = catToQ.get(b.categoryTitle) ?? 3
+        perRQ[b.ring][q]++
+      })
+      // Worst-case quadrant load per ring
+      const needed = perRQ.map(qCounts => Math.max(...qCounts, 0))
+
+      const MIN_EMPTY = 22   // just enough to show the ring label
+      const MIN_ACTIVE = 36  // minimum for at least one blip row
+
+      // Starting widths
+      const widths = needed.map(n => n === 0 ? MIN_EMPTY : MIN_ACTIVE)
+
+      // Iterative growth: if a ring's capacity is too small, grow it by 20 %
+      // and repeat until every ring can hold its blips (max 40 iterations).
+      for (let iter = 0; iter < 40; iter++) {
+        const total = widths.reduce((s, w) => s + w, 0)
+        const scale = OUTER_R / total
+        const radii = [0]
+        for (let i = 0; i < 5; i++) radii.push(radii[i] + widths[i] * scale)
+
+        let changed = false
+        for (let ri = 0; ri < 5; ri++) {
+          if (needed[ri] === 0) continue
+          const cap = ringSlotCapacity(radii[ri], radii[ri + 1])
+          if (cap < needed[ri]) {
+            widths[ri] = widths[ri] * (1 + (needed[ri] - cap) / needed[ri] * 0.5 + 0.1)
+            changed = true
+          }
+        }
+        if (!changed) break
+      }
+
+      // Normalise to exactly OUTER_R
+      const total = widths.reduce((s, w) => s + w, 0)
       const radii = [0]
       for (let i = 0; i < 5; i++) {
-        radii.push(Math.round(radii[i] + (weights[i] / totalWeight) * OUTER_R))
+        radii.push(Math.round(radii[i] + (widths[i] / total) * OUTER_R))
       }
-      // Clamp last boundary to avoid rounding drift
       radii[5] = OUTER_R
       return radii
     })
