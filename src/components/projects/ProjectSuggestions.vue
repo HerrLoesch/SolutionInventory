@@ -33,6 +33,35 @@
         prepend-inner-icon="mdi-magnify"
       />
 
+      <v-select
+        v-if="allQuestionnaires.length > 1"
+        v-model="selectedQuestionnaireIds"
+        :items="allQuestionnaires"
+        item-title="name"
+        item-value="id"
+        label="Questionnaires"
+        density="compact"
+        variant="outlined"
+        hide-details
+        multiple
+        style="max-width:220px; flex-shrink:0;"
+      >
+        <template #selection="{ index }">
+          <span v-if="index === 0" class="text-caption text-truncate">
+            <template v-if="selectedQuestionnaireIds.length === allQuestionnaires.length">All</template>
+            <template v-else-if="selectedQuestionnaireIds.length === 1">{{ allQuestionnaires.find(q => q.id === selectedQuestionnaireIds[0])?.name }}</template>
+            <template v-else>{{ selectedQuestionnaireIds.length }} selected</template>
+          </span>
+        </template>
+        <template #item="{ item, props: itemProps }">
+          <v-list-item v-bind="itemProps" :title="item.title">
+            <template #prepend="{ isSelected }">
+              <v-checkbox-btn :model-value="isSelected" tabindex="-1" />
+            </template>
+          </v-list-item>
+        </template>
+      </v-select>
+
       <v-tooltip text="Expand all" location="top">
         <template #activator="{ props }">
           <v-btn v-bind="props" size="small" variant="text" icon="mdi-unfold-more-horizontal" @click="expandAll" />
@@ -180,6 +209,7 @@ export default {
     const openPanels = ref([])
     const openSubPanels = ref({}) // categoryTitle -> Set<entryId>
     const answerTypeFilter = ref('all')
+    const selectedQuestionnaireIds = ref([])
 
     function isEntryOpen (categoryTitle, entryId) {
       return openSubPanels.value[categoryTitle]?.has(entryId) ?? false
@@ -207,6 +237,17 @@ export default {
       if (!project.value) return []
       return store.getProjectQuestionnaires(project.value)
     })
+
+    const allQuestionnaires = computed(() =>
+      questionnaires.value.map((q) => ({ id: q.id, name: q.name || q.id }))
+    )
+
+    // Keep selectedQuestionnaireIds in sync when questionnaires change
+    watch(allQuestionnaires, (qs) => {
+      const currentSet = new Set(selectedQuestionnaireIds.value)
+      qs.forEach((q) => { if (!currentSet.has(q.id)) selectedQuestionnaireIds.value.push(q.id) })
+      selectedQuestionnaireIds.value = selectedQuestionnaireIds.value.filter((id) => qs.some((q) => q.id === id))
+    }, { immediate: true })
 
     // Build: [{ categoryTitle, entries: [{ entryId, entryTitle, answers: [{option,status,comment,answerType,questionnaireName}] }] }]
     const categoryGroups = computed(() => {
@@ -297,6 +338,12 @@ export default {
             .map((entry) => {
               let answers = entry.answers
 
+              // Apply questionnaire filter
+              if (selectedQuestionnaireIds.value.length < allQuestionnaires.value.length) {
+                const selSet = new Set(selectedQuestionnaireIds.value)
+                answers = answers.filter((a) => a.questionnaireRefs.some((r) => selSet.has(r.id)))
+              }
+
               // Apply type filter
               if (answerTypeFilter.value !== 'all') {
                 answers = answers.filter((a) => a.answerType === answerTypeFilter.value)
@@ -385,6 +432,8 @@ export default {
       openPanels,
       openSubPanels,
       answerTypeFilter,
+      allQuestionnaires,
+      selectedQuestionnaireIds,
       visibleCategoryGroups,
       expandAll,
       collapseAll,

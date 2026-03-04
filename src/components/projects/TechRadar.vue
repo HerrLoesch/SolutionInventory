@@ -53,30 +53,30 @@
             @click="toggleCategory(cat)"
           >{{ cat }}</v-chip>
         </div>
-        <v-tooltip text="Export as ThoughtWorks JSON" location="top">
-          <template #activator="{ props: tipProps }">
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
             <v-btn
-              v-bind="tipProps"
+              v-bind="menuProps"
               size="small"
               variant="text"
-              icon="mdi-code-json"
+              icon="mdi-dots-vertical"
               :class="availableCategories.length > 1 ? '' : 'ml-auto'"
+            />
+          </template>
+          <v-list density="compact" min-width="200">
+            <v-list-item
+              prepend-icon="mdi-code-json"
+              title="Export as ThoughtWorks JSON"
               @click="exportRadarJson"
             />
-          </template>
-        </v-tooltip>
-        <v-tooltip text="Download as PNG" location="top">
-          <template #activator="{ props: tipProps }">
-            <v-btn
-              v-bind="tipProps"
-              :loading="isDownloading"
-              size="small"
-              variant="text"
-              icon="mdi-download"
+            <v-list-item
+              prepend-icon="mdi-download"
+              title="Download as PNG"
+              :disabled="isDownloading"
               @click="downloadRadar"
             />
-          </template>
-        </v-tooltip>
+          </v-list>
+        </v-menu>
       </div>
 
       <div ref="radarLayoutRef" class="radar-layout">
