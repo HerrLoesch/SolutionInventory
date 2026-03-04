@@ -39,10 +39,23 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start dev server
-        run: npx vite --host &
+        run: nohup npx vite --host > /tmp/vite.log 2>&1 &
 
       - name: Wait for dev server
-        run: npx wait-on http-get://localhost:5173/SolutionInventory/ --timeout 60000
+        run: |
+          echo "Waiting for Vite dev server..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173/SolutionInventory/ > /dev/null 2>&1; then
+              echo "Server is up after ${i} attempts"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 2s..."
+            sleep 2
+          done
+          echo "--- Vite log ---"
+          cat /tmp/vite.log
+          echo "Server did not respond after 60s"
+          exit 1
 
       - name: Build application
         run: npm run build
