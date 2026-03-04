@@ -795,7 +795,7 @@ export default {
             const answers = Array.isArray(entry?.answers) ? entry.answers : []
             answers.forEach((a) => {
               const tech = String(a?.technology || '').trim()
-              if (tech) entryLookup.get(entryId).candidates.push({ tech, answer: a, questionnaireName: q.name || q.id })
+              if (tech) entryLookup.get(entryId).candidates.push({ tech, answer: a, questionnaireName: q.name || q.id, questionnaireId: q.id })
             })
           })
         })
@@ -805,7 +805,12 @@ export default {
         const norm = String(ref.option || '').trim().toLowerCase()
         const entryData = entryLookup.get(ref.entryId)
         const candidates = entryData?.candidates || []
-        const match = candidates.find((c) => c.tech.toLowerCase() === norm)
+        // Prefer the questionnaire that was active when the blip was added.
+        // Fall back to the first matching candidate if no stored questionnaire ID.
+        const preferredQId = String(ref.questionnaireId || '').trim()
+        const match = (preferredQId
+          ? candidates.find((c) => c.tech.toLowerCase() === norm && c.questionnaireId === preferredQId)
+          : null) ?? candidates.find((c) => c.tech.toLowerCase() === norm)
         const answer = match?.answer
         const override = store.getRadarOverride(props.projectId, ref.entryId, ref.option)
         const effectiveStatus = (override?.status || '').trim() || String(answer?.status || '').trim()

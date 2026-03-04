@@ -474,7 +474,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     entry.answers = entry.answers.filter((_, idx) => idx !== answerIdx)
   }
 
-  function toggleProjectRadarRef(projectId, entryId, option) {
+  function toggleProjectRadarRef(projectId, entryId, option, questionnaireId = '') {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
     if (!Array.isArray(project.radarRefs)) project.radarRefs = []
@@ -485,7 +485,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (idx !== -1) {
       project.radarRefs.splice(idx, 1)
     } else {
-      project.radarRefs.push({ entryId, option: String(option || '').trim() })
+      project.radarRefs.push({
+        entryId,
+        option: String(option || '').trim(),
+        questionnaireId: String(questionnaireId || '').trim()
+      })
     }
   }
 

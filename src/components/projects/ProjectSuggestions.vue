@@ -129,7 +129,7 @@
                               :color="isProjectRadarRef(projectId, entry.entryId, answer.option) ? 'primary' : 'default'"
                               icon
                               class="radar-toggle-btn"
-                              @click.stop="toggleProjectRadarRef(projectId, entry.entryId, answer.option)"
+                              @click.stop="toggleProjectRadarRef(projectId, entry.entryId, answer.option, answer.questionnaireRefs[0]?.id)"
                             >
                               <v-icon size="14">mdi-radar</v-icon>
                             </v-btn>

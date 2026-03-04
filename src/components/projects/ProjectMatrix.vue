@@ -121,7 +121,7 @@
                                     :color="isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'"
                                     icon
                                     class="cell-radar-btn"
-                                    @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option)"
+                                    @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option, col.key)"
                                   >
                                     <v-icon size="12">mdi-radar</v-icon>
                                   </v-btn>
@@ -170,7 +170,7 @@
                                 :color="isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'"
                                 icon
                                 class="cell-radar-btn"
-                                @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option)"
+                              @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option, col.key)"
                               >
                                 <v-icon size="12">mdi-radar</v-icon>
                               </v-btn>
@@ -527,7 +527,8 @@ export default {
       isViolation,
       categoryHasViolation,
       answerTypeFilter,
-      toggleProjectRadarRef: store.toggleProjectRadarRef,
+      toggleProjectRadarRef: (projectId, entryId, option, columnKey) =>
+        store.toggleProjectRadarRef(projectId, entryId, option, fromQuestionnaireKey(columnKey)),
       isProjectRadarRef: store.isProjectRadarRef,
       navigateToCellEntry
     }
