@@ -235,7 +235,7 @@
               :x="clampTooltipX(hoveredBlip.x + 10)"
               :y="clampTooltipY(hoveredBlip.y - 14)"
               :width="tooltipWidth"
-              :height="hoveredBlip.radarComment ? 90 : 74"
+              :height="76 + (hoveredBlip.entryTitle ? 14 : 0) + (hoveredBlip.radarComment ? 14 : 0)"
               rx="4"
               fill="var(--radar-tooltip-bg)"
               stroke="var(--radar-line)"
@@ -253,7 +253,7 @@
               :y="clampTooltipY(hoveredBlip.y - 14) + 32"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text-dim)"
-            >{{ hoveredBlip.statusLabel }} · {{ hoveredBlip.typeLabel }}</text>
+            >{{ hoveredBlip.typeLabel }}</text>
             <text
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
               :y="clampTooltipY(hoveredBlip.y - 14) + 46"
@@ -261,16 +261,22 @@
               fill="var(--radar-tooltip-text-dim)"
             >{{ truncate(hoveredBlip.categoryTitle || hoveredBlip.questionnaireName, 32) }}</text>
             <text
-              v-if="hoveredBlip.entryTitle"
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
               :y="clampTooltipY(hoveredBlip.y - 14) + 60"
+              class="tooltip-sub"
+              fill="var(--radar-tooltip-text-dim)"
+            >{{ truncate(hoveredBlip.questionnaireName, 32) }}</text>
+            <text
+              v-if="hoveredBlip.entryTitle"
+              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+              :y="clampTooltipY(hoveredBlip.y - 14) + 74"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text-dim)"
             >{{ truncate(hoveredBlip.entryTitle, 32) }}</text>
             <text
               v-if="hoveredBlip.radarComment"
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + 76"
+              :y="clampTooltipY(hoveredBlip.y - 14) + (hoveredBlip.entryTitle ? 88 : 74)"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text)"
               font-style="italic"
