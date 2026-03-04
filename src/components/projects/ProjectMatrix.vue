@@ -75,6 +75,20 @@
                 <div class="d-flex align-center" style="gap: 6px;">
                   <v-icon v-if="categoryHasViolation(group.title)" size="15" color="error">mdi-exclamation-thick</v-icon>
                   <span class="text-body-2 font-weight-bold">{{ group.title }}</span>
+                  <v-tooltip v-if="hiddenCountForCategory(group.title) > 0" text="Open visibility settings" location="top">
+                    <template #activator="{ props: tipProps }">
+                      <v-chip
+                        v-bind="tipProps"
+                        size="x-small"
+                        variant="tonal"
+                        class="hidden-count-chip"
+                        @click.stop="openSettingsForCategory(group.title)"
+                      >
+                        <v-icon start size="11">mdi-eye-off-outline</v-icon>
+                        {{ hiddenCountForCategory(group.title) }} hidden
+                      </v-chip>
+                    </template>
+                  </v-tooltip>
                 </div>
                 <v-chip size="x-small" variant="tonal">{{ group.count }}</v-chip>
               </div>
@@ -99,7 +113,23 @@
                       :class="{ 'sticky-col': col.key === 'subcategory' }"
                     >
                       <template v-if="col.key === 'subcategory'">
-                        <div class="row-title">{{ rowFromItem(item).title }}</div>
+                        <div class="row-title">
+                          {{ rowFromItem(item).title }}
+                          <v-tooltip text="Hide this entry" location="top">
+                            <template #activator="{ props: hideTipProps }">
+                              <v-btn
+                                v-bind="hideTipProps"
+                                size="x-small"
+                                variant="text"
+                                icon
+                                class="entry-hide-btn"
+                                @click.stop="hideEntry(rowFromItem(item).id)"
+                              >
+                                <v-icon size="13">mdi-eye-off-outline</v-icon>
+                              </v-btn>
+                            </template>
+                          </v-tooltip>
+                        </div>
                       </template>
 
                       <template v-else>
@@ -212,6 +242,30 @@
         </v-expansion-panels>
       </div>
     </div>
+
+    <!-- Category visibility settings dialog -->
+    <v-dialog v-model="settingsDialog" max-width="520" scrollable>
+      <v-card>
+        <v-card-title class="text-body-1 font-weight-bold pt-4 px-4 d-flex align-center justify-space-between">
+          Visibility — {{ settingsCategory }}
+          <v-btn icon size="small" variant="text" @click="settingsDialog = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-card-text class="px-3 pt-1 pb-0">
+          <CategorySettings
+            :categories="settingsCategoryData"
+            :model-value="deviationSettings"
+            :visibility-settings="visibilitySettings"
+            @update:visibility-settings="$emit('update:visibilitySettings', $event)"
+          />
+        </v-card-text>
+        <v-card-actions class="px-4 pb-3">
+          <v-spacer />
+          <v-btn variant="text" @click="settingsDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-card-text>
 
 </template>
@@ -219,8 +273,11 @@
 <script>
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import CategorySettings from './CategorySettings.vue'
 
 export default {
+  components: { CategorySettings },
+  emits: ['update:visibilitySettings'],
   props: {
     projectId: {
       type: String,
@@ -235,11 +292,13 @@ export default {
       default: () => ({})
     }
   },
-  setup (props) {
+  setup (props, { emit }) {
     const store = useWorkspaceStore()
     const search = ref('')
     const openPanels = ref([])
     const answerTypeFilter = ref('all')
+    const settingsDialog = ref(false)
+    const settingsCategory = ref('')
 
     const project = computed(() =>
       (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
@@ -511,6 +570,56 @@ export default {
       store.navigateToEntry(questionnaireId, categoryId, entryId)
     }
 
+    // ── Visibility management ────────────────────────────────────────────────
+    // All entries per category title (including hidden ones) – used for the
+    // settings dialog and hidden-count badge.
+    const allCategoryEntries = computed(() => {
+      const map = new Map()
+      questionnaires.value.forEach((q) => {
+        const cats = Array.isArray(q?.categories) ? q.categories : []
+        cats.filter((c) => !c?.isMetadata).forEach((cat) => {
+          const title = String(cat?.title || '')
+          const catId = String(cat?.id || '').trim()
+          if (!map.has(title)) map.set(title, { id: catId, title, entries: new Map() })
+          const catData = map.get(title)
+          const entries = Array.isArray(cat?.entries) ? cat.entries : []
+          entries.forEach((entry) => {
+            const id = String(entry?.id || '').trim()
+            if (!id || catData.entries.has(id)) return
+            catData.entries.set(id, { id, aspect: String(entry?.aspect || entry?.title || id) })
+          })
+        })
+      })
+      return map
+    })
+
+    const settingsCategoryData = computed(() => {
+      if (!settingsCategory.value) return []
+      const catData = allCategoryEntries.value.get(settingsCategory.value)
+      if (!catData) return []
+      const entries = [...catData.entries.values()].sort((a, b) =>
+        (a.aspect || a.id || '').localeCompare(b.aspect || b.id || '')
+      )
+      return [{ id: catData.id, title: catData.title, entries }]
+    })
+
+    function hiddenCountForCategory (categoryTitle) {
+      const catData = allCategoryEntries.value.get(categoryTitle)
+      if (!catData) return 0
+      return [...catData.entries.keys()].filter((entryId) =>
+        !isEntryVisible({ id: entryId, categoryId: catData.id })
+      ).length
+    }
+
+    function openSettingsForCategory (categoryTitle) {
+      settingsCategory.value = categoryTitle
+      settingsDialog.value = true
+    }
+
+    function hideEntry (entryId) {
+      emit('update:visibilitySettings', { ...props.visibilitySettings, [entryId]: false })
+    }
+
     return {
       project,
       questionnaires,
@@ -532,7 +641,13 @@ export default {
       toggleProjectRadarRef: (projectId, entryId, option, columnKey) =>
         store.toggleProjectRadarRef(projectId, entryId, option, fromQuestionnaireKey(columnKey)),
       isProjectRadarRef: store.isProjectRadarRef,
-      navigateToCellEntry
+      navigateToCellEntry,
+      settingsDialog,
+      settingsCategory,
+      settingsCategoryData,
+      hiddenCountForCategory,
+      openSettingsForCategory,
+      hideEntry
     }
   }
 }
@@ -632,6 +747,29 @@ export default {
 
 .row-muted {
   opacity: 0.45;
+}
+
+.entry-hide-btn {
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+.row-title:hover .entry-hide-btn {
+  opacity: 0.55;
+}
+.entry-hide-btn:hover {
+  opacity: 1 !important;
+}
+
+.hidden-count-chip {
+  cursor: pointer;
+  background: transparent !important;
+  opacity: 0.55;
+  transition: background 0.15s, opacity 0.15s;
+}
+.hidden-count-chip:hover {
+  background: rgba(var(--v-theme-on-surface), 0.12) !important;
+  opacity: 1;
 }
 
 .project-summary-table :deep(tr.row-violation td) {

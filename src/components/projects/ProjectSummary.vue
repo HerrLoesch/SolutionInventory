@@ -48,6 +48,7 @@
             :project-id="projectId"
             :deviation-settings="deviationSettings"
             :visibility-settings="visibilitySettings"
+            @update:visibility-settings="saveVisibilitySettings"
           />
         </v-tabs-window-item>
 
@@ -59,7 +60,13 @@
             <v-alert v-else-if="!questionnaires.length" type="info" density="compact" variant="tonal">
               No questionnaires in this project.
             </v-alert>
-            <ProjectSuggestions v-else :project-id="projectId" :visibility-settings="visibilitySettings" />
+            <ProjectSuggestions
+              v-else
+              :project-id="projectId"
+              :deviation-settings="deviationSettings"
+              :visibility-settings="visibilitySettings"
+              @update:visibility-settings="saveVisibilitySettings"
+            />
           </v-card-text>
         </v-tabs-window-item>
 
