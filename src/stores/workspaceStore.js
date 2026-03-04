@@ -465,13 +465,37 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function addAnswer(entryId) {
     const entry = findEntry(entryId)
     if (!entry || !isEntryApplicable(entry)) return
-    entry.answers = [...entry.answers, { technology: '', status: '', comments: '', answerType: '' }]
+    entry.answers = [...entry.answers, { technology: '', status: '', comments: '', answerType: '', isRadarRef: false }]
   }
 
   function deleteAnswer(entryId, answerIdx) {
     const entry = findEntry(entryId)
     if (!entry || entry.answers.length <= 1) return
     entry.answers = entry.answers.filter((_, idx) => idx !== answerIdx)
+  }
+
+  function toggleProjectRadarRef(projectId, entryId, option) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return
+    if (!Array.isArray(project.radarRefs)) project.radarRefs = []
+    const norm = String(option || '').trim().toLowerCase()
+    const idx = project.radarRefs.findIndex(
+      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
+    )
+    if (idx !== -1) {
+      project.radarRefs.splice(idx, 1)
+    } else {
+      project.radarRefs.push({ entryId, option: String(option || '').trim() })
+    }
+  }
+
+  function isProjectRadarRef(projectId, entryId, option) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project || !Array.isArray(project.radarRefs)) return false
+    const norm = String(option || '').trim().toLowerCase()
+    return project.radarRefs.some(
+      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
+    )
   }
 
   function setApplicability(entry, value) {
@@ -668,6 +692,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updateQuestionnaireCategories,
     addAnswer,
     deleteAnswer,
+    toggleProjectRadarRef,
+    isProjectRadarRef,
     setApplicability,
     isEntryApplicable,
     getStatusTooltip,

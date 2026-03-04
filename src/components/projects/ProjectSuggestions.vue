@@ -89,7 +89,23 @@
                         v-for="(answer, idx) in entry.answers"
                         :key="idx"
                         class="suggestion-row"
+                        :class="{ 'suggestion-row--radar': isProjectRadarRef(projectId, entry.entryId, answer.option) }"
                       >
+                        <v-tooltip :text="isProjectRadarRef(projectId, entry.entryId, answer.option) ? 'Remove from Tech Radar' : 'Add to Tech Radar'" location="top">
+                          <template #activator="{ props: tProps }">
+                            <v-btn
+                              v-bind="tProps"
+                              size="x-small"
+                              variant="text"
+                              :color="isProjectRadarRef(projectId, entry.entryId, answer.option) ? 'primary' : 'default'"
+                              icon
+                              class="radar-toggle-btn"
+                              @click.stop="toggleProjectRadarRef(projectId, entry.entryId, answer.option)"
+                            >
+                              <v-icon size="14">mdi-radar</v-icon>
+                            </v-btn>
+                          </template>
+                        </v-tooltip>
                         <v-chip
                           v-if="answer.answerType && answerTypeFilter === 'all'"
                           size="x-small"
@@ -356,6 +372,14 @@ export default {
       store.navigateToEntry(questionnaireId, categoryId, entryId)
     }
 
+    function toggleProjectRadarRef (projectId, entryId, option) {
+      store.toggleProjectRadarRef(projectId, entryId, option)
+    }
+
+    function isProjectRadarRef (projectId, entryId, option) {
+      return store.isProjectRadarRef(projectId, entryId, option)
+    }
+
     return {
       search,
       openPanels,
@@ -367,7 +391,9 @@ export default {
       statusChipColor,
       isEntryOpen,
       toggleEntry,
-      navigateToEntry
+      navigateToEntry,
+      toggleProjectRadarRef,
+      isProjectRadarRef
     }
   }
 }
@@ -434,6 +460,21 @@ export default {
   padding: 4px 6px;
   border-radius: 4px;
   background: rgba(var(--v-theme-on-surface), 0.03);
+}
+
+.suggestion-row--radar {
+  background: rgba(var(--v-theme-primary), 0.07);
+  outline: 1px solid rgba(var(--v-theme-primary), 0.25);
+}
+
+.radar-toggle-btn {
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.radar-toggle-btn:hover,
+.suggestion-row--radar .radar-toggle-btn {
+  opacity: 1;
 }
 
 .suggestion-option {

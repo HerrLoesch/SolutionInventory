@@ -110,7 +110,21 @@
                           >
                             <v-tooltip v-if="line.comment" :text="line.comment" location="top">
                               <template #activator="{ props }">
-                                <div class="cell-line" v-bind="props">
+                                <div
+                                  class="cell-line"
+                                  :class="{ 'cell-line--radar': isProjectRadarRef(projectId, rowFromItem(item).id, line.option) }"
+                                  v-bind="props"
+                                >
+                                  <v-btn
+                                    size="x-small"
+                                    variant="text"
+                                    :color="isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'"
+                                    icon
+                                    class="cell-radar-btn"
+                                    @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option)"
+                                  >
+                                    <v-icon size="12">mdi-radar</v-icon>
+                                  </v-btn>
                                   <span class="cell-option">{{ line.option }}</span>
                                   <v-chip
                                     v-if="line.status"
@@ -131,7 +145,21 @@
                                 </div>
                               </template>
                             </v-tooltip>
-                            <div v-else class="cell-line">
+                            <div
+                              v-else
+                              class="cell-line"
+                              :class="{ 'cell-line--radar': isProjectRadarRef(projectId, rowFromItem(item).id, line.option) }"
+                            >
+                              <v-btn
+                                size="x-small"
+                                variant="text"
+                                :color="isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'"
+                                icon
+                                class="cell-radar-btn"
+                                @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option)"
+                              >
+                                <v-icon size="12">mdi-radar</v-icon>
+                              </v-btn>
                               <span class="cell-option">{{ line.option }}</span>
                               <v-chip
                                 v-if="line.status"
@@ -464,7 +492,9 @@ export default {
       statusChipColor,
       isViolation,
       categoryHasViolation,
-      answerTypeFilter
+      answerTypeFilter,
+      toggleProjectRadarRef: store.toggleProjectRadarRef,
+      isProjectRadarRef: store.isProjectRadarRef
     }
   }
 }
@@ -519,6 +549,25 @@ export default {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.cell-line--radar {
+  background: rgba(var(--v-theme-primary), 0.07);
+  outline: 1px solid rgba(var(--v-theme-primary), 0.22);
+  border-radius: 3px;
+  padding: 1px 2px;
+}
+
+.cell-radar-btn {
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 0.12s;
+  width: 18px !important;
+  height: 18px !important;
+}
+.cell-radar-btn:hover,
+.cell-line--radar .cell-radar-btn {
+  opacity: 1;
 }
 
 .cell-option {

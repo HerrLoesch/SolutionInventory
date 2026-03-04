@@ -34,6 +34,10 @@
           <v-icon start size="16">mdi-lightbulb-on-outline</v-icon>
           All Suggestions
         </v-tab>
+        <v-tab value="radar">
+          <v-icon start size="16">mdi-radar</v-icon>
+          Tech Radar
+        </v-tab>
       </v-tabs>
 
       <v-divider />
@@ -56,6 +60,18 @@
               No questionnaires in this project.
             </v-alert>
             <ProjectSuggestions v-else :project-id="projectId" :visibility-settings="visibilitySettings" />
+          </v-card-text>
+        </v-tabs-window-item>
+
+        <v-tabs-window-item value="radar">
+          <v-card-text>
+            <v-alert v-if="!project" type="warning" density="compact" variant="tonal">
+              Project not found.
+            </v-alert>
+            <v-alert v-else-if="!questionnaires.length" type="info" density="compact" variant="tonal">
+              No questionnaires in this project.
+            </v-alert>
+            <TechRadar v-else :project-id="projectId" />
           </v-card-text>
         </v-tabs-window-item>
       </v-tabs-window>
@@ -94,9 +110,10 @@ import { useWorkspaceStore } from '../../stores/workspaceStore'
 import ProjectMatrix from './ProjectMatrix.vue'
 import ProjectSuggestions from './ProjectSuggestions.vue'
 import CategorySettings from './CategorySettings.vue'
+import TechRadar from './TechRadar.vue'
 
 export default {
-  components: { ProjectMatrix, ProjectSuggestions, CategorySettings },
+  components: { ProjectMatrix, ProjectSuggestions, CategorySettings, TechRadar },
   props: {
     projectId: {
       type: String,
