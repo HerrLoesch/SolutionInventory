@@ -41,6 +41,18 @@
           style="max-width:220px;"
           @click:clear="searchQuery = ''"
         />
+        <div v-if="availableCategories.length > 1" class="d-flex align-center flex-wrap ml-auto" style="gap:4px;">         
+          <v-chip
+            v-for="cat in availableCategories"
+            :key="cat"
+            size="small"
+            density="compact"
+            :variant="selectedCategories.includes(cat) ? 'tonal' : 'outlined'"
+            :color="selectedCategories.includes(cat) ? 'primary' : undefined"
+            style="cursor:pointer;"
+            @click="toggleCategory(cat)"
+          >{{ cat }}</v-chip>
+        </div>
       </div>
 
       <div class="radar-layout">
@@ -61,7 +73,7 @@
               :class="{
                 'legend-row--hovered': hoveredBlip?.key === blip.key,
                 'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
-                'legend-row--dimmed': highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)
+                'legend-row--dimmed': (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) || (hoveredBlip && hoveredBlip.key !== blip.key)
               }"
               @mouseenter="hoveredBlip = blip"
               @mouseleave="hoveredBlip = null"
@@ -155,7 +167,7 @@
           <g
             v-for="blip in positionedBlips"
             :key="blip.key"
-            :opacity="highlightedBlipKeys && !highlightedBlipKeys.has(blip.key) ? 0.12 : 1"
+            :opacity="(highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) || (hoveredBlip && hoveredBlip.key !== blip.key) ? 0.12 : 1"
           >
             <!-- Glow ring for search-matching blips -->
             <circle
@@ -252,7 +264,7 @@
               :class="{
                 'legend-row--hovered': hoveredBlip?.key === blip.key,
                 'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
-                'legend-row--dimmed': highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)
+                'legend-row--dimmed': (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) || (hoveredBlip && hoveredBlip.key !== blip.key)
               }"
               @mouseenter="hoveredBlip = blip"
               @mouseleave="hoveredBlip = null"
@@ -298,7 +310,7 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 // ── Radar geometry constants ─────────────────────────────────────────────────
@@ -309,7 +321,7 @@ const OUTER_R = SIZE / 2 - 30  // 250
 
 // Ring outer radii (innermost to outermost): adopt / trial / assess / hold
 // Adopt gets the largest inner ring so frequently-used blips have more room
-const RINGS = [0, 100, 162, 214, OUTER_R]
+const RINGS = [0, 142, 178, 214, OUTER_R]
 
 const BLIP_R = 12
 const TOOLTIP_W = 200
@@ -511,10 +523,42 @@ export default {
       })
     })
 
-    // Blips filtered by the current answerType selection
+    // All unique categories that have at least one radar blip (alphabetically sorted)
+    const availableCategories = computed(() => {
+      return [...new Set(allBlips.value.map((b) => b.categoryTitle).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b))
+    })
+
+    // Selected categories (array of titles). Initialised / synced via watcher.
+    const selectedCategories = ref([])
+    watch(availableCategories, (newCats) => {
+      const current = new Set(selectedCategories.value)
+      // Add newly appearing categories as selected
+      newCats.forEach((c) => { if (!current.has(c)) selectedCategories.value.push(c) })
+      // Remove categories that no longer exist
+      selectedCategories.value = selectedCategories.value.filter((c) => newCats.includes(c))
+    }, { immediate: true })
+
+    function toggleCategory (cat) {
+      const idx = selectedCategories.value.indexOf(cat)
+      if (idx === -1) {
+        selectedCategories.value = [...selectedCategories.value, cat]
+      } else if (selectedCategories.value.length > 1) {
+        // keep at least one category selected
+        selectedCategories.value = selectedCategories.value.filter((c) => c !== cat)
+      }
+    }
+
+    // Blips filtered by answerType AND selected categories
     const visibleBlips = computed(() => {
-      if (answerTypeFilter.value === 'all') return allBlips.value
-      return allBlips.value.filter((b) => b.answerType === answerTypeFilter.value)
+      let blips = answerTypeFilter.value === 'all'
+        ? allBlips.value
+        : allBlips.value.filter((b) => b.answerType === answerTypeFilter.value)
+      if (selectedCategories.value.length < availableCategories.value.length) {
+        const sel = new Set(selectedCategories.value)
+        blips = blips.filter((b) => sel.has(b.categoryTitle))
+      }
+      return blips
     })
 
     // Map category titles to quadrant indices (up to 4, sorted alphabetically)
@@ -648,6 +692,9 @@ export default {
       ringLabels,
       activeQuadrantLabels,
       allBlips,
+      availableCategories,
+      selectedCategories,
+      toggleCategory,
       positionedBlips,
       blipsByQuadrant,
       leftGroups,
