@@ -115,13 +115,15 @@
                           </template>
                         </v-tooltip>
                         <v-chip
-                          v-for="qName in answer.questionnaireNames"
-                          :key="qName"
+                          v-for="q in answer.questionnaireRefs"
+                          :key="q.id"
                           size="x-small"
                           variant="outlined"
-                          class="questionnaire-chip"
+                          class="questionnaire-chip questionnaire-chip--link"
+                          @click.stop="navigateToEntry(q.id, group.categoryId, entry.entryId)"
                         >
-                          {{ qName }}
+                          <v-icon start size="10">mdi-open-in-new</v-icon>
+                          {{ q.name }}
                         </v-chip>
                       </div>
                     </div>
@@ -225,7 +227,7 @@ export default {
                   status: String(answer?.status || '').trim(),
                   comment: String(answer?.comments || '').trim(),
                   answerType: String(answer?.answerType || '').trim(),
-                  questionnaireName: questionnaire.name || questionnaire.id
+                  questionnaireRef: { id: questionnaire.id, name: questionnaire.name || questionnaire.id }
                 })
               })
             })
@@ -244,12 +246,12 @@ export default {
                 const key = `${a.option.toLowerCase()}||${a.status.toLowerCase()}`
                 if (deduped.has(key)) {
                   const existing = deduped.get(key)
-                  if (!existing.questionnaireNames.includes(a.questionnaireName)) {
-                    existing.questionnaireNames.push(a.questionnaireName)
+                  if (!existing.questionnaireRefs.find((r) => r.id === a.questionnaireRef.id)) {
+                    existing.questionnaireRefs.push(a.questionnaireRef)
                   }
                   if (a.comment && !existing.comment) existing.comment = a.comment
                 } else {
-                  deduped.set(key, { ...a, questionnaireNames: [a.questionnaireName] })
+                  deduped.set(key, { ...a, questionnaireRefs: [a.questionnaireRef] })
                 }
               })
               return { entryId, entryTitle: data.entryTitle, answers: Array.from(deduped.values()) }
@@ -287,7 +289,7 @@ export default {
               // Apply search
               if (term) {
                 answers = answers.filter((a) =>
-                  [a.option, a.status, a.comment, a.answerType, ...a.questionnaireNames]
+                  [a.option, a.status, a.comment, a.answerType, ...a.questionnaireRefs.map((r) => r.name)]
                     .some((v) => v.toLowerCase().includes(term))
                   || entry.entryTitle.toLowerCase().includes(term)
                 )
@@ -350,6 +352,10 @@ export default {
       return 'warning'
     }
 
+    function navigateToEntry (questionnaireId, categoryId, entryId) {
+      store.navigateToEntry(questionnaireId, categoryId, entryId)
+    }
+
     return {
       search,
       openPanels,
@@ -360,7 +366,8 @@ export default {
       collapseAll,
       statusChipColor,
       isEntryOpen,
-      toggleEntry
+      toggleEntry,
+      navigateToEntry
     }
   }
 }
@@ -443,6 +450,16 @@ export default {
 .questionnaire-chip {
   flex-shrink: 0;
   opacity: 0.75;
+}
+
+.questionnaire-chip--link {
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.questionnaire-chip--link:hover {
+  opacity: 1;
 }
 
 .comment-icon {

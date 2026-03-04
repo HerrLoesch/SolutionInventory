@@ -166,7 +166,7 @@
 
             <!-- Regular entries for other categories -->
             <div v-else>
-              <div v-for="entry in visibleEntries" :key="entry.id" class="mb-6">
+              <div v-for="entry in visibleEntries" :key="entry.id" :data-entry-id="entry.id" class="mb-6">
                 <v-sheet class="pa-3" elevation="1">
                   <div class="d-flex justify-space-between align-start">
                     <div class="flex-grow-1">
@@ -322,7 +322,7 @@
 </template>
 
 <script>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 export default {
@@ -463,6 +463,34 @@ export default {
       scrollToTop()
     }
 
+    // Navigate to a specific entry triggered from suggestions view
+    function applyPendingNavigation(nav) {
+      if (!nav || nav.questionnaireId !== props.questionnaireId) return
+      activeCategoryId.value = nav.categoryId
+      function tryScroll(attempts) {
+        nextTick(() => {
+          const el = document.querySelector(`[data-entry-id="${nav.entryId}"]`)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            el.classList.add('entry-highlighted')
+            setTimeout(() => el.classList.remove('entry-highlighted'), 2000)
+            store.clearPendingNavigation()
+          } else if (attempts > 0) {
+            setTimeout(() => tryScroll(attempts - 1), 80)
+          } else {
+            store.clearPendingNavigation()
+          }
+        })
+      }
+      tryScroll(10)
+    }
+
+    watch(() => store.pendingNavigation, applyPendingNavigation)
+
+    onMounted(() => {
+      if (store.pendingNavigation) applyPendingNavigation(store.pendingNavigation)
+    })
+
     function nextCategory() {
       const idx = visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value)
       if (idx < visibleCategories.value.length - 1) {
@@ -580,8 +608,18 @@ export default {
   text-decoration: underline dotted;
 }
 
-
 .resizable-textarea :deep(textarea) {
   resize: vertical;
+}
+
+.entry-highlighted {
+  animation: entry-flash 2s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes entry-flash {
+  0%   { outline: 2px solid rgba(var(--v-theme-primary), 0.9); background: rgba(var(--v-theme-primary), 0.08); }
+  60%  { outline: 2px solid rgba(var(--v-theme-primary), 0.4); background: rgba(var(--v-theme-primary), 0.04); }
+  100% { outline: 2px solid transparent; background: transparent; }
 }
 </style>

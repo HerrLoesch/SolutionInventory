@@ -41,6 +41,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const openProjectSummaryIds = ref([])
   const lastSaved = ref('')
   const autoSaveStarted = ref(false)
+  const pendingNavigation = ref(null) // { questionnaireId, categoryId, entryId } | null
 
   const activeQuestionnaire = computed(() => {
     return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
@@ -186,6 +187,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (activeQuestionnaireId.value !== questionnaireId) return
     activeQuestionnaireId.value = openQuestionnaireIds.value[0] || ''
     activeWorkspaceTabId.value = activeQuestionnaireId.value
+  }
+
+  function navigateToEntry(questionnaireId, categoryId, entryId) {
+    if (!questionnaireId) return
+    openQuestionnaire(questionnaireId)
+    pendingNavigation.value = { questionnaireId, categoryId, entryId }
+  }
+
+  function clearPendingNavigation() {
+    pendingNavigation.value = null
   }
 
   function openProjectSummary(projectId) {
@@ -683,6 +694,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     addQuestionnaireFromCategories,
     updateProjectDeviationSettings,
     updateProjectVisibilitySettings,
-    setReferenceQuestionnaire
+    setReferenceQuestionnaire,
+    pendingNavigation,
+    navigateToEntry,
+    clearPendingNavigation
   }
 })
