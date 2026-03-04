@@ -989,8 +989,6 @@ export default {
 }
 
 .tree-list {
-  max-height: 280px;
-  overflow-y: auto;
   margin-bottom: 12px;
 }
 
