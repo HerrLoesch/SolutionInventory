@@ -476,7 +476,7 @@
               density="compact"
               variant="outlined"
               clearable
-              :hint="editForm.categoryOverride ? 'Overrides the questionnaire-defined quadrant' : (blipToEdit ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}` : '')"
+              :hint="editForm.categoryOverride && blipToEdit && editForm.categoryOverride !== blipToEdit.naturalCategoryTitle ? 'Overrides the questionnaire-defined quadrant' : (blipToEdit ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}` : '')"
               persistent-hint
               class="mb-3"
             />
@@ -960,17 +960,20 @@ export default {
       editForm.value = {
         status: (blip.overrideStatus || blip.status || '').toLowerCase(),
         comment: blip.radarComment || '',
-        categoryOverride: blip.overrideCategoryTitle || ''
+        categoryOverride: blip.overrideCategoryTitle || blip.naturalCategoryTitle || ''
       }
       editDialog.value = true
     }
 
     function saveEdit () {
       if (!blipToEdit.value) return
+      // Don't store a category override when it matches the natural category
+      const catOverride = (editForm.value.categoryOverride || '').trim()
+      const naturalCat = (blipToEdit.value.naturalCategoryTitle || '').trim()
       store.setRadarOverride(props.projectId, blipToEdit.value.entryId, blipToEdit.value.option, {
         status: editForm.value.status,
         comment: editForm.value.comment,
-        categoryOverride: editForm.value.categoryOverride
+        categoryOverride: catOverride === naturalCat ? '' : catOverride
       })
       editDialog.value = false
       blipToEdit.value = null
