@@ -31,8 +31,8 @@
     And a questionnaire "Playwright Test Questionnaire" exists in project "Playwright Test Project"
     When I open the context menu for questionnaire "Playwright Test Questionnaire"
     And I click "Rename" in the context menu
-    And I fill in the new questionnaire name "Playwright Test Questionnaire Renamed"
-    And I confirm with "Save"
+    And I fill in the questionnaire name "Playwright Test Questionnaire Renamed"
+    And I confirm with "Rename"
     Then the questionnaire "Playwright Test Questionnaire Renamed" should be visible in project "Playwright Test Project"
     And the questionnaire name dialog should be closed
     And the questionnaire "Playwright Test Questionnaire Renamed" should be visible in the tabs of the workspace
