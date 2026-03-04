@@ -53,6 +53,18 @@
             @click="toggleCategory(cat)"
           >{{ cat }}</v-chip>
         </div>
+        <v-tooltip text="Export as ThoughtWorks JSON" location="top">
+          <template #activator="{ props: tipProps }">
+            <v-btn
+              v-bind="tipProps"
+              size="small"
+              variant="text"
+              icon="mdi-code-json"
+              :class="availableCategories.length > 1 ? '' : 'ml-auto'"
+              @click="exportRadarJson"
+            />
+          </template>
+        </v-tooltip>
         <v-tooltip text="Download as PNG" location="top">
           <template #activator="{ props: tipProps }">
             <v-btn
@@ -61,7 +73,6 @@
               size="small"
               variant="text"
               icon="mdi-download"
-              :class="availableCategories.length > 1 ? '' : 'ml-auto'"
               @click="downloadRadar"
             />
           </template>
@@ -996,6 +1007,31 @@ export default {
       return `rgb(${blend(r)},${blend(g)},${blend(b)})`
     }
 
+    // -----------------------------------------------------------------------
+    // ThoughtWorks Build-Your-Own-Radar JSON export
+    // Format: https://www.thoughtworks.com/radar/byor
+    // Fields: name, ring, quadrant, isNew, description
+    // -----------------------------------------------------------------------
+    function exportRadarJson () {
+      const blips = allBlips.value
+      const data = blips.map((blip) => ({
+        name: blip.name,
+        ring: RING_META[blip.ring]?.label ?? 'Hold',
+        quadrant: blip.categoryTitle || blip.questionnaireName || 'Other',
+        isNew: 'FALSE',
+        description: blip.radarComment || blip.comment || ''
+      }))
+
+      const json = JSON.stringify(data, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.download = `tech-radar-${project.value?.name || 'export'}.json`
+      link.href = url
+      link.click()
+      URL.revokeObjectURL(url)
+    }
+
     async function downloadRadar () {
       if (!radarLayoutRef.value || isDownloading.value) return
       isDownloading.value = true
@@ -1087,7 +1123,8 @@ export default {
       openDetail,
       radarLayoutRef,
       isDownloading,
-      downloadRadar
+      downloadRadar,
+      exportRadarJson
     }
   }
 }
