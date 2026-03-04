@@ -137,7 +137,7 @@
           />
 
           <!-- Ring boundary circles (stroke only) -->
-          <circle v-for="r in RINGS.slice(1)" :key="`rc-${r}`"
+          <circle v-for="r in computedRings.slice(1)" :key="`rc-${r}`"
             :cx="CX" :cy="CY" :r="r"
             fill="none"
             stroke="var(--radar-line)"
@@ -211,7 +211,7 @@
               :x="clampTooltipX(hoveredBlip.x + 10)"
               :y="clampTooltipY(hoveredBlip.y - 14)"
               :width="tooltipWidth"
-              :height="hoveredBlip.radarComment ? 68 : 52"
+              :height="hoveredBlip.radarComment ? 90 : 74"
               rx="4"
               fill="var(--radar-tooltip-bg)"
               stroke="var(--radar-line)"
@@ -223,7 +223,7 @@
               :y="clampTooltipY(hoveredBlip.y - 14) + 16"
               class="tooltip-title"
               fill="var(--radar-tooltip-text)"
-            >{{ truncate(hoveredBlip.name, 30) }}</text>
+            >{{ truncate(hoveredBlip.name, 32) }}</text>
             <text
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
               :y="clampTooltipY(hoveredBlip.y - 14) + 32"
@@ -237,9 +237,16 @@
               fill="var(--radar-tooltip-text-dim)"
             >{{ truncate(hoveredBlip.categoryTitle || hoveredBlip.questionnaireName, 32) }}</text>
             <text
-              v-if="hoveredBlip.radarComment"
+              v-if="hoveredBlip.entryTitle"
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
               :y="clampTooltipY(hoveredBlip.y - 14) + 60"
+              class="tooltip-sub"
+              fill="var(--radar-tooltip-text-dim)"
+            >{{ truncate(hoveredBlip.entryTitle, 32) }}</text>
+            <text
+              v-if="hoveredBlip.radarComment"
+              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+              :y="clampTooltipY(hoveredBlip.y - 14) + 76"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text)"
               font-style="italic"
@@ -351,6 +358,10 @@
                 <div class="text-body-2">{{ detailBlip.categoryTitle || '—' }}</div>
               </div>
               <div class="detail-field">
+                <div class="detail-label">Sub-category</div>
+                <div class="text-body-2">{{ detailBlip.entryTitle || '—' }}</div>
+              </div>
+              <div class="detail-field">
                 <div class="detail-label">Questionnaire</div>
                 <div class="text-body-2">{{ detailBlip.questionnaireName || '—' }}</div>
               </div>
@@ -455,17 +466,17 @@ import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 // ── Radar geometry constants ─────────────────────────────────────────────────
-const SIZE = 560
+const SIZE = 720
 const CX = SIZE / 2
 const CY = SIZE / 2
-const OUTER_R = SIZE / 2 - 30  // 250
+const OUTER_R = SIZE / 2 - 30  // 330
 
-// Ring outer radii (innermost to outermost): adopt / trial / assess / hold
+// Ring outer radii (innermost to outermost): adopt / trial / assess / hold / retire
 // Adopt gets the largest inner ring so frequently-used blips have more room
-const RINGS = [0, 142, 178, 214, OUTER_R]
+const RINGS = [0, 132, 188, 236, 282, OUTER_R]
 
 const BLIP_R = 12
-const TOOLTIP_W = 200
+const TOOLTIP_W = 220
 
 // Quadrant angle ranges [a1, a2] in SVG radians (y-down, clockwise is positive)
 // Q0 top-right:   -π/2 → 0
@@ -483,7 +494,8 @@ const RING_META = [
   { label: 'Adopt', color: '#4caf50' },
   { label: 'Trial', color: '#2196f3' },
   { label: 'Assess', color: '#ff9800' },
-  { label: 'Hold', color: '#9e9e9e' }
+  { label: 'Hold', color: '#9e9e9e' },
+  { label: 'Retire', color: '#f44336' }
 ]
 
 // ── Sector path builder ──────────────────────────────────────────────────────
@@ -509,25 +521,28 @@ function arcPath (cx, cy, innerR, outerR, a1, a2) {
 }
 
 // ── Slot position pre-computation ────────────────────────────────────────────
-function computeSlots (qIdx, rIdx) {
+function computeSlots (qIdx, rIdx, rings) {
   const { a1, a2 } = Q_ANGLES[qIdx]
-  const innerR = RINGS[rIdx]
-  const outerR = RINGS[rIdx + 1]
+  const innerR = rings[rIdx]
+  const outerR = rings[rIdx + 1]
   const marginA = 0.14   // ~8°
   const marginR = 7
   const effA1 = a1 + marginA
   const effA2 = a2 - marginA
   const effInner = Math.max(innerR + marginR, BLIP_R + 2)
   const effOuter = outerR - marginR
+  const midR = (innerR + outerR) / 2
 
   const positions = []
   const rStep = 26
   const nR = Math.max(1, Math.round((effOuter - effInner) / rStep))
 
   for (let ri = 0; ri < nR; ri++) {
+    // Center the row grid around the true ring midpoint so that blips always
+    // sit in the visual middle of their band regardless of how many rows exist.
     const r = nR === 1
-      ? (effInner + effOuter) / 2
-      : effInner + (ri / (nR - 1)) * (effOuter - effInner)
+      ? midR
+      : Math.max(effInner, Math.min(effOuter, midR + (ri - (nR - 1) / 2) * rStep))
     const arcLen = r * Math.abs(effA2 - effA1)
     const nA = Math.max(1, Math.round(arcLen / 30))
     const da = (effA2 - effA1) / nA
@@ -539,11 +554,11 @@ function computeSlots (qIdx, rIdx) {
   return positions
 }
 
-// Pre-generate all slot grids
+// Slot cache – keyed by quadrant, ring index AND ring boundaries so dynamic sizes invalidate correctly
 const SLOT_CACHE = {}
-function getSlots (qIdx, rIdx) {
-  const key = `${qIdx}-${rIdx}`
-  if (!SLOT_CACHE[key]) SLOT_CACHE[key] = computeSlots(qIdx, rIdx)
+function getSlots (qIdx, rIdx, rings) {
+  const key = `${qIdx}-${rIdx}-${rings[rIdx]}-${rings[rIdx + 1]}`
+  if (!SLOT_CACHE[key]) SLOT_CACHE[key] = computeSlots(qIdx, rIdx, rings)
   return SLOT_CACHE[key]
 }
 
@@ -553,6 +568,8 @@ function statusToRing (status) {
   if (s === 'adopt') return 0
   if (s === 'trial') return 1
   if (s === 'assess') return 2
+  if (s === 'hold') return 3
+  if (s === 'retire') return 4
   return 3
 }
 
@@ -590,28 +607,65 @@ export default {
       { title: 'Adopt',  value: 'adopt' },
       { title: 'Trial',  value: 'trial' },
       { title: 'Assess', value: 'assess' },
-      { title: 'Hold',   value: 'hold' }
+      { title: 'Hold',   value: 'hold' },
+      { title: 'Retire', value: 'retire' }
     ]
 
-    // ── Radar geometry (static, used in template) ───────────────────────────
-    const ringsBg = [
-      { r: RINGS[4], fill: 'rgba(158,158,158,0.10)' },
-      { r: RINGS[3], fill: 'rgba(255,152,0,0.10)' },
-      { r: RINGS[2], fill: 'rgba(33,150,243,0.10)' },
-      { r: RINGS[1], fill: 'rgba(76,175,80,0.15)' }
-    ]
+    // ── Dynamic ring radii – stepped width based on blip count ──────────────
+    // Steps: enough for label | enough for a few blips | medium | large | very large
+    // Units are relative weights that get scaled to fill OUTER_R.
+    function ringWeight (count) {
+      if (count === 0)  return 1      // label-only band
+      if (count <= 3)   return 2.5    // just a bit bigger than a blip
+      if (count <= 8)   return 4      // medium band
+      if (count <= 15)  return 6      // large
+      return 8                        // very large
+    }
+
+    const ringBlipCounts = computed(() => {
+      const counts = new Array(5).fill(0)
+      visibleBlips.value.forEach(b => { counts[b.ring]++ })
+      return counts
+    })
+    const computedRings = computed(() => {
+      const counts = ringBlipCounts.value
+      const weights = counts.map(ringWeight)
+      const totalWeight = weights.reduce((s, w) => s + w, 0)
+      const radii = [0]
+      for (let i = 0; i < 5; i++) {
+        radii.push(Math.round(radii[i] + (weights[i] / totalWeight) * OUTER_R))
+      }
+      // Clamp last boundary to avoid rounding drift
+      radii[5] = OUTER_R
+      return radii
+    })
+
+    // ── Radar geometry (reactive to dynamic ring sizes) ──────────────────────
+    const ringsBg = computed(() => {
+      const cr = computedRings.value
+      return [
+        { r: cr[5], fill: 'rgba(244,67,54,0.08)' },
+        { r: cr[4], fill: 'rgba(158,158,158,0.10)' },
+        { r: cr[3], fill: 'rgba(255,152,0,0.10)' },
+        { r: cr[2], fill: 'rgba(33,150,243,0.10)' },
+        { r: cr[1], fill: 'rgba(76,175,80,0.15)' }
+      ]
+    })
 
     const quadrantTints = Q_ANGLES.map((qa, qi) => ({
-      path: arcPath(CX, CY, 0, RINGS[4], qa.a1, qa.a2),
+      path: arcPath(CX, CY, 0, OUTER_R, qa.a1, qa.a2),
       fill: qi === 0 ? '#2196f3' : qi === 1 ? '#4caf50' : qi === 2 ? '#ff9800' : '#9e9e9e'
     }))
 
-    const ringLabels = RINGS.slice(1).map((r, i) => ({
-      x: CX,
-      y: CY - (RINGS[i] + r) / 2,
-      text: RING_META[i].label,
-      color: RING_META[i].color
-    }))
+    const ringLabels = computed(() => {
+      const cr = computedRings.value
+      return cr.slice(1).map((r, i) => ({
+        x: CX,
+        y: CY - (cr[i] + r) / 2,
+        text: RING_META[i].label,
+        color: RING_META[i].color
+      }))
+    })
 
     // Quadrant corner position templates (geometry only, label comes from data)
     const Q_LABEL_POSITIONS = [
@@ -634,7 +688,7 @@ export default {
 
       const questionnaires = store.getProjectQuestionnaires(project.value)
 
-      // Build lookup: entryId -> { categoryTitle, candidates: [{tech, answer, questionnaireName}] }
+      // Build lookup: entryId -> { categoryTitle, entryTitle, candidates: [{tech, answer, questionnaireName}] }
       const entryLookup = new Map()
       questionnaires.forEach((q) => {
         const cats = Array.isArray(q?.categories) ? q.categories : []
@@ -644,7 +698,8 @@ export default {
           entries.forEach((entry) => {
             const entryId = String(entry?.id || '').trim()
             if (!entryId) return
-            if (!entryLookup.has(entryId)) entryLookup.set(entryId, { categoryTitle: catTitle, candidates: [] })
+            const entryTitle = String(entry?.aspect || entry?.title || entryId).trim()
+            if (!entryLookup.has(entryId)) entryLookup.set(entryId, { categoryTitle: catTitle, entryTitle, candidates: [] })
             const answers = Array.isArray(entry?.answers) ? entry.answers : []
             answers.forEach((a) => {
               const tech = String(a?.technology || '').trim()
@@ -674,6 +729,7 @@ export default {
           overrideStatus: String(override?.status || '').trim(),
           questionnaireName: match?.questionnaireName || '',
           categoryTitle: entryData?.categoryTitle || '',
+          entryTitle: entryData?.entryTitle || '',
           ring: statusToRing(effectiveStatus)
         }
       })
@@ -748,14 +804,15 @@ export default {
         const sectorKey = `${quadrant}-${blip.ring}`
         counter[sectorKey] = (counter[sectorKey] ?? 0)
         const slotIdx = counter[sectorKey]++
-        const slots = getSlots(quadrant, blip.ring)
+        const cr = computedRings.value
+        const slots = getSlots(quadrant, blip.ring, cr)
         let pos
         if (slotIdx < slots.length) {
           pos = slots[slotIdx]
         } else {
           const { a1, a2 } = Q_ANGLES[quadrant]
           const midA = (a1 + a2) / 2
-          const midR = (RINGS[blip.ring] + RINGS[blip.ring + 1]) / 2
+          const midR = (cr[blip.ring] + cr[blip.ring + 1]) / 2
           pos = {
             x: CX + midR * Math.cos(midA) + (slotIdx % 5 - 2) * 6,
             y: CY + midR * Math.sin(midA) + Math.floor(slotIdx / 5) * 6
@@ -781,7 +838,7 @@ export default {
         const allQBlips = positionedBlips.value.filter((b) => b.quadrant === qi)
         if (!allQBlips.length) continue
         const statusGroups = []
-        for (let ri = 0; ri < 4; ri++) {
+        for (let ri = 0; ri < 5; ri++) {
           const ringBlips = allQBlips.filter((b) => b.ring === ri)
           if (ringBlips.length) {
             statusGroups.push({ ring: ri, statusLabel: RING_META[ri].label, color: RING_META[ri].color, blips: ringBlips })
@@ -819,7 +876,7 @@ export default {
       return Math.min(Math.max(x, 4), SIZE - TOOLTIP_W - 4)
     }
     function clampTooltipY (y) {
-      return Math.min(Math.max(y, 4), SIZE - 60)
+      return Math.min(Math.max(y, 4), SIZE - 90)
     }
     function truncate (str, max) {
       return str.length > max ? str.slice(0, max - 1) + '…' : str
@@ -862,7 +919,7 @@ export default {
     }
 
     return {
-      SIZE, CX, CY, OUTER_R, RINGS, BLIP_R, RING_META,
+      SIZE, CX, CY, OUTER_R, computedRings, BLIP_R, RING_META,
       tooltipWidth,
       answerTypeFilter,
       searchQuery,
@@ -904,13 +961,26 @@ export default {
 <style scoped>
 .tech-radar {
   padding: 12px;
+  /* Fill available tab height without scrolling the page */
+  height: calc(100dvh - 220px);
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .radar-layout {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 24px;
+  gap: 16px;
   align-items: start;
+  flex: 1;
+  min-height: 0;
+}
+
+.radar-center {
+  min-width: 0;
 }
 
 .radar-svg-wrapper {
@@ -919,9 +989,29 @@ export default {
 }
 
 .radar-svg {
-  width: 100%;
+  /*
+   * Height-constrained: width is capped so the square SVG never exceeds the
+   * available viewport height once outer chrome is subtracted.
+   * 330px = outer app-bar + workspace tabs + project card header/tabs + padding estimated offsets.
+   */
+  width: min(calc(100dvh - 330px), 100%);
   height: auto;
+  max-width: 100%;
   display: block;
+  margin: 0 auto;
+}
+
+@media (max-width: 960px) {
+  .tech-radar {
+    height: auto;
+    overflow: visible;
+  }
+  .radar-layout {
+    grid-template-columns: 1fr;
+  }
+  .radar-radar-legend {
+    columns: 2;
+  }
 }
 
 /* CSS custom properties – inherit Vuetify surface colors */
@@ -975,13 +1065,17 @@ export default {
 /* Legend */
 .radar-legend {
   min-width: 0;
-  overflow: hidden;
-  columns: 2;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100dvh - 220px);
+  columns: 1;
   column-gap: 12px;
 }
 
-.radar-center {
-  min-width: 0;
+@media (min-width: 1400px) {
+  .radar-legend {
+    columns: 2;
+  }
 }
 
 .ring-dot {
