@@ -70,6 +70,18 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
               </div>
+              <div class="legend-row-actions">
+                <v-menu location="bottom end">
+                  <template #activator="{ props: menuProps }">
+                    <v-btn icon size="x-small" variant="text" v-bind="menuProps" @click.stop>
+                      <v-icon size="14">mdi-dots-vertical</v-icon>
+                    </v-btn>
+                  </template>
+                  <v-list density="compact" min-width="140">
+                    <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
+                  </v-list>
+                </v-menu>
+              </div>
             </div>
           </div>
         </div>
@@ -249,11 +261,38 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
               </div>
+              <div class="legend-row-actions">
+                <v-menu location="bottom end">
+                  <template #activator="{ props: menuProps }">
+                    <v-btn icon size="x-small" variant="text" v-bind="menuProps" @click.stop>
+                      <v-icon size="14">mdi-dots-vertical</v-icon>
+                    </v-btn>
+                  </template>
+                  <v-list density="compact" min-width="140">
+                    <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
+                  </v-list>
+                </v-menu>
+              </div>
             </div>
           </div>
         </div>
       </div>
       </div>
+
+      <!-- Confirm remove dialog -->
+      <v-dialog v-model="confirmDialog" max-width="380">
+        <v-card>
+          <v-card-title class="text-body-1 font-weight-bold pt-4 px-4">Remove from Radar</v-card-title>
+          <v-card-text class="pb-2">
+            Remove <strong>{{ blipToRemove?.name }}</strong> from the Tech Radar?
+          </v-card-text>
+          <v-card-actions class="px-4 pb-3">
+            <v-spacer />
+            <v-btn variant="text" @click="confirmDialog = false">Cancel</v-btn>
+            <v-btn color="error" variant="tonal" @click="executeRemove">Remove</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </div>
   </div>
 </template>
@@ -387,6 +426,8 @@ export default {
     const answerTypeFilter = ref('all')
     const searchQuery = ref('')
     const tooltipWidth = TOOLTIP_W
+    const confirmDialog = ref(false)
+    const blipToRemove = ref(null)
 
     // ── Radar geometry (static, used in template) ───────────────────────────
     const ringsBg = [
@@ -457,6 +498,8 @@ export default {
         const answer = match?.answer
         return {
           key: `${ref.entryId}||${ref.option}`,
+          entryId: ref.entryId,
+          option: String(ref.option || '').trim(),
           name: String(ref.option || '').trim(),
           status: String(answer?.status || '').trim(),
           answerType: String(answer?.answerType || '').trim(),
@@ -582,6 +625,18 @@ export default {
       return str.length > max ? str.slice(0, max - 1) + '…' : str
     }
 
+    function confirmRemove (blip) {
+      blipToRemove.value = blip
+      confirmDialog.value = true
+    }
+
+    function executeRemove () {
+      if (!blipToRemove.value) return
+      store.toggleProjectRadarRef(props.projectId, blipToRemove.value.entryId, blipToRemove.value.option)
+      confirmDialog.value = false
+      blipToRemove.value = null
+    }
+
     return {
       SIZE, CX, CY, OUTER_R, RINGS, BLIP_R, RING_META,
       tooltipWidth,
@@ -600,7 +655,11 @@ export default {
       hoveredBlip,
       clampTooltipX,
       clampTooltipY,
-      truncate
+      truncate,
+      confirmDialog,
+      blipToRemove,
+      confirmRemove,
+      executeRemove
     }
   }
 }
@@ -768,6 +827,16 @@ export default {
 }
 .legend-row--dimmed {
   opacity: 0.25;
+}
+
+.legend-row-actions {
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.legend-row:hover .legend-row-actions {
+  opacity: 1;
 }
 
 .blip-glow {
