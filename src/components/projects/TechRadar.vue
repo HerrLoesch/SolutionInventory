@@ -77,10 +77,14 @@
               }"
               @mouseenter="hoveredBlip = blip"
               @mouseleave="hoveredBlip = null"
+              @click="openDetail(blip)"
             >
               <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
               <div class="legend-info">
-                <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
+                <div class="text-body-2 font-weight-medium legend-name">
+                  {{ blip.name }}
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                </div>
               </div>
               <div class="legend-row-actions">
                 <v-menu location="bottom end">
@@ -90,6 +94,7 @@
                     </v-btn>
                   </template>
                   <v-list density="compact" min-width="140">
+                    <v-list-item prepend-icon="mdi-pencil-outline" title="Edit" @click="openEdit(blip)" />
                     <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
                   </v-list>
                 </v-menu>
@@ -189,6 +194,7 @@
               class="blip-circle"
               @mouseenter="hoveredBlip = blip"
               @mouseleave="hoveredBlip = null"
+              @click="openDetail(blip)"
             />
             <text
               :x="blip.x"
@@ -205,7 +211,7 @@
               :x="clampTooltipX(hoveredBlip.x + 10)"
               :y="clampTooltipY(hoveredBlip.y - 14)"
               :width="tooltipWidth"
-              height="52"
+              :height="hoveredBlip.radarComment ? 68 : 52"
               rx="4"
               fill="var(--radar-tooltip-bg)"
               stroke="var(--radar-line)"
@@ -230,6 +236,14 @@
               class="tooltip-sub"
               fill="var(--radar-tooltip-text-dim)"
             >{{ truncate(hoveredBlip.categoryTitle || hoveredBlip.questionnaireName, 32) }}</text>
+            <text
+              v-if="hoveredBlip.radarComment"
+              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+              :y="clampTooltipY(hoveredBlip.y - 14) + 60"
+              class="tooltip-sub"
+              fill="var(--radar-tooltip-text)"
+              font-style="italic"
+            >{{ truncate(hoveredBlip.radarComment, 32) }}</text>
           </g>
         </svg>
       </div>
@@ -268,10 +282,14 @@
               }"
               @mouseenter="hoveredBlip = blip"
               @mouseleave="hoveredBlip = null"
+              @click="openDetail(blip)"
             >
               <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
               <div class="legend-info">
-                <div class="text-body-2 font-weight-medium legend-name">{{ blip.name }}</div>
+                <div class="text-body-2 font-weight-medium legend-name">
+                  {{ blip.name }}
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                </div>
               </div>
               <div class="legend-row-actions">
                 <v-menu location="bottom end">
@@ -281,6 +299,7 @@
                     </v-btn>
                   </template>
                   <v-list density="compact" min-width="140">
+                    <v-list-item prepend-icon="mdi-pencil-outline" title="Edit" @click="openEdit(blip)" />
                     <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
                   </v-list>
                 </v-menu>
@@ -290,6 +309,87 @@
         </div>
       </div>
       </div>
+
+      <!-- Blip detail dialog -->
+      <v-dialog v-model="detailDialog" max-width="500" scrollable>
+        <v-card v-if="detailBlip">
+          <!-- Header with colour bar -->
+          <div class="detail-header" :style="{ borderTop: `4px solid ${detailBlip.ringColor}` }">
+            <div class="d-flex align-center gap-3 px-4 pt-4 pb-2">
+              <span class="detail-index" :style="{ background: detailBlip.ringColor }">{{ detailBlip.index }}</span>
+              <div>
+                <div class="text-subtitle-1 font-weight-bold">{{ detailBlip.name }}</div>
+                <div class="text-caption text-medium-emphasis">{{ detailBlip.categoryTitle }}</div>
+              </div>
+              <v-spacer />
+              <v-btn icon size="small" variant="text" @click="detailDialog = false">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </div>
+          </div>
+
+          <v-divider />
+
+          <v-card-text class="pa-4">
+            <!-- Status row -->
+            <div class="detail-grid mb-4">
+              <div class="detail-field">
+                <div class="detail-label">Status</div>
+                <v-chip size="small" :color="detailBlip.ringColor" variant="tonal">
+                  {{ detailBlip.statusLabel }}
+                </v-chip>
+                <span v-if="detailBlip.overrideStatus" class="text-caption text-medium-emphasis ml-2">
+                  <v-icon size="10">mdi-pencil-circle</v-icon> Radar override
+                </span>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Type</div>
+                <div class="text-body-2">{{ detailBlip.typeLabel || '—' }}</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Quadrant</div>
+                <div class="text-body-2">{{ detailBlip.categoryTitle || '—' }}</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Questionnaire</div>
+                <div class="text-body-2">{{ detailBlip.questionnaireName || '—' }}</div>
+              </div>
+            </div>
+
+            <!-- Questionnaire comment -->
+            <template v-if="detailBlip.comment">
+              <div class="detail-label mb-1">Questionnaire comment</div>
+              <v-sheet rounded="lg" color="surface-variant" class="pa-3 mb-4">
+                <div class="text-body-2" style="white-space:pre-wrap;">{{ detailBlip.comment }}</div>
+              </v-sheet>
+            </template>
+
+            <!-- Radar comment (override) -->
+            <template v-if="detailBlip.radarComment">
+              <div class="detail-label mb-1">
+                <v-icon size="12" class="mr-1">mdi-pencil-circle</v-icon>
+                Radar comment
+              </div>
+              <v-sheet rounded="lg" color="primary" variant="tonal" class="pa-3 mb-4">
+                <div class="text-body-2" style="white-space:pre-wrap;">{{ detailBlip.radarComment }}</div>
+              </v-sheet>
+            </template>
+
+            <div v-if="!detailBlip.comment && !detailBlip.radarComment" class="text-caption text-medium-emphasis">
+              No comments available.
+            </div>
+          </v-card-text>
+
+          <v-divider />
+          <v-card-actions class="px-4 py-3">
+            <v-btn variant="text" prepend-icon="mdi-pencil-outline" size="small" @click="() => { detailDialog = false; openEdit(detailBlip) }">
+              Edit
+            </v-btn>
+            <v-spacer />
+            <v-btn variant="text" @click="detailDialog = false">Close</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
 
       <!-- Confirm remove dialog -->
       <v-dialog v-model="confirmDialog" max-width="380">
@@ -302,6 +402,47 @@
             <v-spacer />
             <v-btn variant="text" @click="confirmDialog = false">Cancel</v-btn>
             <v-btn color="error" variant="tonal" @click="executeRemove">Remove</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Edit blip dialog -->
+      <v-dialog v-model="editDialog" max-width="440">
+        <v-card>
+          <v-card-title class="text-body-1 font-weight-bold pt-4 px-4">
+            <v-icon start size="18">mdi-pencil-outline</v-icon>
+            Edit Radar Entry
+          </v-card-title>
+          <v-card-subtitle class="px-4 pb-0">{{ blipToEdit?.name }}</v-card-subtitle>
+          <v-card-text class="px-4 pt-3 pb-2">
+            <v-select
+              v-model="editForm.status"
+              :items="RADAR_STATUS_OPTIONS"
+              item-title="title"
+              item-value="value"
+              label="Status"
+              density="compact"
+              variant="outlined"
+              clearable
+              :hint="blipToEdit?.status && !editForm.status ? `Inherited from questionnaire: ${blipToEdit.status}` : ''"
+              persistent-hint
+              class="mb-3"
+            />
+            <v-textarea
+              v-model="editForm.comment"
+              label="Radar comment"
+              density="compact"
+              variant="outlined"
+              rows="3"
+              auto-grow
+              hide-details
+              placeholder="Notes specific to this radar entry…"
+            />
+          </v-card-text>
+          <v-card-actions class="px-4 pb-3">
+            <v-spacer />
+            <v-btn variant="text" @click="editDialog = false">Cancel</v-btn>
+            <v-btn color="primary" variant="tonal" @click="saveEdit">Save</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -440,6 +581,17 @@ export default {
     const tooltipWidth = TOOLTIP_W
     const confirmDialog = ref(false)
     const blipToRemove = ref(null)
+    const editDialog = ref(false)
+    const blipToEdit = ref(null)
+    const editForm = ref({ status: '', comment: '' })
+    const detailDialog = ref(false)
+    const detailBlip = ref(null)
+    const RADAR_STATUS_OPTIONS = [
+      { title: 'Adopt',  value: 'adopt' },
+      { title: 'Trial',  value: 'trial' },
+      { title: 'Assess', value: 'assess' },
+      { title: 'Hold',   value: 'hold' }
+    ]
 
     // ── Radar geometry (static, used in template) ───────────────────────────
     const ringsBg = [
@@ -508,17 +660,21 @@ export default {
         const candidates = entryData?.candidates || []
         const match = candidates.find((c) => c.tech.toLowerCase() === norm)
         const answer = match?.answer
+        const override = store.getRadarOverride(props.projectId, ref.entryId, ref.option)
+        const effectiveStatus = (override?.status || '').trim() || String(answer?.status || '').trim()
         return {
           key: `${ref.entryId}||${ref.option}`,
           entryId: ref.entryId,
           option: String(ref.option || '').trim(),
           name: String(ref.option || '').trim(),
-          status: String(answer?.status || '').trim(),
+          status: effectiveStatus,
           answerType: String(answer?.answerType || '').trim(),
           comment: String(answer?.comments || '').trim(),
+          radarComment: String(override?.comment || '').trim(),
+          overrideStatus: String(override?.status || '').trim(),
           questionnaireName: match?.questionnaireName || '',
           categoryTitle: entryData?.categoryTitle || '',
-          ring: statusToRing(answer?.status)
+          ring: statusToRing(effectiveStatus)
         }
       })
     })
@@ -681,6 +837,30 @@ export default {
       blipToRemove.value = null
     }
 
+    function openEdit (blip) {
+      blipToEdit.value = blip
+      editForm.value = {
+        status: (blip.overrideStatus || blip.status || '').toLowerCase(),
+        comment: blip.radarComment || ''
+      }
+      editDialog.value = true
+    }
+
+    function saveEdit () {
+      if (!blipToEdit.value) return
+      store.setRadarOverride(props.projectId, blipToEdit.value.entryId, blipToEdit.value.option, {
+        status: editForm.value.status,
+        comment: editForm.value.comment
+      })
+      editDialog.value = false
+      blipToEdit.value = null
+    }
+
+    function openDetail (blip) {
+      detailBlip.value = blip
+      detailDialog.value = true
+    }
+
     return {
       SIZE, CX, CY, OUTER_R, RINGS, BLIP_R, RING_META,
       tooltipWidth,
@@ -706,7 +886,16 @@ export default {
       confirmDialog,
       blipToRemove,
       confirmRemove,
-      executeRemove
+      executeRemove,
+      editDialog,
+      blipToEdit,
+      editForm,
+      RADAR_STATUS_OPTIONS,
+      openEdit,
+      saveEdit,
+      detailDialog,
+      detailBlip,
+      openDetail
     }
   }
 }
@@ -888,5 +1077,38 @@ export default {
 
 .blip-glow {
   pointer-events: none;
+}
+
+/* Detail dialog */
+.detail-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+}
+
+.detail-field {
+  min-width: 0;
+}
+
+.detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  margin-bottom: 3px;
 }
 </style>

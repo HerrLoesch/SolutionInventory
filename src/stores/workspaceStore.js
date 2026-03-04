@@ -498,6 +498,31 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     )
   }
 
+  function getRadarOverride(projectId, entryId, option) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project || !Array.isArray(project.radarOverrides)) return null
+    const norm = String(option || '').trim().toLowerCase()
+    return project.radarOverrides.find(
+      (o) => o.entryId === entryId && String(o.option || '').toLowerCase() === norm
+    ) || null
+  }
+
+  function setRadarOverride(projectId, entryId, option, { status, comment }) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return
+    if (!Array.isArray(project.radarOverrides)) project.radarOverrides = []
+    const norm = String(option || '').trim().toLowerCase()
+    const idx = project.radarOverrides.findIndex(
+      (o) => o.entryId === entryId && String(o.option || '').toLowerCase() === norm
+    )
+    const record = { entryId, option: String(option || '').trim(), status: String(status || ''), comment: String(comment || '') }
+    if (idx !== -1) {
+      project.radarOverrides.splice(idx, 1, record)
+    } else {
+      project.radarOverrides.push(record)
+    }
+  }
+
   function setApplicability(entry, value) {
     if (!applicabilityOptions.includes(value)) {
       entry.applicability = 'applicable'
@@ -694,6 +719,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     deleteAnswer,
     toggleProjectRadarRef,
     isProjectRadarRef,
+    getRadarOverride,
+    setRadarOverride,
     setApplicability,
     isEntryApplicable,
     getStatusTooltip,
