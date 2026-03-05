@@ -570,6 +570,7 @@ export default {
 .entry-card {
   display: flex;
   flex-direction: column;
+  border-color: rgba(var(--v-theme-on-surface), 0.08) !important;
 }
 
 .entry-card-title {
