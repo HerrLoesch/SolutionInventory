@@ -44,12 +44,21 @@
 
       <v-tabs-window v-model="activeTab">
         <v-tabs-window-item value="matrix">
-          <ProjectMatrix
-            :project-id="projectId"
-            :deviation-settings="deviationSettings"
-            :visibility-settings="visibilitySettings"
-            @update:visibility-settings="saveVisibilitySettings"
-          />
+          <v-card-text>
+            <v-alert v-if="!project" type="warning" density="compact" variant="tonal">
+              Project not found.
+            </v-alert>
+            <v-alert v-else-if="!questionnaires.length" type="info" density="compact" variant="tonal">
+              No questionnaires in this project.
+            </v-alert>
+            <ProjectMatrix
+              v-else
+              :project-id="projectId"
+              :deviation-settings="deviationSettings"
+              :visibility-settings="visibilitySettings"
+              @update:visibility-settings="saveVisibilitySettings"
+            />
+          </v-card-text>
         </v-tabs-window-item>
 
         <v-tabs-window-item value="suggestions">

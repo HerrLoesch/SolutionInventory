@@ -1,72 +1,94 @@
 <template>
-  <v-card-text>
-    <v-alert v-if="!project" type="warning" density="compact" variant="tonal">
-      Project not found.
-    </v-alert>
+  <div>
+    <!-- Toolbar -->
+    <div class="d-flex align-center mb-3" style="gap: 8px;">
+      <v-btn-toggle
+        v-model="answerTypeFilter"
+        density="compact"
+        variant="outlined"
+        divided
+        mandatory
+        rounded="lg"
+        class="mr-2"
+        style="white-space: nowrap;"
+      >
+        <v-btn value="all" size="small">All</v-btn>
+        <v-btn value="Tool" size="small">
+          <v-icon start size="14">mdi-puzzle</v-icon>
+          Tools
+        </v-btn>
+        <v-btn value="Practice" size="small">
+          <v-icon start size="14">mdi-map-marker-path</v-icon>
+          Practices
+        </v-btn>
+      </v-btn-toggle>
+      <v-text-field
+        v-model="search"
+        label="Search"
+        density="compact"
+        variant="outlined"
+        hide-details
+        clearable
+        prepend-inner-icon="mdi-magnify"
+      />
 
-    <div v-else>
-      <v-alert v-if="!questionnaires.length" type="info" density="compact" variant="tonal">
-        No questionnaires in this project.
-      </v-alert>
+      <v-select
+        v-if="allQuestionnaires.length > 1"
+        v-model="selectedQuestionnaireIds"
+        :items="allQuestionnaires"
+        item-title="name"
+        item-value="id"
+        label="Questionnaires"
+        density="compact"
+        variant="outlined"
+        hide-details
+        multiple
+        style="max-width:220px; flex-shrink:0;"
+      >
+        <template #selection="{ index }">
+          <span v-if="index === 0" class="text-caption text-truncate">
+            <template v-if="selectedQuestionnaireIds.length === allQuestionnaires.length">All</template>
+            <template v-else-if="selectedQuestionnaireIds.length === 1">{{ allQuestionnaires.find(q => q.id === selectedQuestionnaireIds[0])?.name }}</template>
+            <template v-else>{{ selectedQuestionnaireIds.length }} selected</template>
+          </span>
+        </template>
+        <template #item="{ item, props: itemProps }">
+          <v-list-item v-bind="itemProps" :title="item.title">
+            <template #prepend="{ isSelected }">
+              <v-checkbox-btn :model-value="isSelected" tabindex="-1" />
+            </template>
+          </v-list-item>
+        </template>
+      </v-select>
 
-      <div v-else class="summary-table-wrapper mt-2">
-        <div class="d-flex align-center mb-3" style="gap: 8px;">
-          <v-btn-toggle
-            v-model="answerTypeFilter"
-            density="compact"
-            variant="outlined"
-            divided
-            mandatory
-            rounded="lg"
-            class="mx-2"
-            style="white-space: nowrap;"
-          >
-            <v-btn value="all" size="small">All</v-btn>
-            <v-btn value="Tool" size="small">
-              <v-icon start size="14">mdi-puzzle</v-icon>
-              Tools
-            </v-btn>
-            <v-btn value="Practice" size="small">
-              <v-icon start size="14">mdi-map-marker-path</v-icon>
-              Practices
-            </v-btn>
-          </v-btn-toggle>
-          <v-text-field
-            v-model="search"
-            label="Search"
-            density="compact"
-            variant="outlined"
-            hide-details
-            clearable
-            prepend-inner-icon="mdi-magnify"
+      <v-tooltip text="Expand all" location="top">
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            size="small"
+            variant="text"
+            icon="mdi-unfold-more-horizontal"
+            @click="expandAll"
           />
-          <v-tooltip text="Expand all" location="top">
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                size="small"
-                variant="text"
-                icon="mdi-unfold-more-horizontal"
-                @click="expandAll"
-              />
-            </template>
-          </v-tooltip>
-          <v-tooltip text="Collapse all" location="top">
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                size="small"
-                variant="text"
-                icon="mdi-unfold-less-horizontal"
-                @click="collapseAll"
-              />
-            </template>
-          </v-tooltip>
-        </div>
+        </template>
+      </v-tooltip>
+      <v-tooltip text="Collapse all" location="top">
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            size="small"
+            variant="text"
+            icon="mdi-unfold-less-horizontal"
+            @click="collapseAll"
+          />
+        </template>
+      </v-tooltip>
+    </div>
 
-        <v-expansion-panels v-model="openPanels" variant="accordion" multiple>
+    <!-- Content -->
+    <v-expansion-panels v-model="openPanels" variant="accordion" multiple>
           <v-expansion-panel
-            v-for="group in categoryGroups"
+            v-for="group in visibleCategoryGroups"
             :key="group.title"
             :value="group.title"
           >
@@ -240,7 +262,9 @@
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
-      </div>
+
+    <div v-if="!visibleCategoryGroups.length" class="text-body-2 text-medium-emphasis pa-4 text-center">
+      No results match the current filter.
     </div>
 
     <!-- Category visibility settings dialog -->
@@ -266,7 +290,7 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-card-text>
+  </div>
 
 </template>
 
@@ -297,6 +321,7 @@ export default {
     const search = ref('')
     const openPanels = ref([])
     const answerTypeFilter = ref('all')
+    const selectedQuestionnaireIds = ref([])
     const settingsDialog = ref(false)
     const settingsCategory = ref('')
 
@@ -308,6 +333,17 @@ export default {
       if (!project.value) return []
       return store.getProjectQuestionnaires(project.value)
     })
+
+    const allQuestionnaires = computed(() =>
+      questionnaires.value.map((q) => ({ id: q.id, name: q.name || q.id }))
+    )
+
+    // Keep selectedQuestionnaireIds in sync when questionnaires change
+    watch(allQuestionnaires, (qs) => {
+      const currentSet = new Set(selectedQuestionnaireIds.value)
+      qs.forEach((q) => { if (!currentSet.has(q.id)) selectedQuestionnaireIds.value.push(q.id) })
+      selectedQuestionnaireIds.value = selectedQuestionnaireIds.value.filter((id) => qs.some((q) => q.id === id))
+    }, { immediate: true })
 
     const rows = computed(() => {
       const result = []
@@ -434,15 +470,19 @@ export default {
 
     const headers = computed(() => {
       const base = [{ title: '', key: 'subcategory', sortable: false }]
-      const qHeaders = questionnaires.value.map((q) => ({
-        title: q.name,
-        key: toQuestionnaireKey(q.id),
-        sortable: false
-      }))
+      const selSet = new Set(selectedQuestionnaireIds.value)
+      const qHeaders = questionnaires.value
+        .filter((q) => selSet.has(q.id))
+        .map((q) => ({
+          title: q.name,
+          key: toQuestionnaireKey(q.id),
+          sortable: false
+        }))
       return [...base, ...qHeaders]
     })
 
     const items = computed(() => {
+      const selSet = new Set(selectedQuestionnaireIds.value)
       return rows.value.map((row) => {
         const item = {
           id: row.id,
@@ -451,9 +491,11 @@ export default {
           categoryId: row.categoryId || '',
           subcategory: row.title
         }
-        questionnaires.value.forEach((q) => {
-          item[toQuestionnaireKey(q.id)] = cellSearchText(q.id, row.id)
-        })
+        questionnaires.value
+          .filter((q) => selSet.has(q.id))
+          .forEach((q) => {
+            item[toQuestionnaireKey(q.id)] = cellSearchText(q.id, row.id)
+          })
         return item
       })
     })
@@ -465,11 +507,22 @@ export default {
     }
 
     function entryHasFilteredAnswers (entryId) {
-      if (answerTypeFilter.value === 'all') return true
-      return questionnaires.value.some((q) => cellLines(q.id, entryId).length > 0)
+      // Filter by answer type
+      const typeFiltered = answerTypeFilter.value === 'all'
+        ? questionnaires.value
+        : questionnaires.value.filter((q) => cellLines(q.id, entryId).length > 0)
+      
+      // Filter by selected questionnaires
+      const selSet = new Set(selectedQuestionnaireIds.value)
+      const relevantQuestionnaires = typeFiltered.filter((q) => selSet.has(q.id))
+      
+      return relevantQuestionnaires.some((q) => {
+        const lines = cellLines(q.id, entryId)
+        return lines.length > 0
+      })
     }
 
-    const categoryGroups = computed(() => {
+    const visibleCategoryGroups = computed(() => {
       const counts = new Map()
       visibleRows.value.forEach((row) => {
         if (!entryHasFilteredAnswers(row.id)) return
@@ -562,11 +615,17 @@ export default {
     }
 
     watch(search, (val) => {
-      if (val) openPanels.value = categoryGroups.value.map((g) => g.title)
+      if (val) openPanels.value = visibleCategoryGroups.value.map((g) => g.title)
+    })
+
+    watch(answerTypeFilter, (val) => {
+      if (val !== 'all') {
+        openPanels.value = visibleCategoryGroups.value.map((g) => g.title)
+      }
     })
 
     function expandAll () {
-      openPanels.value = categoryGroups.value.map((g) => g.title)
+      openPanels.value = visibleCategoryGroups.value.map((g) => g.title)
     }
 
     function collapseAll () {
@@ -657,9 +716,11 @@ export default {
     return {
       project,
       questionnaires,
+      allQuestionnaires,
+      selectedQuestionnaireIds,
       headers,
       items,
-      categoryGroups,
+      visibleCategoryGroups,
       itemsForCategory,
       search,
       openPanels,
@@ -688,12 +749,6 @@ export default {
 </script>
 
 <style scoped>
-.summary-table-wrapper {
-  overflow: auto;
-  border: 1px solid #ECEFF1;
-  border-radius: 6px;
-}
-
 .project-summary-table :deep(.v-data-table__tr--header th),
 .project-summary-table :deep(.v-data-table__th) {
   font-weight: 700 !important;
