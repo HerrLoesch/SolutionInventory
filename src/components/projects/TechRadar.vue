@@ -1119,29 +1119,14 @@ export default {
             }
           }
           
-          // Distribute evenly across Q1 (index 1), Q2 (index 0), Q3 (index 2)
-          // Remaining go to Q4 (index 3)
           const newAssignments = { ...assignments }
+          // Display order: Q1 (idx 1), Q2 (idx 0), Q3 (idx 2), Q4 (idx 3)
+          const quadrantOrder = [1, 0, 2, 3]
           
           for (const cat of unassigned) {
-            // Find which of the first 3 quadrants has fewest items
-            const firstThreeQuadrants = [1, 0, 2] // Q1, Q2, Q3
-            const minQuadrant = firstThreeQuadrants.reduce((min, q) => 
-              quadrantCounts[q] < quadrantCounts[min] ? q : min
-            , firstThreeQuadrants[0])
-            
-            // If first 3 quadrants are balanced, put rest in Q4
-            const maxInFirstThree = Math.max(quadrantCounts[1], quadrantCounts[0], quadrantCounts[2])
-            const minInFirstThree = Math.min(quadrantCounts[1], quadrantCounts[0], quadrantCounts[2])
-            
-            let targetQuadrant
-            if (maxInFirstThree - minInFirstThree > 0) {
-              // Still balancing first 3 quadrants
-              targetQuadrant = minQuadrant
-            } else {
-              // First 3 are balanced, use Q4
-              targetQuadrant = 3
-            }
+            // Assign to the first free quadrant (no categories yet); fall back to Q4
+            const freeQuadrant = quadrantOrder.find(q => quadrantCounts[q] === 0)
+            const targetQuadrant = freeQuadrant !== undefined ? freeQuadrant : 3
             
             quadrantCounts[targetQuadrant]++
             newAssignments[cat] = targetQuadrant
