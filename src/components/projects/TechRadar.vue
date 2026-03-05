@@ -1732,8 +1732,6 @@ export default {
 .radar-legend {
   min-width: 0;
   overflow-x: hidden;
-  overflow-y: auto;
-  max-height: calc(100dvh - 220px);
   columns: 1;
   column-gap: 12px;
 }
