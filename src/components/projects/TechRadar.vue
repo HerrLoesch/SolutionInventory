@@ -1225,7 +1225,21 @@ export default {
       const counter = {}
       const mapping = ringIndexMapping.value
       
-      return visibleBlips.value.map((blip, globalIdx) => {
+      // Sort blips according to legend order: Q1 (top-left), Q0 (top-right), Q2 (bottom-left), Q3 (bottom-right)
+      // Within each quadrant: sort by ring (status), then alphabetically by name
+      const legendOrder = [1, 0, 2, 3] // Quadrant order in the legend
+      const sortedBlips = [...visibleBlips.value].sort((a, b) => {
+        const qA = categoryToQuadrant.value.get(a.categoryTitle) ?? 3
+        const qB = categoryToQuadrant.value.get(b.categoryTitle) ?? 3
+        const qOrderA = legendOrder.indexOf(qA)
+        const qOrderB = legendOrder.indexOf(qB)
+        
+        if (qOrderA !== qOrderB) return qOrderA - qOrderB
+        if (a.ring !== b.ring) return a.ring - b.ring
+        return a.name.localeCompare(b.name)
+      })
+      
+      return sortedBlips.map((blip, globalIdx) => {
         const quadrant = categoryToQuadrant.value.get(blip.categoryTitle) ?? 3
         const newRingIdx = mapping[blip.ring]
         
@@ -1305,9 +1319,17 @@ export default {
     })
 
     // Q1 (top-left) + Q2 (bottom-left) go to the left side
-    const leftGroups = computed(() => blipsByQuadrant.value.filter((g) => g.quadrant === 1 || g.quadrant === 2))
+    const leftGroups = computed(() => {
+      const groups = blipsByQuadrant.value.filter((g) => g.quadrant === 1 || g.quadrant === 2)
+      // Sort to ensure Q1 (top-left) appears before Q2 (bottom-left)
+      return groups.sort((a, b) => a.quadrant - b.quadrant)
+    })
     // Q0 (top-right) + Q3 (bottom-right) go to the right side
-    const rightGroups = computed(() => blipsByQuadrant.value.filter((g) => g.quadrant === 0 || g.quadrant === 3))
+    const rightGroups = computed(() => {
+      const groups = blipsByQuadrant.value.filter((g) => g.quadrant === 0 || g.quadrant === 3)
+      // Sort to ensure Q0 (top-right) appears before Q3 (bottom-right)
+      return groups.sort((a, b) => a.quadrant - b.quadrant)
+    })
 
     // ── Search highlight ──────────────────────────────────────────────────────
     // Returns a Set of matching blip keys, or null when no query is active
