@@ -9,12 +9,6 @@
 
       <v-spacer />
 
-      <!-- Auto-save Indikator -->
-      <v-chip v-if="lastSaved" size="x-small" class="mr-2" variant="text">
-        <v-icon size="small" class="mr-1">mdi-content-save</v-icon>
-        {{ lastSaved }}
-      </v-chip>
-
       <v-btn class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
         <v-icon size="small">mdi-database-cog</v-icon>
         <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
