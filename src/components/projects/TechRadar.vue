@@ -94,8 +94,9 @@
       <!-- Left legend: Q1 (top-left) + Q2 (bottom-left) -->
       <div class="radar-legend">
         <div v-for="group in leftGroups" :key="group.quadrant" class="mb-4">
-          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1">
+          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1 legend-quadrant-header--editable" @click="quadrantConfigDialog = true">
             {{ group.label || `Quadrant ${group.quadrant + 1}` }}
+            <v-icon class="legend-quadrant-edit-icon" size="12">mdi-pencil-outline</v-icon>
           </div>
           <div v-for="sg in group.statusGroups" :key="sg.ring">
             <div class="legend-status-header" :style="{ '--status-color': sg.color }">
@@ -319,8 +320,9 @@
       <!-- Right legend: Q0 (top-right) + Q3 (bottom-right) -->
       <div class="radar-legend">
         <div v-for="group in rightGroups" :key="group.quadrant" class="mb-4">
-          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1">
+          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1 legend-quadrant-header--editable" @click="quadrantConfigDialog = true">
             {{ group.label || `Quadrant ${group.quadrant + 1}` }}
+            <v-icon class="legend-quadrant-edit-icon" size="12">mdi-pencil-outline</v-icon>
           </div>
           <div v-for="sg in group.statusGroups" :key="sg.ring">
             <div class="legend-status-header" :style="{ '--status-color': sg.color }">
@@ -1910,6 +1912,20 @@ export default {
 }
 .hidden-count-chip:hover {
   opacity: 1;
+}
+
+.legend-quadrant-header--editable {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.legend-quadrant-edit-icon {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.legend-quadrant-header--editable:hover .legend-quadrant-edit-icon {
+  opacity: 0.6;
 }
 
 /* Quadrant chips */
