@@ -15,11 +15,6 @@
         {{ lastSaved }}
       </v-chip>
 
-      <v-btn class="mr-2" variant="text" size="small" @click="loadSample">
-        <v-icon size="small" class="mr-1">mdi-flask-outline</v-icon>
-        Sample
-      </v-btn>
-
       <v-btn class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
         <v-icon size="small">mdi-database-cog</v-icon>
         <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
@@ -67,7 +62,6 @@ import Workspace from './components/workspace/Workspace.vue'
 import TreeNav from './components/TreeNav.vue'
 import WorkspaceConfig from './components/workspace/WorkspaceConfig.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
-import sampleData from '../data/sample_export.json'
 
 export default {
   components: { Workspace, TreeNav, WorkspaceConfig },
@@ -115,17 +109,12 @@ export default {
       store.startAutoSave()
     })
 
-    function loadSample() {
-      store.addQuestionnaireFromCategories('Sample', sampleData.categories)
-    }
-
     return { 
       activeTab,
       lastSaved,
       drawerOpen,
       drawerWidth,
       startResize,
-      loadSample,
       workspaceConfigOpen
     }
   }
