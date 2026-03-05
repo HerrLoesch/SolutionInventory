@@ -9,114 +9,71 @@
 
     <div v-else>
       <!-- Toolbar -->
-      <div class="d-flex align-center flex-wrap mb-3" style="gap:8px;">
-        <v-btn-toggle
-          v-model="answerTypeFilter"
-          density="compact"
-          color="primary"
-          variant="outlined"
-          divided
-          mandatory
-          rounded="lg"
-          style="white-space:nowrap;"
-        >
-          <v-btn value="all" size="small">All</v-btn>
-          <v-btn value="Tool" size="small">
-            <v-icon start size="14">mdi-puzzle</v-icon>
-            Tools
-          </v-btn>
-          <v-btn value="Practice" size="small">
-            <v-icon start size="14">mdi-map-marker-path</v-icon>
-            Practices
-          </v-btn>
-        </v-btn-toggle>
-        <v-text-field
-          v-model="searchQuery"
-          density="compact"
-          variant="outlined"
-          hide-details
-          clearable
-          prepend-inner-icon="mdi-magnify"
-          placeholder="Search"
-          style="max-width:220px;"
-          @click:clear="searchQuery = ''"
-        />
-        <!-- Unassigned categories -->
-        <div 
-          class="d-flex align-center flex-wrap unassigned-zone" 
-          style="gap:4px; min-height: 32px; padding: 4px 8px; border: 1px dashed #ccc; border-radius: 4px;"
-          @dragover.prevent="handleUnassignedDragOver"
-          @drop="handleUnassignedDrop"
-        >
-          <span class="text-caption text-medium-emphasis">Unassigned:</span>
-          <v-chip
-            v-for="cat in unassignedCategories"
-            :key="cat"
-            size="x-small"
-            variant="tonal"
-            color="grey"
-            class="category-badge"
-            style="cursor:grab;"
-            draggable="true"
-            @dragstart="handleCategoryDragStart($event, cat)"
-            @dragend="handleCategoryDragEnd"
-            @click.stop="toggleCategory(cat)"
-          >{{ cat }}</v-chip>
-          <span v-if="unassignedCategories.length === 0" class="text-caption text-disabled ml-1">(drag categories here to unassign)</span>
-        </div>
-        <!-- Quadrant chips with assigned categories -->
-        <div class="d-flex align-center flex-wrap ml-auto" style="gap:8px;">
-          <v-chip
-            v-for="q in quadrants"
-            :key="q.index"
-            size="small"
+      <div class="d-flex align-center mb-3" style="gap:8px;">
+        <div class="d-flex align-center flex-wrap" style="gap:8px; flex:1;">
+          <v-btn-toggle
+            v-model="answerTypeFilter"
             density="compact"
-            variant="tonal"
-            :color="q.color"
-            class="quadrant-chip"
-            @dragover.prevent="handleQuadrantDragOver($event, q.index)"
-            @drop="handleQuadrantDrop($event, q.index)"
+            color="primary"
+            variant="outlined"
+            divided
+            mandatory
+            rounded="lg"
+            style="white-space:nowrap;"
           >
-            <span class="font-weight-bold">{{ q.label }}</span>
-            <template v-if="q.categories.length > 0">
-              <span class="mx-1">:</span>
+            <v-btn value="all" size="small">All</v-btn>
+            <v-btn value="Tool" size="small">
+              <v-icon start size="14">mdi-puzzle</v-icon>
+              Tools
+            </v-btn>
+            <v-btn value="Practice" size="small">
+              <v-icon start size="14">mdi-map-marker-path</v-icon>
+              Practices
+            </v-btn>
+          </v-btn-toggle>
+          <v-text-field
+            v-model="searchQuery"
+            density="compact"
+            variant="outlined"
+            hide-details
+            clearable
+            prepend-inner-icon="mdi-magnify"
+            placeholder="Search"
+            style="max-width:220px;"
+            @click:clear="searchQuery = ''"
+          />
+        </div>
+        <div class="d-flex align-center" style="gap:8px;">
+          <v-tooltip v-if="unassignedCategories.length > 0" text="Open quadrant configuration" location="top">
+            <template #activator="{ props: tipProps }">
               <v-chip
-                v-for="cat in q.categories"
-                :key="cat"
-                size="x-small"
-                variant="tonal"
-                color="grey"
-                class="category-badge"
-                style="cursor:grab;"
-                draggable="true"
-                @dragstart="handleCategoryDragStart($event, cat)"
-                @dragend="handleCategoryDragEnd"
-                @click.stop="toggleCategory(cat)"
-              >{{ cat }}</v-chip>
+                v-bind="tipProps"
+                size="small"
+                variant="text"
+                class="hidden-count-chip"
+                @click="quadrantConfigDialog = true"
+              >
+                <v-icon start size="13">mdi-eye-off-outline</v-icon>
+                {{ unassignedCategories.length }} hidden
+              </v-chip>
             </template>
-            <span v-else class="text-caption text-medium-emphasis ml-1">(empty)</span>
-          </v-chip>
-        </div>
-        <!-- Drop zone to remove categories -->
-        <div
-          class="category-trash-zone"
-          :class="{ 'category-trash-zone--active': draggedCategory }"
-          @dragover.prevent="handleTrashDragOver"
-          @drop="handleTrashDrop"
-        >
-          <v-icon size="small">mdi-close</v-icon>
-        </div>
-        <v-menu location="bottom end">
-          <template #activator="{ props: menuProps }">
-            <v-btn
-              v-bind="menuProps"
-              size="small"
-              variant="text"
-              icon="mdi-dots-vertical"
-              :class="availableCategories.length > 1 ? '' : 'ml-auto'"
-            />
-          </template>
+          </v-tooltip>
+          <v-menu location="bottom end">
+            <template #activator="{ props: menuProps }">
+              <v-btn
+                v-bind="menuProps"
+                size="small"
+                variant="text"
+                icon="mdi-dots-vertical"
+              />
+            </template>
           <v-list density="compact" min-width="200">
+            <v-list-item
+              prepend-icon="mdi-cog"
+              title="Quadrant Configuration"
+              @click="quadrantConfigDialog = true"
+            />
+            <v-divider />
             <v-list-item
               prepend-icon="mdi-code-json"
               title="Export as ThoughtWorks JSON"
@@ -129,7 +86,8 @@
               @click="downloadRadar"
             />
           </v-list>
-        </v-menu>
+          </v-menu>
+        </div>
       </div>
 
       <div ref="radarLayoutRef" class="radar-layout">
@@ -564,6 +522,77 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
+
+      <!-- Quadrant Configuration Dialog -->
+      <v-dialog v-model="quadrantConfigDialog" max-width="700" scrollable>
+        <v-card>
+          <v-card-title class="text-body-1 font-weight-bold pt-4 px-4">
+            <v-icon start size="18">mdi-cog</v-icon>
+            Quadrant Configuration
+          </v-card-title>
+          <v-divider />
+          <v-card-text class="px-4 pt-4">
+            <!-- Unassigned categories -->
+            <div class="mb-6">
+              <div class="text-caption font-weight-bold text-uppercase mb-2">Unassigned Categories</div>
+              <div 
+                class="d-flex align-center flex-wrap unassigned-zone" 
+                style="gap:4px; min-height: 40px; padding: 8px; border: 2px dashed #ccc; border-radius: 4px; background: rgba(0,0,0,0.02);"
+                @dragover.prevent="handleUnassignedDragOver"
+                @drop="handleUnassignedDrop"
+              >
+                <v-chip
+                  v-for="cat in unassignedCategories"
+                  :key="cat"
+                  size="small"
+                  variant="tonal"
+                  color="grey"
+                  class="category-badge"
+                  style="cursor:grab;"
+                  draggable="true"
+                  @dragstart="handleCategoryDragStart($event, cat)"
+                  @dragend="handleCategoryDragEnd"
+                  @click.stop="toggleCategory(cat)"
+                >{{ cat }}</v-chip>
+                <span v-if="unassignedCategories.length === 0" class="text-caption text-disabled">(drag categories here to unassign)</span>
+              </div>
+            </div>
+
+            <!-- Quadrant chips with assigned categories -->
+            <div v-for="q in quadrants" :key="q.index" class="mb-4">
+              <div class="text-caption font-weight-bold text-uppercase mb-2">{{ q.label }}</div>
+              <div
+                class="d-flex align-center flex-wrap"
+                style="gap:4px; min-height: 40px; padding: 8px; border: 2px dashed #ccc; border-radius: 4px; background: rgba(0,0,0,0.02);"
+                @dragover.prevent="handleQuadrantDragOver($event, q.index)"
+                @drop="handleQuadrantDrop($event, q.index)"
+              >
+                <v-chip
+                  v-for="cat in q.categories"
+                  :key="cat"
+                  size="small"
+                  variant="tonal"
+                  color="blue-grey-lighten-2"
+                  class="category-badge"
+                  style="cursor:grab;"
+                  draggable="true"
+                  @dragstart="handleCategoryDragStart($event, cat)"
+                  @dragend="handleCategoryDragEnd"
+                  @click.stop="toggleCategory(cat)"
+                >{{ cat }}</v-chip>
+                <span v-if="q.categories.length === 0" class="text-caption text-disabled">(drag categories here)</span>
+              </div>
+            </div>
+
+
+          </v-card-text>
+          <v-divider />
+          <v-card-actions class="px-4 py-3">
+            <v-spacer />
+            <v-btn color="primary" variant="text" @click="quadrantConfigDialog = false">Close</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </div>
   </div>
 </template>
@@ -713,6 +742,7 @@ export default {
     const editForm = ref({ status: '', comment: '', categoryOverride: '' })
     const detailDialog = ref(false)
     const detailBlip = ref(null)
+    const quadrantConfigDialog = ref(false)
     const RADAR_STATUS_OPTIONS = [
       { title: 'Adopt',  value: 'adopt' },
       { title: 'Trial',  value: 'trial' },
@@ -1136,10 +1166,10 @@ export default {
     // Display order: Q1, Q2, Q3, Q4
     const quadrants = computed(() => {
       const q = [
-        { index: 1, label: 'Quadrant 1', color: 'blue-grey-lighten-4', categories: [] },
-        { index: 0, label: 'Quadrant 2', color: 'blue-grey-lighten-4', categories: [] },
-        { index: 2, label: 'Quadrant 3', color: 'blue-grey-lighten-4', categories: [] },
-        { index: 3, label: 'Quadrant 4', color: 'blue-grey-lighten-4', categories: [] }
+        { index: 1, label: 'Quadrant 1', color: 'blue-grey-lighten-2', categories: [] },
+        { index: 0, label: 'Quadrant 2', color: 'blue-grey-lighten-2', categories: [] },
+        { index: 2, label: 'Quadrant 3', color: 'blue-grey-lighten-2', categories: [] },
+        { index: 3, label: 'Quadrant 4', color: 'blue-grey-lighten-2', categories: [] }
       ]
       
       const mapping = categoryToQuadrant.value
@@ -1254,12 +1284,21 @@ export default {
       for (const blip of positionedBlips.value) {
         bins[blip.quadrant][blip.ring].push(blip)
       }
+
+      // Get categories for each quadrant
+      const categoriesByQuadrant = {}
+      for (const q of quadrants.value) {
+        categoriesByQuadrant[q.index] = q.categories
+      }
       
       const groups = []
       for (let qi = 0; qi < 4; qi++) {
-        const label = activeQuadrantLabels.value[qi]?.text || ''
         const hasBlips = bins[qi].some(ringBlips => ringBlips.length > 0)
         if (!hasBlips) continue
+        
+        // Label is only the category names
+        const categories = categoriesByQuadrant[qi] || []
+        const label = categories.join(' + ')
         
         const statusGroups = []
         for (let ri = 0; ri < 5; ri++) {
@@ -1584,6 +1623,7 @@ export default {
       detailDialog,
       detailBlip,
       openDetail,
+      quadrantConfigDialog,
       handleCategoryDragStart,
       handleCategoryDragEnd,
       handleQuadrantDragOver,
@@ -1606,12 +1646,8 @@ export default {
 <style scoped>
 .tech-radar {
   padding: 12px;
-  /* Fill available tab height without scrolling the page */
-  height: calc(100dvh - 220px);
-  min-height: 420px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -1620,8 +1656,6 @@ export default {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 16px;
   align-items: start;
-  flex: 1;
-  min-height: 0;
 }
 
 .radar-center {
@@ -1867,6 +1901,15 @@ export default {
   text-transform: uppercase;
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-bottom: 3px;
+}
+
+.hidden-count-chip {
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.hidden-count-chip:hover {
+  opacity: 1;
 }
 
 /* Quadrant chips */
