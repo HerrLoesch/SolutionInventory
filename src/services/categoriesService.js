@@ -274,7 +274,7 @@ export function getCategoriesData() {
     },
     {
       id: 'frontend',
-      title: 'Front-End',
+      title: 'Frontend',
       desc: 'Client-side frameworks, UI libraries and patterns',
       appliesTo: { executionType: ['Web Application', 'Desktop Application', 'Mobile Application'] },
       entries: [
@@ -446,7 +446,7 @@ export function getCategoriesData() {
     },
     {
       id: 'backend',
-      title: 'Back-End',
+      title: 'Backend',
       desc: 'Server-side runtime, frameworks and patterns',
       entries: [
         {
@@ -458,6 +458,17 @@ export function getCategoriesData() {
             { label: 'Scripting Runtime', description: 'Interpreted runtimes.', tools: ["Node.js","Deno","Bun","Python","Ruby","PHP","Go"] }
           ],
           description: 'Defines the foundational platform on which the server-side or core business logic executes.',
+          answers: [{ technology: '', status: '', comments: '' }]
+        },
+        {
+          id: 'fe-runtimeos',
+          aspect: 'Runtime OS',
+          examples: [
+            { label: 'Windows', description: 'Requires a Microsoft Windows environment.', tools: ["Windows 10","Windows 11"] },
+            { label: 'Linux', description: 'Requires a Linux distribution.', tools: ["Ubuntu","Debian","Fedora","RHEL"] },
+            { label: 'macOS / iOS / Android', description: 'Requires Apple or Google OS.', tools: ["macOS 12+","iOS 15+","Android 11+"] }
+          ],
+          description: 'Defines the underlying operating systems required to execute the backend.',
           answers: [{ technology: '', status: '', comments: '' }]
         },
         {
