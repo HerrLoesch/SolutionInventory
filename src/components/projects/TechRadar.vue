@@ -299,17 +299,25 @@
 
       <!-- Ring key -->
       <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap:16px;">
-        <div 
+        <v-tooltip 
           v-for="ring in RING_META" 
-          :key="ring.label" 
-          class="ring-key-item d-flex align-center" 
-          :class="{ 'ring-key-item--inactive': !isStatusVisible(ring.label) }"
-          style="gap:6px; cursor:pointer; user-select:none;"
-          @click="toggleStatusVisibility(ring.label)"
+          :key="ring.label"
+          :text="ring.description"
+          location="top"
         >
-          <span class="ring-dot" :style="{ background: ring.color }" />
-          <span class="text-caption">{{ ring.label }}</span>
-        </div>
+          <template #activator="{ props: tooltipProps }">
+            <div 
+              v-bind="tooltipProps"
+              class="ring-key-item d-flex align-center" 
+              :class="{ 'ring-key-item--inactive': !isStatusVisible(ring.label) }"
+              style="gap:6px; cursor:pointer; user-select:none;"
+              @click="toggleStatusVisibility(ring.label)"
+            >
+              <span class="ring-dot" :style="{ background: ring.color }" />
+              <span class="text-caption">{{ ring.label }}</span>
+            </div>
+          </template>
+        </v-tooltip>
       </div>
       <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
         <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
@@ -630,11 +638,11 @@ const Q_ANGLES = [
 ]
 
 const RING_META = [
-  { label: 'Adopt', color: '#4caf50' },
-  { label: 'Trial', color: '#2196f3' },
-  { label: 'Assess', color: '#ff9800' },
-  { label: 'Hold', color: '#9e9e9e' },
-  { label: 'Retire', color: '#f44336' }
+  { label: 'Adopt', color: '#4caf50', description: 'We use this and recommend it.' },
+  { label: 'Trial', color: '#2196f3', description: 'We are testing this in selected production scenarios.' },
+  { label: 'Assess', color: '#ff9800', description: 'We are currently evaluating/testing this.' },
+  { label: 'Hold', color: '#9e9e9e', description: 'We use this, but do not recommend it for new features.' },
+  { label: 'Retire', color: '#f44336', description: 'We are actively replacing or removing this.' }
 ]
 
 // ── Sector path builder ──────────────────────────────────────────────────────
