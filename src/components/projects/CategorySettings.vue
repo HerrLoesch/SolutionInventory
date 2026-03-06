@@ -13,10 +13,22 @@
       <!-- VISIBILITY TAB -->
       <v-window v-model="activeTab">
         <v-window-item value="visibility">
-          <p class="text-body-2 text-medium-emphasis mb-3">
+          <p class="text-body-2 text-medium-emphasis mb-2">
             Choose which categories and aspects are <strong>shown</strong> in the project summary.
             Unchecked items will be hidden from the overview.
           </p>
+            <div class="cs-bulk-actions mb-2">
+            <v-tooltip text="Check all" location="top">
+              <template #activator="{ props: tp }">
+              <v-btn v-bind="tp" icon="mdi-check-all" size="x-small" variant="plain" @click="checkAllVis(true)" />
+              </template>
+            </v-tooltip>
+            <v-tooltip text="Uncheck all" location="top">
+              <template #activator="{ props: tp }">
+              <v-btn v-bind="tp" icon="mdi-close-box-multiple-outline" size="x-small" variant="plain" @click="checkAllVis(false)" class="ml-1" />
+              </template>
+            </v-tooltip>
+            </div>
           <v-list density="compact" class="cs-list pa-0">
             <template v-for="cat in categories" :key="cat.id">
               <v-list-item class="cs-category-row" @click="toggleExpand('vis', cat.id)">
@@ -66,10 +78,22 @@
 
         <!-- DEVIATION TAB -->
         <v-window-item value="deviation">
-          <p class="text-body-2 text-medium-emphasis mb-3">
+          <p class="text-body-2 text-medium-emphasis mb-2">
             Choose which categories and aspects must <strong>not</strong> deviate across questionnaires.
             Checked items will be highlighted in the project summary when answers differ.
           </p>
+          <div class="cs-bulk-actions mb-2">
+            <v-tooltip text="Check all" location="top">
+              <template #activator="{ props: tp }">
+                <v-btn v-bind="tp" icon="mdi-check-all" size="x-small" variant="tonal" @click="checkAllDev(true)" />
+              </template>
+            </v-tooltip>
+            <v-tooltip text="Uncheck all" location="top">
+              <template #activator="{ props: tp }">
+                <v-btn v-bind="tp" icon="mdi-close-box-multiple-outline" size="x-small" variant="tonal" @click="checkAllDev(false)" class="ml-1" />
+              </template>
+            </v-tooltip>
+          </div>
           <v-list density="compact" class="cs-list pa-0">
             <template v-for="cat in categories" :key="cat.id">
               <v-list-item class="cs-category-row" @click="toggleExpand('dev', cat.id)">
@@ -246,6 +270,26 @@ export default {
       emit('update:modelValue', next)
     }
 
+    // ── BULK CHECK/UNCHECK ALL ────────────────────────────────────────────────
+
+    function checkAllVis(value) {
+      const next = {}
+      props.categories.forEach((cat) => {
+        next[cat.id] = value
+        ;(cat.entries || []).forEach((e) => { next[e.id] = value })
+      })
+      emit('update:visibilitySettings', next)
+    }
+
+    function checkAllDev(value) {
+      const next = {}
+      props.categories.forEach((cat) => {
+        next[cat.id] = value
+        ;(cat.entries || []).forEach((e) => { next[e.id] = value })
+      })
+      emit('update:modelValue', next)
+    }
+
     return {
       activeTab,
       toggleExpand,
@@ -262,7 +306,10 @@ export default {
       devCategoryChecked,
       devCategoryIndeterminate,
       toggleDevCategory,
-      toggleDevEntry
+      toggleDevEntry,
+      // Bulk actions
+      checkAllVis,
+      checkAllDev
     }
   }
 }
@@ -313,5 +360,11 @@ export default {
 
 .expand-icon.expanded {
   transform: rotate(90deg);
+}
+
+.cs-bulk-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 </style>
