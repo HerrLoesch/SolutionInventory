@@ -552,6 +552,19 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return { ...project.radarCategoryQuadrants }
   }
 
+  function setProjectRadarQuadrantLabels(projectId, labels) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return
+    // labels is an object: { quadrantIndex: 'Custom Label' | '' }
+    project.radarQuadrantLabels = { ...labels }
+  }
+
+  function getProjectRadarQuadrantLabels(projectId) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project || !project.radarQuadrantLabels) return {}
+    return { ...project.radarQuadrantLabels }
+  }
+
   function setApplicability(entry, value) {
     if (!applicabilityOptions.includes(value)) {
       entry.applicability = 'applicable'
@@ -754,6 +767,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     getProjectRadarCategoryOrder,
     setProjectRadarCategoryQuadrants,
     getProjectRadarCategoryQuadrants,
+    setProjectRadarQuadrantLabels,
+    getProjectRadarQuadrantLabels,
     setApplicability,
     isEntryApplicable,
     getStatusTooltip,

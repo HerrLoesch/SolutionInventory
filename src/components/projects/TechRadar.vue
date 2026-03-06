@@ -571,6 +571,18 @@
             <!-- Quadrant chips with assigned categories -->
             <div v-for="q in quadrants" :key="q.index" class="mb-4">
               <div class="text-caption font-weight-bold text-uppercase mb-2">{{ q.label }}</div>
+              <v-text-field
+                v-model="quadrantLabelForm[q.index]"
+                :placeholder="autoQuadrantLabel(q.index)"
+                density="compact"
+                variant="outlined"
+                hide-details
+                clearable
+                label="Legend label (optional)"
+                class="mb-2"
+                @update:modelValue="updateQuadrantLabel(q.index, $event)"
+                @click:clear="updateQuadrantLabel(q.index, '')"
+              />
               <div
                 class="d-flex align-center flex-wrap"
                 style="gap:4px; min-height: 40px; padding: 8px; border: 2px dashed #ccc; border-radius: 4px; background: rgba(0,0,0,0.02);"
@@ -762,6 +774,23 @@ export default {
     ]
     const draggedCategory = ref(null)
     const visibleStatuses = ref(new Set(['adopt', 'trial', 'assess', 'hold', 'retire']))
+
+    // ── Quadrant label overrides ─────────────────────────────────────────────
+    // Local form state for editing in the config dialog (0-3 keyed by quadrant index)
+    const quadrantLabelForm = ref({ 0: '', 1: '', 2: '', 3: '' })
+
+    // Populate form when the dialog opens
+    watch(quadrantConfigDialog, (open) => {
+      if (open) {
+        const overrides = store.getProjectRadarQuadrantLabels(props.projectId)
+        quadrantLabelForm.value = {
+          0: overrides[0] || '',
+          1: overrides[1] || '',
+          2: overrides[2] || '',
+          3: overrides[3] || ''
+        }
+      }
+    })
 
     // ── Visible ring tracking ────────────────────────────────────────────────
     // List of visible ring indices (0-4 corresponding to RING_META)
@@ -1186,6 +1215,47 @@ export default {
       return q
     })
 
+    // Effective label for each quadrant: custom override > auto-generated from categories
+    const effectiveQuadrantLabels = computed(() => {
+      const overrides = store.getProjectRadarQuadrantLabels(props.projectId)
+      const result = {}
+      for (let qi = 0; qi < 4; qi++) {
+        const override = (overrides[qi] || '').trim()
+        if (override) {
+          result[qi] = override
+        } else {
+          const q = quadrants.value.find(quad => quad.index === qi)
+          if (!q || q.categories.length === 0) {
+            result[qi] = ''
+          } else if (q.categories.length === 1) {
+            result[qi] = q.categories[0]
+          } else {
+            result[qi] = `${q.categories[0]} (+${q.categories.length - 1})`
+          }
+        }
+      }
+      return result
+    })
+
+    // Auto-generated label (no override) — used as placeholder in the config form
+    function autoQuadrantLabel (qIndex) {
+      const q = quadrants.value.find(quad => quad.index === qIndex)
+      if (!q || q.categories.length === 0) return `Quadrant ${qIndex + 1}`
+      if (q.categories.length === 1) return q.categories[0]
+      return `${q.categories[0]} (+${q.categories.length - 1})`
+    }
+
+    // Persist label change immediately (called on every input in the config dialog)
+    function updateQuadrantLabel (qIndex, value) {
+      const labels = store.getProjectRadarQuadrantLabels(props.projectId)
+      if (value && value.trim()) {
+        labels[qIndex] = value.trim()
+      } else {
+        delete labels[qIndex]
+      }
+      store.setProjectRadarQuadrantLabels(props.projectId, labels)
+    }
+
     // Blips filtered by answerType, selected categories AND visible statuses
     const visibleBlips = computed(() => {
       let blips = answerTypeFilter.value === 'all'
@@ -1210,22 +1280,10 @@ export default {
       return blips
     })
 
-    // Dynamic quadrant corner labels from assigned categories
+    // Dynamic quadrant corner labels: use effective label (custom override or auto from categories)
     const activeQuadrantLabels = computed(() => {
-      const labels = ['', '', '', '']
-      const quads = quadrants.value
-      
-      for (const q of quads) {
-        if (q.categories.length === 0) {
-          labels[q.index] = ''
-        } else if (q.categories.length === 1) {
-          labels[q.index] = q.categories[0]
-        } else {
-          labels[q.index] = `${q.categories[0]} (+${q.categories.length - 1})`
-        }
-      }
-      
-      return Q_LABEL_POSITIONS.map((pos, i) => ({ ...pos, text: labels[i] }))
+      const effLabels = effectiveQuadrantLabels.value
+      return Q_LABEL_POSITIONS.map((pos, i) => ({ ...pos, text: effLabels[i] || '' }))
     })
 
     // ── Blip placement ───────────────────────────────────────────────────────
@@ -1294,20 +1352,13 @@ export default {
         bins[blip.quadrant][blip.ring].push(blip)
       }
 
-      // Get categories for each quadrant
-      const categoriesByQuadrant = {}
-      for (const q of quadrants.value) {
-        categoriesByQuadrant[q.index] = q.categories
-      }
-      
       const groups = []
       for (let qi = 0; qi < 4; qi++) {
         const hasBlips = bins[qi].some(ringBlips => ringBlips.length > 0)
         if (!hasBlips) continue
         
-        // Label is only the category names
-        const categories = categoriesByQuadrant[qi] || []
-        const label = categories.join(' + ')
+        // Label: use effective label (override if set, otherwise auto from categories)
+        const label = effectiveQuadrantLabels.value[qi] || ''
         
         const statusGroups = []
         for (let ri = 0; ri < 5; ri++) {
@@ -1528,13 +1579,21 @@ export default {
     // -----------------------------------------------------------------------
     function exportRadarJson () {
       const blips = allBlips.value
-      const data = blips.map((blip) => ({
-        name: blip.name,
-        ring: RING_META[blip.ring]?.label ?? 'Hold',
-        quadrant: blip.categoryTitle || blip.questionnaireName || 'Other',
-        isNew: 'FALSE',
-        description: blip.radarComment || blip.comment || ''
-      }))
+      const catToQ = categoryToQuadrant.value
+      const effLabels = effectiveQuadrantLabels.value
+      const data = blips.map((blip) => {
+        const qIdx = catToQ.get(blip.categoryTitle)
+        const quadrantLabel = (qIdx !== undefined && effLabels[qIdx])
+          ? effLabels[qIdx]
+          : (blip.categoryTitle || blip.questionnaireName || 'Other')
+        return {
+          name: blip.name,
+          ring: RING_META[blip.ring]?.label ?? 'Hold',
+          quadrant: quadrantLabel,
+          isNew: 'FALSE',
+          description: blip.radarComment || blip.comment || ''
+        }
+      })
 
       const json = JSON.stringify(data, null, 2)
       const blob = new Blob([json], { type: 'application/json' })
@@ -1654,7 +1713,11 @@ export default {
       radarLayoutRef,
       isDownloading,
       downloadRadar,
-      exportRadarJson
+      exportRadarJson,
+      quadrantLabelForm,
+      effectiveQuadrantLabels,
+      autoQuadrantLabel,
+      updateQuadrantLabel
     }
   }
 }
