@@ -1,6 +1,6 @@
-# Solution Inventory PWA
+# Solution Inventory
 
-Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.
+Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. Available as both a Progressive Web App (PWA) and an Electron desktop application. It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.
 
 ## Features
 - Project tree with create/rename/delete and drag-and-drop (move and reorder questionnaires)
@@ -21,7 +21,7 @@ Vue 3 + Vuetify application for documenting solution questionnaires across multi
 - Status and applicability selects with descriptions
 - Resizable sidebar: drag the right edge of the navigation drawer (160–640 px, persisted)
 - Configuration editor (dialog) for categories and entries
-- Project import/export (JSON)
+- Project import/export (JSON and Excel)
 - Auto-save to localStorage with last-saved indicator
 - Sample data loader in the app bar
 
@@ -32,24 +32,44 @@ Vue 3 + Vuetify application for documenting solution questionnaires across multi
 npm install
 ```
 
-### Development
+### Development (PWA)
 ```bash
 npm run dev
 ```
 
-### Production Build
+### Development (Electron)
+```bash
+npm run electron:dev
+```
+
+### Production Build (PWA)
 ```bash
 npm run build
 ```
 
-### Preview Build
+### Production Build (Electron)
+```bash
+npm run electron:build
+```
+
+### Preview Build (PWA)
 ```bash
 npm run preview
+```
+
+### Preview Build (Electron)
+```bash
+npm run electron:preview
 ```
 
 ### E2E Tests
 ```bash
 npm run test:e2e
+```
+
+### Test Report
+```bash
+npm run test:e2e:report
 ```
 
 ## Project Structure
@@ -76,17 +96,30 @@ src/
 └── stores/
     └── workspaceStore.js
 
-data/
-└── sample_export.json
+electron/
+├── main.js
+└── preload.js
+
+public/
+
+scripts/
 
 tests/
+├── data/
+│   ├── golden_sample_project.json
+│   └── sample_questionaire.json
 ├── features/
+│   ├── export-import.feature
 │   ├── project.feature
 │   └── questionaire.feature
 ├── step_definitions/
-│   └── project.steps.js
+│   ├── export-import.steps.js
+│   ├── project.steps.js
+│   └── questionaire.steps.js
 └── support/
     └── world.js
+
+test-results/
 ```
 
 ## Data Model (high level)
