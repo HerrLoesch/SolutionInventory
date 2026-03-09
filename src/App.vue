@@ -148,6 +148,7 @@ export default {
 
     const isElectron = !!(window.electronAPI)
     const baseUrl = import.meta.env.BASE_URL
+    const appVersion = __APP_VERSION__
     const workspaceSetupDir = ref('')
 
     async function selectDirectory() {
@@ -175,6 +176,7 @@ export default {
       workspaceConfigOpen,
       isElectron,
       baseUrl,
+      appVersion,
       workspaceDirNeeded,
       workspaceSetupDir,
       selectDirectory,
