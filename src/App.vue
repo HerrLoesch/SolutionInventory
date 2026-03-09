@@ -46,6 +46,47 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- Electron: Workspace-Verzeichnis einrichten (erster Start) -->
+    <v-dialog v-if="isElectron" v-model="workspaceDirNeeded" persistent max-width="500">
+      <v-card>
+        <v-card-title class="text-h6">Workspace einrichten</v-card-title>
+        <v-divider />
+        <v-card-text>
+          <p class="mb-4">
+            Bitte wähle ein Verzeichnis, in dem deine Workspace-Daten gespeichert werden sollen.
+            Die Daten werden als Datei <code>solution-inventory-data.json</code> in diesem Verzeichnis abgelegt.
+          </p>
+          <v-text-field
+            v-model="workspaceSetupDir"
+            label="Workspace-Verzeichnis"
+            variant="outlined"
+            readonly
+            hide-details
+            :placeholder="'Noch kein Verzeichnis gewählt'"
+          >
+            <template #append-inner>
+              <v-btn icon variant="text" size="small" @click="selectDirectory">
+                <v-icon>mdi-folder-open</v-icon>
+                <v-tooltip activator="parent" location="bottom">Verzeichnis auswählen</v-tooltip>
+              </v-btn>
+            </template>
+          </v-text-field>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="primary"
+            variant="elevated"
+            :disabled="!workspaceSetupDir"
+            @click="confirmWorkspace"
+          >
+            Bestätigen
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -95,11 +136,24 @@ export default {
       document.removeEventListener('mouseup', stopResize)
     })
     const store = useWorkspaceStore()
-    const { lastSaved } = storeToRefs(store)
+    const { lastSaved, workspaceDirNeeded } = storeToRefs(store)
+
+    const isElectron = !!(window.electronAPI)
+    const workspaceSetupDir = ref('')
+
+    async function selectDirectory() {
+      const dir = await window.electronAPI.selectWorkspaceDir()
+      if (dir) workspaceSetupDir.value = dir
+    }
+
+    async function confirmWorkspace() {
+      if (!workspaceSetupDir.value) return
+      await store.setWorkspaceDir(workspaceSetupDir.value)
+    }
 
     // Beim Start versuchen, gespeicherte Daten zu laden
-    onMounted(() => {
-      store.initFromStorage()
+    onMounted(async () => {
+      await store.initFromStorage()
       store.startAutoSave()
     })
 
@@ -109,7 +163,12 @@ export default {
       drawerOpen,
       drawerWidth,
       startResize,
-      workspaceConfigOpen
+      workspaceConfigOpen,
+      isElectron,
+      workspaceDirNeeded,
+      workspaceSetupDir,
+      selectDirectory,
+      confirmWorkspace
     }
   }
 }

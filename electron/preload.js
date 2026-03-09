@@ -4,7 +4,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
-  saveFile: (filePath, data) => ipcRenderer.invoke('save-file', { filePath, data }),
-  loadFile: (filePath) => ipcRenderer.invoke('load-file', filePath),
-  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path')
+  // Workspace directory management
+  getWorkspaceDir: () => ipcRenderer.invoke('get-workspace-dir'),
+  setWorkspaceDir: (dirPath) => ipcRenderer.invoke('set-workspace-dir', dirPath),
+  selectWorkspaceDir: () => ipcRenderer.invoke('select-workspace-dir'),
+  // Data file I/O (replaces localStorage in Electron mode)
+  readDataFile: () => ipcRenderer.invoke('read-data-file'),
+  writeDataFile: (jsonString) => ipcRenderer.invoke('write-data-file', jsonString),
 });
