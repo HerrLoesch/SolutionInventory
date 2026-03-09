@@ -13,13 +13,30 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build and Release
+    name: Build (${{ matrix.artifact_name }})
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    
+        include:
+          - os: macos-latest
+            arch: arm64
+            artifact_name: macos-arm64
+            electron_flags: --mac --arm64
+          - os: macos-13
+            arch: x64
+            artifact_name: macos-x64
+            electron_flags: --mac --x64
+          - os: ubuntu-latest
+            arch: x64
+            artifact_name: linux-x64
+            electron_flags: --linux --x64
+          - os: windows-latest
+            arch: x64
+            artifact_name: windows-x64
+            electron_flags: --win --x64
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,18 +47,23 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Configure Git identity
+        run: |
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           npm version $VERSION --no-git-tag-version
 
       - name: Increment version for dev builds
-        if: github.ref == 'refs/heads/dev' && !startsWith(github.ref, 'refs/tags/v')
-        run: |
-          npm version patch --no-git-tag-version
+        if: github.ref == 'refs/heads/dev'
+        run: npm version patch --no-git-tag-version
 
-      - name: Install system dependencies for Playwright (Ubuntu)
+      - name: Install system dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
@@ -73,30 +95,65 @@ jobs:
             libgbm1 \
             libdrm2 \
             libhyphen0 \
-            libgles2
+            libgles2 \
+            rpm \
+            fakeroot \
+            dpkg
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Electron app
-        run: npm run electron:build
+      - name: Install Playwright browser with system dependencies (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: npx playwright install --with-deps chromium
+
+      - name: Start dev server for E2E tests (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: nohup npx vite --host > /tmp/vite.log 2>&1 &
+
+      - name: Wait for dev server (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173/SolutionInventory/ > /dev/null 2>&1; then
+              echo "Server is up after $i attempts"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 2s..."
+            sleep 2
+          done
+          echo "Server did not respond. Vite log:"
+          cat /tmp/vite.log
+          exit 1
+
+      - name: Run E2E tests (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: npx cucumber-js
+        continue-on-error: true
+
+      - name: Stop dev server (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: pkill -f "vite" || true
+
+      - name: Build Vite + Electron app
+        run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (macOS)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' || matrix.os == 'macos-13'
         uses: actions/upload-artifact@v4
         with:
-          name: macos-release
+          name: ${{ matrix.artifact_name }}
           path: |
             release/*.dmg
             release/*.zip
 
-      - name: Upload artifacts (Ubuntu)
+      - name: Upload artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: linux-release
+          name: ${{ matrix.artifact_name }}
           path: |
             release/*.AppImage
             release/*.deb
@@ -105,28 +162,80 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: windows-release
+          name: ${{ matrix.artifact_name }}
           path: |
             release/*.exe
-            
+
   create-release:
     name: Create GitHub Release
     needs: build-and-release
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    
+    if: always() && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/v'))
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git identity
+        run: |
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version
+
+      - name: Increment version for dev builds
+        if: github.ref == 'refs/heads/dev'
+        run: npm version patch --no-git-tag-version
+
+      - name: Read version
+        id: pkg_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create Pre-Release (dev branch)
+        if: github.ref == 'refs/heads/dev'
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/**/*
-          draft: false
+          tag_name: dev-v${{ steps.pkg_version.outputs.version }}-${{ github.run_number }}
+          name: "Dev Build v${{ steps.pkg_version.outputs.version }} (#${{ github.run_number }})"
+          body: |
+            🔧 **Automated dev build** from branch `dev`
+
+            Commit: ${{ github.sha }}
+            Run: #${{ github.run_number }}
+
+            > This is a pre-release build and may be unstable.
+          prerelease: true
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Stable Release (tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.pkg_version.outputs.version }}
+          name: "Release v${{ steps.pkg_version.outputs.version }}"
+          body: |
+            🚀 **Release v${{ steps.pkg_version.outputs.version }}**
           prerelease: false
+          files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
