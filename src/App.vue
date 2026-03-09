@@ -10,7 +10,7 @@
         alt="Solution Inventory"
         width="28"
         height="28"
-        class="ml-1 mr-2"
+        class="ml-1 mr-1"
         style="flex: none;"
       />
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
