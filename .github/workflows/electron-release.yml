@@ -1,28 +1,37 @@
-name: Build and Release Electron App
+name: Release on Merge to Main
 
 on:
   push:
     branches:
-      - dev
-    tags:
-      - 'v*'
-  workflow_dispatch:
+      - main
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    name: Build and Release
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    
+  # ------------------------------------------------------------------
+  # 1. Bump the minor version, commit it back to main and create a tag
+  # ------------------------------------------------------------------
+  version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    # Prevent infinite loop: skip if the commit was created by this workflow
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,62 +39,82 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install system dependencies for Playwright (Ubuntu)
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git identity
+        run: |
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+
+      - name: Bump minor version and push
+        id: bump
+        run: |
+          npm version minor --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          git add package.json package-lock.json
+          git commit -m "chore: release v${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+          git push origin main --follow-tags
+
+  # ------------------------------------------------------------------
+  # 2. Build the Electron app (parallel matrix: Linux + Windows)
+  # ------------------------------------------------------------------
+  build-electron:
+    name: Build Electron (${{ matrix.artifact_name }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: linux-x64
+            electron_flags: --linux --x64
+          - os: windows-latest
+            artifact_name: windows-x64
+            electron_flags: --win --x64
+
+    steps:
+      - name: Checkout tagged release
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install system dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libx11-xcb1 \
-            libxrandr2 \
-            libxcomposite1 \
-            libxcursor1 \
-            libxdamage1 \
-            libxfixes3 \
-            libxi6 \
-            libgtk-3-0t64 \
-            libatk1.0-0t64 \
-            libcairo-gobject2 \
-            libgdk-pixbuf-2.0-0 \
-            libasound2t64 \
-            libgtk-4-1 \
-            libvulkan1 \
-            libopus0 \
-            libgstreamer1.0-0 \
-            libgstreamer-plugins-base1.0-0 \
-            libgstreamer-plugins-bad1.0-0 \
-            libflite1 \
-            libwebp7 \
-            libharfbuzz-icu0 \
-            libwayland-server0 \
-            libmanette-0.2-0 \
-            libenchant-2-2 \
-            libgbm1 \
-            libdrm2 \
-            libhyphen0 \
-            libgles2
+            libx11-xcb1 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 \
+            libxfixes3 libxi6 libgtk-3-0t64 libatk1.0-0t64 libcairo-gobject2 \
+            libgdk-pixbuf-2.0-0 libasound2t64 libgtk-4-1 libvulkan1 libopus0 \
+            libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
+            libgstreamer-plugins-bad1.0-0 libflite1 libwebp7 libharfbuzz-icu0 \
+            libwayland-server0 libmanette-0.2-0 libenchant-2-2 libgbm1 libdrm2 \
+            libhyphen0 libgles2 rpm fakeroot dpkg
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Electron app
-        run: npm run electron:build
+      - name: Build Vite + Electron app
+        run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifacts (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-release
-          path: |
-            release/*.dmg
-            release/*.zip
-
-      - name: Upload artifacts (Ubuntu)
+      - name: Upload artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: linux-release
+          name: ${{ matrix.artifact_name }}
           path: |
             release/*.AppImage
             release/*.deb
@@ -94,16 +123,17 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: windows-release
-          path: |
-            release/*.exe
-            
+          name: ${{ matrix.artifact_name }}
+          path: release/*.exe
+
+  # ------------------------------------------------------------------
+  # 3. Create a GitHub Release with all Electron artifacts
+  # ------------------------------------------------------------------
   create-release:
     name: Create GitHub Release
-    needs: build-and-release
+    needs: [version, build-electron]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -111,11 +141,54 @@ jobs:
           path: artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/**/*
-          draft: false
+          tag_name: v${{ needs.version.outputs.version }}
+          name: "Release v${{ needs.version.outputs.version }}"
+          body: |
+            ?? **Release v${{ needs.version.outputs.version }}**
+
+            Automatically built and released on merge to `main`.
+            Commit: ${{ github.sha }}
           prerelease: false
+          files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ------------------------------------------------------------------
+  # 4. Build the web app and deploy to GitHub Pages
+  # ------------------------------------------------------------------
+  deploy-pages:
+    name: Deploy GitHub Pages
+    needs: version
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout tagged release
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web application
+        run: npx vite build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

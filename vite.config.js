@@ -1,12 +1,18 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { readFileSync } from 'fs'
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 export default defineConfig(({ mode }) => {
   const isElectron = mode === 'electron';
   
   return {
     base: isElectron ? './' : '/SolutionInventory/',
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version)
+    },
     plugins: [
       vue(),
       // Only include PWA plugin for web build
@@ -19,8 +25,7 @@ export default defineConfig(({ mode }) => {
           display: 'standalone',
           background_color: '#ffffff',
           icons: [
-            { src: '/SolutionInventory/pwa-192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/SolutionInventory/pwa-512.png', sizes: '512x512', type: 'image/png' }
+            { src: '/SolutionInventory/Logo-Large.png', sizes: '512x512', type: 'image/png' }
           ]
         }
       })

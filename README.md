@@ -1,5 +1,9 @@
 # Solution Inventory
 
+<p align="center">
+  <img src="public/Logo-Large.png" alt="Solution Inventory" width="180" />
+</p>
+
 Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. Available as both a Progressive Web App (PWA) and an Electron desktop application. It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.
 
 ## Features

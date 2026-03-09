@@ -5,6 +5,14 @@
         <v-icon>mdi-menu</v-icon>
         <v-tooltip activator="parent" location="bottom">Toggle sidebar</v-tooltip>
       </v-btn>
+      <v-img
+        :src="baseUrl + 'Logo-small.png'"
+        alt="Solution Inventory"
+        width="28"
+        height="28"
+        class="ml-1 mr-1"
+        style="flex: none;"
+      />
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
 
       <v-spacer />
@@ -44,6 +52,47 @@
         <v-card-text>
           <WorkspaceConfig @close="workspaceConfigOpen = false" />
         </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- Electron: Set up workspace directory (first launch) -->
+    <v-dialog v-if="isElectron" v-model="workspaceDirNeeded" persistent max-width="500">
+      <v-card>
+        <v-card-title class="text-h6">Set Up Workspace</v-card-title>
+        <v-divider />
+        <v-card-text>
+          <p class="mb-4">
+            Please choose a directory where your workspace data will be stored.
+            The data will be saved as <code>solution-inventory-data.json</code> in that directory.
+          </p>
+          <v-text-field
+            v-model="workspaceSetupDir"
+            label="Workspace Directory"
+            variant="outlined"
+            readonly
+            hide-details
+            :placeholder="'No directory selected'"
+          >
+            <template #append-inner>
+              <v-btn icon variant="text" size="small" @click="selectDirectory">
+                <v-icon>mdi-folder-open</v-icon>
+                <v-tooltip activator="parent" location="bottom">Choose directory</v-tooltip>
+              </v-btn>
+            </template>
+          </v-text-field>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="primary"
+            variant="elevated"
+            :disabled="!workspaceSetupDir"
+            @click="confirmWorkspace"
+          >
+            Confirm
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-app>
@@ -95,11 +144,25 @@ export default {
       document.removeEventListener('mouseup', stopResize)
     })
     const store = useWorkspaceStore()
-    const { lastSaved } = storeToRefs(store)
+    const { lastSaved, workspaceDirNeeded } = storeToRefs(store)
+
+    const isElectron = !!(window.electronAPI)
+    const baseUrl = import.meta.env.BASE_URL
+    const workspaceSetupDir = ref('')
+
+    async function selectDirectory() {
+      const dir = await window.electronAPI.selectWorkspaceDir()
+      if (dir) workspaceSetupDir.value = dir
+    }
+
+    async function confirmWorkspace() {
+      if (!workspaceSetupDir.value) return
+      await store.setWorkspaceDir(workspaceSetupDir.value)
+    }
 
     // Beim Start versuchen, gespeicherte Daten zu laden
-    onMounted(() => {
-      store.initFromStorage()
+    onMounted(async () => {
+      await store.initFromStorage()
       store.startAutoSave()
     })
 
@@ -109,7 +172,13 @@ export default {
       drawerOpen,
       drawerWidth,
       startResize,
-      workspaceConfigOpen
+      workspaceConfigOpen,
+      isElectron,
+      baseUrl,
+      workspaceDirNeeded,
+      workspaceSetupDir,
+      selectDirectory,
+      confirmWorkspace
     }
   }
 }

@@ -1,35 +1,93 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) {
-  app.quit();
+const DATA_FILE_NAME = 'solution-inventory-data.json';
+
+function getConfigPath() {
+  return path.join(app.getPath('userData'), 'app-config.json');
+}
+
+function readConfig() {
+  try {
+    const configPath = getConfigPath();
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    }
+  } catch (e) {
+    console.error('Error reading config:', e);
+  }
+  return {};
+}
+
+function writeConfig(config) {
+  try {
+    fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
+  } catch (e) {
+    console.error('Error writing config:', e);
+  }
 }
 
 let mainWindow;
+let splashWindow;
+
+function getLogoPath(size) {
+  if (size === 'icon') {
+    return app.isPackaged
+      ? path.join(__dirname, '../dist/icon.ico')
+      : path.join(__dirname, '../public/icon.ico');
+  }
+  const name = size === 'small' ? 'Logo-small.png' : 'Logo-Large.png';
+  return app.isPackaged
+    ? path.join(__dirname, '../dist', name)
+    : path.join(__dirname, '../public', name);
+}
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 360,
+    height: 320,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    center: true,
+    skipTaskbar: true,
+    icon: process.platform === 'win32' ? getLogoPath('icon') : getLogoPath('large')
+  });
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'), {
+    query: { logo: getLogoPath('large') }
+  });
+}
 
 function createWindow() {
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, '../public/icon.png')
+    icon: process.platform === 'win32' ? getLogoPath('icon') : getLogoPath('large')
   });
 
   // In production, load the built files
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   } else {
-    // In development, load from Vite dev server
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   }
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -39,6 +97,7 @@ function createWindow() {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app.whenReady().then(() => {
+  createSplashWindow();
   createWindow();
 
   app.on('activate', () => {
@@ -57,42 +116,53 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC handlers for file operations
-ipcMain.handle('save-file', async (event, { filePath, data }) => {
+// IPC handlers for workspace directory management
+ipcMain.handle('get-workspace-dir', async () => {
+  const config = readConfig();
+  return config.workspaceDir || null;
+});
+
+ipcMain.handle('set-workspace-dir', async (event, dirPath) => {
+  const config = readConfig();
+  config.workspaceDir = dirPath;
+  writeConfig(config);
+  return { success: true };
+});
+
+ipcMain.handle('select-workspace-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Workspace Directory',
+    properties: ['openDirectory', 'createDirectory'],
+    buttonLabel: 'Use as Workspace'
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+// IPC handlers for data file I/O in the workspace directory
+ipcMain.handle('read-data-file', async () => {
   try {
-    const userDataPath = app.getPath('userData');
-    const fullPath = path.join(userDataPath, filePath);
-    const dir = path.dirname(fullPath);
-    
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    fs.writeFileSync(fullPath, JSON.stringify(data, null, 2));
-    return { success: true, path: fullPath };
+    const config = readConfig();
+    if (!config.workspaceDir) return { success: false, error: 'No workspace dir configured' };
+    const filePath = path.join(config.workspaceDir, DATA_FILE_NAME);
+    if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return { success: true, data: JSON.parse(content) };
   } catch (error) {
-    console.error('Error saving file:', error);
+    console.error('Error reading data file:', error);
     return { success: false, error: error.message };
   }
 });
 
-ipcMain.handle('load-file', async (event, filePath) => {
+ipcMain.handle('write-data-file', async (event, jsonString) => {
   try {
-    const userDataPath = app.getPath('userData');
-    const fullPath = path.join(userDataPath, filePath);
-    
-    if (fs.existsSync(fullPath)) {
-      const data = fs.readFileSync(fullPath, 'utf-8');
-      return { success: true, data: JSON.parse(data) };
-    }
-    return { success: false, error: 'File not found' };
+    const config = readConfig();
+    if (!config.workspaceDir) return { success: false, error: 'No workspace dir configured' };
+    const filePath = path.join(config.workspaceDir, DATA_FILE_NAME);
+    fs.writeFileSync(filePath, jsonString);
+    return { success: true, path: filePath };
   } catch (error) {
-    console.error('Error loading file:', error);
+    console.error('Error writing data file:', error);
     return { success: false, error: error.message };
   }
-});
-
-ipcMain.handle('get-user-data-path', async () => {
-  return app.getPath('userData');
 });

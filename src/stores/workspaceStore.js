@@ -42,6 +42,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const lastSaved = ref('')
   const autoSaveStarted = ref(false)
   const pendingNavigation = ref(null) // { questionnaireId, categoryId, entryId } | null
+  const workspaceDirNeeded = ref(false)
 
   const activeQuestionnaire = computed(() => {
     return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
@@ -86,40 +87,71 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return [...projectTabs, ...questionnaireTabs]
   })
 
-  function initFromStorage() {
+  function applyStoredData(data) {
+    if (data.version === STORAGE_VERSION && data.workspace) {
+      workspace.value = data.workspace
+      activeQuestionnaireId.value = ''
+      openQuestionnaireIds.value = []
+      activeWorkspaceTabId.value = ''
+      openProjectSummaryIds.value = []
+      hydrateLastSaved(data.timestamp)
+      return true
+    }
+    if (data.version === STORAGE_VERSION && data.categories) {
+      const initialQuestionnaire = createQuestionnaire('Current questionnaire', data.categories)
+      workspace.value = createWorkspace([], [initialQuestionnaire])
+      activeQuestionnaireId.value = ''
+      openQuestionnaireIds.value = []
+      activeWorkspaceTabId.value = ''
+      openProjectSummaryIds.value = []
+      hydrateLastSaved(data.timestamp)
+      return true
+    }
+    return false
+  }
+
+  async function initFromStorage() {
+    // --- Electron: file-based storage ---
+    if (window.electronAPI) {
+      const dir = await window.electronAPI.getWorkspaceDir()
+      if (!dir) {
+        workspaceDirNeeded.value = true
+        return
+      }
+      workspaceDirNeeded.value = false
+      const result = await window.electronAPI.readDataFile()
+      if (result.success) {
+        try {
+          if (!applyStoredData(result.data)) seedWorkspace()
+        } catch (error) {
+          console.error('Error applying stored data:', error)
+          seedWorkspace()
+        }
+      } else {
+        seedWorkspace()
+      }
+      return
+    }
+
+    // --- Web: localStorage ---
     const saved = localStorage.getItem(STORAGE_KEY)
     if (!saved) {
       seedWorkspace()
       return
     }
-
     try {
       const data = JSON.parse(saved)
-      if (data.version === STORAGE_VERSION && data.workspace) {
-        workspace.value = data.workspace
-        activeQuestionnaireId.value = ''
-        openQuestionnaireIds.value = []
-        activeWorkspaceTabId.value = ''
-        openProjectSummaryIds.value = []
-        hydrateLastSaved(data.timestamp)
-        return
-      }
-
-      if (data.version === STORAGE_VERSION && data.categories) {
-        const initialQuestionnaire = createQuestionnaire('Current questionnaire', data.categories)
-        workspace.value = createWorkspace([], [initialQuestionnaire])
-        activeQuestionnaireId.value = ''
-        openQuestionnaireIds.value = []
-        activeWorkspaceTabId.value = ''
-        openProjectSummaryIds.value = []
-        hydrateLastSaved(data.timestamp)
-        return
-      }
+      if (!applyStoredData(data)) seedWorkspace()
     } catch (error) {
       console.error('Error loading from localStorage:', error)
+      seedWorkspace()
     }
+  }
 
-    seedWorkspace()
+  async function setWorkspaceDir(dirPath) {
+    if (!window.electronAPI) return
+    await window.electronAPI.setWorkspaceDir(dirPath)
+    await initFromStorage()
   }
 
   function seedWorkspace() {
@@ -132,31 +164,46 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openProjectSummaryIds.value = []
   }
 
+  let persistDebounceTimer = null
+
   function startAutoSave() {
     if (autoSaveStarted.value) return
     autoSaveStarted.value = true
     watch(
       () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value],
-      () => persist(),
+      () => {
+        clearTimeout(persistDebounceTimer)
+        persistDebounceTimer = setTimeout(() => persist(), 500)
+      },
       { deep: true }
     )
   }
 
-  function persist() {
-    try {
-      const dataToSave = {
-        version: STORAGE_VERSION,
-        timestamp: new Date().toISOString(),
-        workspace: workspace.value,
-        activeQuestionnaireId: activeQuestionnaireId.value,
-        openQuestionnaireIds: openQuestionnaireIds.value,
-        activeWorkspaceTabId: activeWorkspaceTabId.value,
-        openProjectSummaryIds: openProjectSummaryIds.value
+  async function persist() {
+    const dataToSave = {
+      version: STORAGE_VERSION,
+      timestamp: new Date().toISOString(),
+      workspace: workspace.value,
+      activeQuestionnaireId: activeQuestionnaireId.value,
+      openQuestionnaireIds: openQuestionnaireIds.value,
+      activeWorkspaceTabId: activeWorkspaceTabId.value,
+      openProjectSummaryIds: openProjectSummaryIds.value
+    }
+
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.writeDataFile(JSON.stringify(dataToSave, null, 2))
+        hydrateLastSaved(dataToSave.timestamp)
+      } catch (error) {
+        console.error('Error saving to file:', error)
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
-      hydrateLastSaved(dataToSave.timestamp)
-    } catch (error) {
-      console.error('Error saving to localStorage:', error)
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
+        hydrateLastSaved(dataToSave.timestamp)
+      } catch (error) {
+        console.error('Error saving to localStorage:', error)
+      }
     }
   }
 
@@ -292,7 +339,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return questionnaire.id
   }
 
-  function importProject(projectName, questionnaires) {
+  function importProject(projectName, questionnaires, radarData = {}) {
     const name = String(projectName || '').trim()
     if (!name) return
     const projectId = addProject(name)
@@ -307,6 +354,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         ? [...project.questionnaireIds, created.id]
         : [created.id]
     })
+    if (Array.isArray(radarData.radarRefs)) project.radarRefs = radarData.radarRefs
+    if (Array.isArray(radarData.radarOverrides)) project.radarOverrides = radarData.radarOverrides
+    if (Array.isArray(radarData.radarCategoryOrder)) project.radarCategoryOrder = radarData.radarCategoryOrder
   }
 
   function deleteQuestionnaire(questionnaireId) {
@@ -415,7 +465,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const exportData = {
       project: {
         id: project.id,
-        name: project.name
+        name: project.name,
+        radarRefs: Array.isArray(project.radarRefs) ? project.radarRefs : [],
+        radarOverrides: Array.isArray(project.radarOverrides) ? project.radarOverrides : [],
+        radarCategoryOrder: Array.isArray(project.radarCategoryOrder) ? project.radarCategoryOrder : []
       },
       questionnaires
     }
@@ -743,11 +796,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeWorkspaceTabId,
     openProjectSummaryIds,
     lastSaved,
+    workspaceDirNeeded,
     activeQuestionnaire,
     activeCategories,
     openTabs,
     workspaceTabs,
     initFromStorage,
+    setWorkspaceDir,
     startAutoSave,
     persist,
     setActiveQuestionnaire,

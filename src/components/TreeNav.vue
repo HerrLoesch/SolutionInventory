@@ -563,7 +563,12 @@ export default {
               categories: item.categories
             }
           })
-          store.importProject(projectName, questionnaires)
+          const radarData = {
+            radarRefs: Array.isArray(data?.project?.radarRefs) ? data.project.radarRefs : [],
+            radarOverrides: Array.isArray(data?.project?.radarOverrides) ? data.project.radarOverrides : [],
+            radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : []
+          }
+          store.importProject(projectName, questionnaires, radarData)
           closeImportDialog()
         } catch (err) {
           importError.value = `Import failed: ${err.message}`
