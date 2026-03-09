@@ -339,7 +339,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return questionnaire.id
   }
 
-  function importProject(projectName, questionnaires) {
+  function importProject(projectName, questionnaires, radarData = {}) {
     const name = String(projectName || '').trim()
     if (!name) return
     const projectId = addProject(name)
@@ -354,6 +354,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         ? [...project.questionnaireIds, created.id]
         : [created.id]
     })
+    if (Array.isArray(radarData.radarRefs)) project.radarRefs = radarData.radarRefs
+    if (Array.isArray(radarData.radarOverrides)) project.radarOverrides = radarData.radarOverrides
+    if (Array.isArray(radarData.radarCategoryOrder)) project.radarCategoryOrder = radarData.radarCategoryOrder
   }
 
   function deleteQuestionnaire(questionnaireId) {
@@ -462,7 +465,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const exportData = {
       project: {
         id: project.id,
-        name: project.name
+        name: project.name,
+        radarRefs: Array.isArray(project.radarRefs) ? project.radarRefs : [],
+        radarOverrides: Array.isArray(project.radarOverrides) ? project.radarOverrides : [],
+        radarCategoryOrder: Array.isArray(project.radarCategoryOrder) ? project.radarCategoryOrder : []
       },
       questionnaires
     }

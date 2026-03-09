@@ -79,7 +79,12 @@ When('I import the {string} file', async function (filename) {
       name: q.name || 'Imported questionnaire',
       categories: q.categories,
     }))
-    store.importProject(data.project.name, questionnaires)
+    const radarData = {
+      radarRefs: Array.isArray(data?.project?.radarRefs) ? data.project.radarRefs : [],
+      radarOverrides: Array.isArray(data?.project?.radarOverrides) ? data.project.radarOverrides : [],
+      radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : [],
+    }
+    store.importProject(data.project.name, questionnaires, radarData)
   }, importData)
 })
 
