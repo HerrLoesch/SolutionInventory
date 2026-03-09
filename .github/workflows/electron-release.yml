@@ -1,37 +1,37 @@
-name: Build and Release Electron App
+name: Release on Merge to Main
 
 on:
   push:
     branches:
-      - dev
-    tags:
-      - 'v*'
-  workflow_dispatch:
+      - main
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    name: Build (${{ matrix.artifact_name }})
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            artifact_name: linux-x64
-            electron_flags: --linux --x64
-          - os: windows-latest
-            arch: x64
-            artifact_name: windows-x64
-            electron_flags: --win --x64
+  # ------------------------------------------------------------------
+  # 1. Bump the minor version, commit it back to main and create a tag
+  # ------------------------------------------------------------------
+  version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    # Prevent infinite loop: skip if the commit was created by this workflow
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,107 +39,76 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Configure Git identity
         run: |
           git config user.email "ci@github-actions"
           git config user.name "GitHub Actions"
 
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
+      - name: Bump minor version and push
+        id: bump
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          npm version $VERSION --no-git-tag-version
+          npm version minor --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          git add package.json package-lock.json
+          git commit -m "chore: release v${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+          git push origin main --follow-tags
 
-      - name: Increment version for dev builds
-        if: github.ref == 'refs/heads/dev'
-        run: npm version patch --no-git-tag-version
+  # ------------------------------------------------------------------
+  # 2. Build the Electron app (parallel matrix: Linux + Windows)
+  # ------------------------------------------------------------------
+  build-electron:
+    name: Build Electron (${{ matrix.artifact_name }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: linux-x64
+            electron_flags: --linux --x64
+          - os: windows-latest
+            artifact_name: windows-x64
+            electron_flags: --win --x64
+
+    steps:
+      - name: Checkout tagged release
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
       - name: Install system dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libx11-xcb1 \
-            libxrandr2 \
-            libxcomposite1 \
-            libxcursor1 \
-            libxdamage1 \
-            libxfixes3 \
-            libxi6 \
-            libgtk-3-0t64 \
-            libatk1.0-0t64 \
-            libcairo-gobject2 \
-            libgdk-pixbuf-2.0-0 \
-            libasound2t64 \
-            libgtk-4-1 \
-            libvulkan1 \
-            libopus0 \
-            libgstreamer1.0-0 \
-            libgstreamer-plugins-base1.0-0 \
-            libgstreamer-plugins-bad1.0-0 \
-            libflite1 \
-            libwebp7 \
-            libharfbuzz-icu0 \
-            libwayland-server0 \
-            libmanette-0.2-0 \
-            libenchant-2-2 \
-            libgbm1 \
-            libdrm2 \
-            libhyphen0 \
-            libgles2 \
-            rpm \
-            fakeroot \
-            dpkg
+            libx11-xcb1 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 \
+            libxfixes3 libxi6 libgtk-3-0t64 libatk1.0-0t64 libcairo-gobject2 \
+            libgdk-pixbuf-2.0-0 libasound2t64 libgtk-4-1 libvulkan1 libopus0 \
+            libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
+            libgstreamer-plugins-bad1.0-0 libflite1 libwebp7 libharfbuzz-icu0 \
+            libwayland-server0 libmanette-0.2-0 libenchant-2-2 libgbm1 libdrm2 \
+            libhyphen0 libgles2 rpm fakeroot dpkg
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Playwright browser with system dependencies (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: npx playwright install --with-deps chromium
-
-      - name: Start dev server for E2E tests (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: nohup npx vite --host > /tmp/vite.log 2>&1 &
-
-      - name: Wait for dev server (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5173/SolutionInventory/ > /dev/null 2>&1; then
-              echo "Server is up after $i attempts"
-              exit 0
-            fi
-            echo "Attempt $i failed, retrying in 2s..."
-            sleep 2
-          done
-          echo "Server did not respond. Vite log:"
-          cat /tmp/vite.log
-          exit 1
-
-      - name: Run E2E tests (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: npx cucumber-js
-        continue-on-error: true
-
-      - name: Stop dev server (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: pkill -f "vite" || true
 
       - name: Build Vite + Electron app
         run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts (macOS)
-        if: matrix.os == 'macos-latest' || matrix.os == 'macos-13'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            release/*.dmg
-            release/*.zip
 
       - name: Upload artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -155,18 +124,53 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            release/*.exe
+          path: release/*.exe
 
+  # ------------------------------------------------------------------
+  # 3. Create a GitHub Release with all Electron artifacts
+  # ------------------------------------------------------------------
   create-release:
     name: Create GitHub Release
-    needs: build-and-release
+    needs: [version, build-electron]
     runs-on: ubuntu-latest
-    if: always() && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/v'))
 
     steps:
-      - name: Checkout repository
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: "Release v${{ needs.version.outputs.version }}"
+          body: |
+            ?? **Release v${{ needs.version.outputs.version }}**
+
+            Automatically built and released on merge to `main`.
+            Commit: ${{ github.sha }}
+          prerelease: false
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ------------------------------------------------------------------
+  # 4. Build the web app and deploy to GitHub Pages
+  # ------------------------------------------------------------------
+  deploy-pages:
+    name: Deploy GitHub Pages
+    needs: version
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout tagged release
         uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -177,57 +181,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Configure Git identity
-        run: |
-          git config user.email "ci@github-actions"
-          git config user.name "GitHub Actions"
+      - name: Build web application
+        run: npx vite build
 
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          npm version $VERSION --no-git-tag-version
-
-      - name: Increment version for dev builds
-        if: github.ref == 'refs/heads/dev'
-        run: npm version patch --no-git-tag-version
-
-      - name: Read version
-        id: pkg_version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: artifacts
+          path: ./dist
 
-      - name: Create Pre-Release (dev branch)
-        if: github.ref == 'refs/heads/dev'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: dev-v${{ steps.pkg_version.outputs.version }}-${{ github.run_number }}
-          name: "Dev Build v${{ steps.pkg_version.outputs.version }} (#${{ github.run_number }})"
-          body: |
-            🔧 **Automated dev build** from branch `dev`
-
-            Commit: ${{ github.sha }}
-            Run: #${{ github.run_number }}
-
-            > This is a pre-release build and may be unstable.
-          prerelease: true
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Stable Release (tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.pkg_version.outputs.version }}
-          name: "Release v${{ steps.pkg_version.outputs.version }}"
-          body: |
-            🚀 **Release v${{ steps.pkg_version.outputs.version }}**
-          prerelease: false
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

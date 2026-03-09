@@ -1,12 +1,18 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { readFileSync } from 'fs'
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 export default defineConfig(({ mode }) => {
   const isElectron = mode === 'electron';
   
   return {
     base: isElectron ? './' : '/SolutionInventory/',
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version)
+    },
     plugins: [
       vue(),
       // Only include PWA plugin for web build
