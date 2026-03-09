@@ -5,6 +5,14 @@
         <v-icon>mdi-menu</v-icon>
         <v-tooltip activator="parent" location="bottom">Toggle sidebar</v-tooltip>
       </v-btn>
+      <v-img
+        :src="baseUrl + 'Logo-small.png'"
+        alt="Solution Inventory"
+        width="28"
+        height="28"
+        class="ml-1 mr-2"
+        style="flex: none;"
+      />
       <v-toolbar-title>Solution Inventory</v-toolbar-title>
 
       <v-spacer />
@@ -47,28 +55,28 @@
       </v-card>
     </v-dialog>
 
-    <!-- Electron: Workspace-Verzeichnis einrichten (erster Start) -->
+    <!-- Electron: Set up workspace directory (first launch) -->
     <v-dialog v-if="isElectron" v-model="workspaceDirNeeded" persistent max-width="500">
       <v-card>
-        <v-card-title class="text-h6">Workspace einrichten</v-card-title>
+        <v-card-title class="text-h6">Set Up Workspace</v-card-title>
         <v-divider />
         <v-card-text>
           <p class="mb-4">
-            Bitte wähle ein Verzeichnis, in dem deine Workspace-Daten gespeichert werden sollen.
-            Die Daten werden als Datei <code>solution-inventory-data.json</code> in diesem Verzeichnis abgelegt.
+            Please choose a directory where your workspace data will be stored.
+            The data will be saved as <code>solution-inventory-data.json</code> in that directory.
           </p>
           <v-text-field
             v-model="workspaceSetupDir"
-            label="Workspace-Verzeichnis"
+            label="Workspace Directory"
             variant="outlined"
             readonly
             hide-details
-            :placeholder="'Noch kein Verzeichnis gewählt'"
+            :placeholder="'No directory selected'"
           >
             <template #append-inner>
               <v-btn icon variant="text" size="small" @click="selectDirectory">
                 <v-icon>mdi-folder-open</v-icon>
-                <v-tooltip activator="parent" location="bottom">Verzeichnis auswählen</v-tooltip>
+                <v-tooltip activator="parent" location="bottom">Choose directory</v-tooltip>
               </v-btn>
             </template>
           </v-text-field>
@@ -82,7 +90,7 @@
             :disabled="!workspaceSetupDir"
             @click="confirmWorkspace"
           >
-            Bestätigen
+            Confirm
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -139,6 +147,7 @@ export default {
     const { lastSaved, workspaceDirNeeded } = storeToRefs(store)
 
     const isElectron = !!(window.electronAPI)
+    const baseUrl = import.meta.env.BASE_URL
     const workspaceSetupDir = ref('')
 
     async function selectDirectory() {
@@ -165,6 +174,7 @@ export default {
       startResize,
       workspaceConfigOpen,
       isElectron,
+      baseUrl,
       workspaceDirNeeded,
       workspaceSetupDir,
       selectDirectory,

@@ -19,8 +19,7 @@ export default defineConfig(({ mode }) => {
           display: 'standalone',
           background_color: '#ffffff',
           icons: [
-            { src: '/SolutionInventory/pwa-192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/SolutionInventory/pwa-512.png', sizes: '512x512', type: 'image/png' }
+            { src: '/SolutionInventory/Logo-Large.png', sizes: '512x512', type: 'image/png' }
           ]
         }
       })

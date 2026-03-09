@@ -29,28 +29,65 @@ function writeConfig(config) {
 }
 
 let mainWindow;
+let splashWindow;
+
+function getLogoPath(size) {
+  if (size === 'icon') {
+    return app.isPackaged
+      ? path.join(__dirname, '../dist/icon.ico')
+      : path.join(__dirname, '../public/icon.ico');
+  }
+  const name = size === 'small' ? 'Logo-small.png' : 'Logo-Large.png';
+  return app.isPackaged
+    ? path.join(__dirname, '../dist', name)
+    : path.join(__dirname, '../public', name);
+}
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 360,
+    height: 320,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    center: true,
+    skipTaskbar: true,
+    icon: process.platform === 'win32' ? getLogoPath('icon') : getLogoPath('large')
+  });
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'), {
+    query: { logo: getLogoPath('large') }
+  });
+}
 
 function createWindow() {
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, '../public/icon.png')
+    icon: process.platform === 'win32' ? getLogoPath('icon') : getLogoPath('large')
   });
 
   // In production, load the built files
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   } else {
-    // In development, load from Vite dev server
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   }
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -60,6 +97,7 @@ function createWindow() {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app.whenReady().then(() => {
+  createSplashWindow();
   createWindow();
 
   app.on('activate', () => {
@@ -93,9 +131,9 @@ ipcMain.handle('set-workspace-dir', async (event, dirPath) => {
 
 ipcMain.handle('select-workspace-dir', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Workspace-Verzeichnis auswählen',
+    title: 'Select Workspace Directory',
     properties: ['openDirectory', 'createDirectory'],
-    buttonLabel: 'Als Workspace verwenden'
+    buttonLabel: 'Use as Workspace'
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
