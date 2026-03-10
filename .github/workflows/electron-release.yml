@@ -81,7 +81,7 @@ jobs:
       - name: Checkout tagged release
         uses: actions/checkout@v4
         with:
-          ref: v${{ needs.version.outputs.version }}
+          ref: refs/tags/v${{ needs.version.outputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -170,7 +170,7 @@ jobs:
       - name: Checkout tagged release
         uses: actions/checkout@v4
         with:
-          ref: v${{ needs.version.outputs.version }}
+          ref: refs/tags/v${{ needs.version.outputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
