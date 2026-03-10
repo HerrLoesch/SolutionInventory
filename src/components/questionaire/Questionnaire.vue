@@ -33,6 +33,16 @@
             <div class="d-flex align-center justify-space-between w-100">
               <div class="d-flex align-center gap-2">
                 <h2>{{ currentCategory.title }}</h2>
+                <v-chip
+                  v-if="currentCategoryHiddenCount > 0"
+                  size="x-small"
+                  variant="text"
+                  class="hidden-entries-chip"
+                  @click.stop="showAllEntries"
+                >
+                  <v-icon start size="12">mdi-eye-off-outline</v-icon>
+                  {{ currentCategoryHiddenCount }} hidden
+                </v-chip>
                 <v-btn
                   v-if="currentCategory.isMetadata"
                   icon
@@ -166,11 +176,49 @@
 
             <!-- Regular entries for other categories -->
             <div v-else>
+              <div class="d-flex align-center mb-4">
+                <v-text-field
+                  v-model="entrySearch"
+                  prepend-inner-icon="mdi-magnify"
+                  label="Search questions"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  clearable
+                  class="flex-grow-1"
+                />
+                <v-btn
+                  :color="entrySort ? 'primary' : 'default'"
+                  variant="text"
+                  size="small"
+                  class="ml-3"
+                  @click="cycleSort"
+                >
+                  <v-icon>{{ entrySort === 'asc' ? 'mdi-sort-alphabetical-ascending' : entrySort === 'desc' ? 'mdi-sort-alphabetical-descending' : 'mdi-sort-variant' }}</v-icon>
+                  <v-tooltip activator="parent" location="bottom">{{ entrySort === 'asc' ? 'Sorted A→Z (click for Z→A)' : entrySort === 'desc' ? 'Sorted Z→A (click to reset)' : 'Sort alphabetically' }}</v-tooltip>
+                </v-btn>
+              </div>
               <div v-for="entry in visibleEntries" :key="entry.id" :data-entry-id="entry.id" class="mb-6">
                 <v-sheet class="pa-3" elevation="1">
                   <div class="d-flex justify-space-between align-start">
                     <div class="flex-grow-1">
-                      <div class="text-h6 font-weight-bold">{{ entry.aspect }}</div>
+                      <div class="d-flex align-center entry-title-row">
+                        <span class="text-h6 font-weight-bold">{{ entry.aspect }}</span>
+                        <v-tooltip text="Hide this entry" location="top">
+                          <template #activator="{ props: hideTipProps }">
+                            <v-btn
+                              v-bind="hideTipProps"
+                              size="x-small"
+                              variant="text"
+                              icon
+                              class="entry-hide-btn ml-1"
+                              @click.stop="hideEntry(entry.id)"
+                            >
+                              <v-icon size="14">mdi-eye-off-outline</v-icon>
+                            </v-btn>
+                          </template>
+                        </v-tooltip>
+                      </div>
                       <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
                       <div v-if="getExampleItems(entry.examples).length" class="text--secondary text-sm mt-1">
                         <strong>Examples: </strong>
@@ -365,6 +413,29 @@ export default {
     const architecturalRoleValue = computed(() => metadataValue.value?.architecturalRole || '')
     const activeCategoryId = ref('')
     const applicabilityFilter = ref('all')
+    const entrySearch = ref('')
+    const entrySort = ref('')
+
+    const hiddenEntries = computed(() =>
+      props.questionnaireId ? store.getQuestionnaireHiddenEntries(props.questionnaireId) : new Set()
+    )
+
+    function hideEntry(entryId) {
+      if (!props.questionnaireId) return
+      const updated = new Set([...hiddenEntries.value, entryId])
+      store.setQuestionnaireHiddenEntries(props.questionnaireId, updated)
+    }
+
+    function showAllEntries() {
+      if (!props.questionnaireId) return
+      store.setQuestionnaireHiddenEntries(props.questionnaireId, new Set())
+    }
+
+    function cycleSort() {
+      if (entrySort.value === '') entrySort.value = 'asc'
+      else if (entrySort.value === 'asc') entrySort.value = 'desc'
+      else entrySort.value = ''
+    }
 
     function toArray(value) {
       if (!value) return []
@@ -417,16 +488,39 @@ export default {
 
     const visibleEntries = computed(() => {
       const entries = Array.isArray(currentCategory.value.entries) ? currentCategory.value.entries : []
-      const filteredByMetadata = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
-      
-      if (applicabilityFilter.value === 'all') {
-        return filteredByMetadata
+      let result = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+
+      if (applicabilityFilter.value !== 'all') {
+        result = result.filter((entry) => {
+          const entryApplicability = entry.applicability || 'applicable'
+          return entryApplicability === applicabilityFilter.value
+        })
       }
-      
-      return filteredByMetadata.filter((entry) => {
-        const entryApplicability = entry.applicability || 'applicable'
-        return entryApplicability === applicabilityFilter.value
-      })
+
+      if (entrySearch.value && entrySearch.value.trim()) {
+        const q = entrySearch.value.trim().toLowerCase()
+        result = result.filter((entry) =>
+          (entry.aspect || '').toLowerCase().includes(q) ||
+          (entry.description || '').toLowerCase().includes(q)
+        )
+      }
+
+      if (entrySort.value === 'asc') {
+        result = [...result].sort((a, b) => (a.aspect || '').localeCompare(b.aspect || ''))
+      } else if (entrySort.value === 'desc') {
+        result = [...result].sort((a, b) => (b.aspect || '').localeCompare(a.aspect || ''))
+      }
+
+      return result.filter((entry) => !hiddenEntries.value.has(entry.id))
+    })
+
+    const currentCategoryHiddenCount = computed(() => {
+      const entries = Array.isArray(currentCategory.value.entries) ? currentCategory.value.entries : []
+      let result = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+      if (applicabilityFilter.value !== 'all') {
+        result = result.filter((entry) => (entry.applicability || 'applicable') === applicabilityFilter.value)
+      }
+      return result.filter((entry) => hiddenEntries.value.has(entry.id)).length
     })
 
     const applicabilityFilterOptions = computed(() => {
@@ -460,6 +554,8 @@ export default {
 
     function selectCategory(id) {
       activeCategoryId.value = id
+      entrySearch.value = ''
+      entrySort.value = ''
       scrollToTop()
     }
 
@@ -495,6 +591,8 @@ export default {
       const idx = visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value)
       if (idx < visibleCategories.value.length - 1) {
         activeCategoryId.value = visibleCategories.value[idx + 1].id
+        entrySearch.value = ''
+        entrySort.value = ''
         scrollToTop()
       }
     }
@@ -503,6 +601,8 @@ export default {
       const idx = visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value)
       if (idx > 0) {
         activeCategoryId.value = visibleCategories.value[idx - 1].id
+        entrySearch.value = ''
+        entrySort.value = ''
         scrollToTop()
       }
     }
@@ -595,7 +695,13 @@ export default {
       answerTypeOptions,
       isReference,
       parentProject,
-      toggleReference
+      toggleReference,
+      entrySearch,
+      entrySort,
+      cycleSort,
+      hideEntry,
+      showAllEntries,
+      currentCategoryHiddenCount
     }
   }
 }
@@ -610,6 +716,32 @@ export default {
 
 .resizable-textarea :deep(textarea) {
   resize: vertical;
+}
+
+.entry-title-row {
+  flex-wrap: nowrap;
+}
+
+.entry-hide-btn {
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+.entry-title-row:hover .entry-hide-btn {
+  opacity: 0.5;
+}
+.entry-hide-btn:hover {
+  opacity: 1 !important;
+}
+
+.hidden-entries-chip {
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  font-size: 11px !important;
+}
+.hidden-entries-chip:hover {
+  opacity: 0.85;
 }
 
 .entry-highlighted {

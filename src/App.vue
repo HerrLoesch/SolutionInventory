@@ -17,7 +17,7 @@
 
       <v-spacer />
 
-      <v-btn class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
+      <v-btn v-if="!isElectron" class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
         <v-icon size="small">mdi-database-cog</v-icon>
         <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
       </v-btn>
@@ -189,6 +189,12 @@ export default {
 <style>
 /* small global styles */
 body { font-family: Roboto, Arial, sans-serif; }
+
+/* Show scrollbar only when content overflows */
+html, body { overflow-y: auto !important; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.35); }
 
 .main-container {
   max-width: 1800px;

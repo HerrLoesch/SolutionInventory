@@ -43,6 +43,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const autoSaveStarted = ref(false)
   const pendingNavigation = ref(null) // { questionnaireId, categoryId, entryId } | null
   const workspaceDirNeeded = ref(false)
+  const questionnaireHiddenEntries = ref({}) // Record<questionnaireId, string[]>
 
   const activeQuestionnaire = computed(() => {
     return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
@@ -94,6 +95,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds.value = []
       activeWorkspaceTabId.value = ''
       openProjectSummaryIds.value = []
+      questionnaireHiddenEntries.value = data.questionnaireHiddenEntries || {}
       hydrateLastSaved(data.timestamp)
       return true
     }
@@ -104,6 +106,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds.value = []
       activeWorkspaceTabId.value = ''
       openProjectSummaryIds.value = []
+      questionnaireHiddenEntries.value = {}
       hydrateLastSaved(data.timestamp)
       return true
     }
@@ -170,7 +173,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (autoSaveStarted.value) return
     autoSaveStarted.value = true
     watch(
-      () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value],
+      () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value, questionnaireHiddenEntries.value],
       () => {
         clearTimeout(persistDebounceTimer)
         persistDebounceTimer = setTimeout(() => persist(), 500)
@@ -187,7 +190,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       activeQuestionnaireId: activeQuestionnaireId.value,
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
-      openProjectSummaryIds: openProjectSummaryIds.value
+      openProjectSummaryIds: openProjectSummaryIds.value,
+      questionnaireHiddenEntries: questionnaireHiddenEntries.value
     }
 
     if (window.electronAPI) {
@@ -244,6 +248,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function clearPendingNavigation() {
     pendingNavigation.value = null
+  }
+
+  function getQuestionnaireHiddenEntries(questionnaireId) {
+    return new Set(questionnaireHiddenEntries.value[questionnaireId] || [])
+  }
+
+  function setQuestionnaireHiddenEntries(questionnaireId, entryIdSet) {
+    questionnaireHiddenEntries.value = {
+      ...questionnaireHiddenEntries.value,
+      [questionnaireId]: [...entryIdSet]
+    }
   }
 
   function openProjectSummary(projectId) {
@@ -853,6 +868,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     setReferenceQuestionnaire,
     pendingNavigation,
     navigateToEntry,
-    clearPendingNavigation
+    clearPendingNavigation,
+    getQuestionnaireHiddenEntries,
+    setQuestionnaireHiddenEntries
   }
 })
