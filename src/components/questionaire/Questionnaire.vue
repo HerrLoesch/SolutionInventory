@@ -229,18 +229,7 @@
                         </v-tooltip>
                       </div>
                       <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
-                      <div v-if="getExampleItems(entry.examples).length" class="text--secondary text-sm mt-1">
-                        <strong>Examples: </strong>
-                        <span v-for="(example, eIdx) in getExampleItems(entry.examples)" :key="`${entry.id}-ex-${eIdx}`">
-                          <v-tooltip v-if="example.description" :text="example.description" location="top">
-                            <template v-slot:activator="{ props }">
-                              <span v-bind="props" class="example-item">{{ example.label }}</span>
-                            </template>
-                          </v-tooltip>
-                          <span v-else class="example-item">{{ example.label }}</span>
-                          <span v-if="eIdx < getExampleItems(entry.examples).length - 1">, </span>
-                        </span>
-                      </div>
+                      <EntryExamples v-if="entry.examples" :examples="entry.examples" :entry-id="entry.id" />
                     </div>
                     <div class="ml-4" style="min-width: 190px;">
                       <v-select
@@ -383,8 +372,10 @@
 <script>
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import EntryExamples from './EntryExamples.vue'
 
 export default {
+  components: { EntryExamples },
   props: {
     categories: {
       type: Array,
@@ -419,6 +410,21 @@ export default {
       'not applicable': 'Entry does not apply to this solution.',
       unknown: 'Applicability is not known yet.'
     }
+    
+    // Static options - don't need to be recomputed
+    const applicabilityFilterOptions = [
+      { title: 'All', value: 'all' },
+      ...store.applicabilityOptions.map((label) => ({
+        title: label.charAt(0).toUpperCase() + label.slice(1),
+        value: label
+      }))
+    ]
+    
+    const applicabilityItems = store.applicabilityOptions.map((label) => ({
+      label,
+      description: applicabilityDescriptions[label] || ''
+    }))
+    
     const metadataCategory = computed(() => props.categories.find((category) => category.isMetadata) || null)
     const metadataValue = computed(() => metadataCategory.value?.metadata || null)
     const architecturalRoleValue = computed(() => metadataValue.value?.architecturalRole || '')
@@ -534,22 +540,32 @@ export default {
       return result.filter((entry) => hiddenEntries.value.has(entry.id)).length
     })
 
-    const applicabilityFilterOptions = computed(() => {
-      return [
-        { title: 'All', value: 'all' },
-        ...store.applicabilityOptions.map((label) => ({
-          title: label.charAt(0).toUpperCase() + label.slice(1),
-          value: label
-        }))
-      ]
+    // Cache for category visibility to avoid recalculating on every render
+    const categoryVisibilityCache = computed(() => {
+      const cache = new Map()
+      visibleCategories.value.forEach(cat => {
+        if (cat.isMetadata) {
+          cache.set(cat.id, true)
+        } else {
+          const entries = Array.isArray(cat.entries) ? cat.entries : []
+          const filtered = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+          
+          if (applicabilityFilter.value === 'all') {
+            cache.set(cat.id, filtered.length > 0)
+          } else {
+            const withApplicability = filtered.filter((entry) => 
+              (entry.applicability || 'applicable') === applicabilityFilter.value
+            )
+            cache.set(cat.id, withApplicability.length > 0)
+          }
+        }
+      })
+      return cache
     })
 
-    const applicabilityItems = computed(() => {
-      return store.applicabilityOptions.map((label) => ({
-        label,
-        description: applicabilityDescriptions[label] || ''
-      }))
-    })
+    function categoryHasVisibleEntries(category) {
+      return categoryVisibilityCache.value.get(category.id) ?? false
+    }
 
     const hasNext = computed(() => {
       return visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value) < visibleCategories.value.length - 1
@@ -618,24 +634,6 @@ export default {
       }
     }
 
-    function categoryHasVisibleEntries(category) {
-      if (category.isMetadata) return true
-      
-      const entries = Array.isArray(category.entries) ? category.entries : []
-      const filteredByMetadata = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
-      
-      if (applicabilityFilter.value === 'all') {
-        return filteredByMetadata.length > 0
-      }
-      
-      const filteredByApplicability = filteredByMetadata.filter((entry) => {
-        const entryApplicability = entry.applicability || 'applicable'
-        return entryApplicability === applicabilityFilter.value
-      })
-      
-      return filteredByApplicability.length > 0
-    }
-
     function setAllApplicability(value) {
       if (!value || currentCategory.value.isMetadata) return
       
@@ -692,7 +690,6 @@ export default {
       applicabilityFilterOptions,
       getStatusTooltip: store.getStatusTooltip,
       renderTextWithLinks: store.renderTextWithLinks,
-      getExampleItems: store.getExampleItems,
       isEntryApplicable: store.isEntryApplicable,
       setApplicability: store.setApplicability,
       addAnswer: store.addAnswer,
@@ -720,10 +717,6 @@ export default {
 
 <style scoped>
 .font-weight-medium { font-weight: 500; }
-.example-item {
-  cursor: help;
-  text-decoration: underline dotted;
-}
 
 .resizable-textarea :deep(textarea) {
   resize: vertical;
