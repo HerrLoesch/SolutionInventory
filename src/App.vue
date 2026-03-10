@@ -190,6 +190,12 @@ export default {
 /* small global styles */
 body { font-family: Roboto, Arial, sans-serif; }
 
+/* Show scrollbar only when content overflows */
+html, body { overflow-y: auto !important; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.35); }
+
 .main-container {
   max-width: 1800px;
   margin: 0 auto;
