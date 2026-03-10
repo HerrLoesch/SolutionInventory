@@ -90,28 +90,36 @@
                 <v-col cols="12">
                   <v-text-field
                     label="Software Product"
-                    v-model="currentCategory.metadata.productName"
+                    :model-value="currentCategory.metadata.productName"
+                    @blur="currentCategory.metadata.productName = $event.target.value"
+                    @click:clear="currentCategory.metadata.productName = ''"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
                     label="Company"
-                    v-model="currentCategory.metadata.company"
+                    :model-value="currentCategory.metadata.company"
+                    @blur="currentCategory.metadata.company = $event.target.value"
+                    @click:clear="currentCategory.metadata.company = ''"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
                     label="Department"
-                    v-model="currentCategory.metadata.department"
+                    :model-value="currentCategory.metadata.department"
+                    @blur="currentCategory.metadata.department = $event.target.value"
+                    @click:clear="currentCategory.metadata.department = ''"
                     clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
                     label="Contact Person"
-                    v-model="currentCategory.metadata.contactPerson"
+                    :model-value="currentCategory.metadata.contactPerson"
+                    @blur="currentCategory.metadata.contactPerson = $event.target.value"
+                    @click:clear="currentCategory.metadata.contactPerson = ''"
                     clearable
                   />
                 </v-col>
@@ -150,7 +158,8 @@
                 <v-col cols="12">
                   <v-textarea
                     label="Description"
-                    v-model="currentCategory.metadata.description"
+                    :model-value="currentCategory.metadata.description"
+                    @blur="currentCategory.metadata.description = $event.target.value"
                     placeholder="Brief description of the software product..."
                     rows="4"
                     auto-grow
@@ -257,7 +266,8 @@
                   <div class="mt-4">
                     <v-textarea
                       label="General Comment"
-                      v-model="entry.entryComment"
+                      :model-value="entry.entryComment"
+                      @blur="entry.entryComment = $event.target.value"
                       rows="2"
                       density="compact"
                       variant="outlined"
@@ -335,7 +345,8 @@
                         <v-col cols="12">
                           <v-textarea
                             label="Comment"
-                            v-model="answer.comments"
+                            :model-value="answer.comments"
+                            @blur="answer.comments = $event.target.value"
                             rows="2"
                             class="resizable-textarea"
                           />
