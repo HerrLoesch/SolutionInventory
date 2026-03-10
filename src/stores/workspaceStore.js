@@ -176,7 +176,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value, questionnaireHiddenEntries.value],
       () => {
         clearTimeout(persistDebounceTimer)
-        persistDebounceTimer = setTimeout(() => persist(), 500)
+        persistDebounceTimer = setTimeout(() => persist(), 1500)
       },
       { deep: true }
     )
