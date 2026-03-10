@@ -166,6 +166,28 @@
 
             <!-- Regular entries for other categories -->
             <div v-else>
+              <div class="d-flex align-center mb-4">
+                <v-text-field
+                  v-model="entrySearch"
+                  prepend-inner-icon="mdi-magnify"
+                  label="Search questions"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  clearable
+                  class="flex-grow-1"
+                />
+                <v-btn
+                  :color="entrySort ? 'primary' : 'default'"
+                  variant="text"
+                  size="small"
+                  class="ml-3"
+                  @click="cycleSort"
+                >
+                  <v-icon>{{ entrySort === 'asc' ? 'mdi-sort-alphabetical-ascending' : entrySort === 'desc' ? 'mdi-sort-alphabetical-descending' : 'mdi-sort-variant' }}</v-icon>
+                  <v-tooltip activator="parent" location="bottom">{{ entrySort === 'asc' ? 'Sorted A→Z (click for Z→A)' : entrySort === 'desc' ? 'Sorted Z→A (click to reset)' : 'Sort alphabetically' }}</v-tooltip>
+                </v-btn>
+              </div>
               <div v-for="entry in visibleEntries" :key="entry.id" :data-entry-id="entry.id" class="mb-6">
                 <v-sheet class="pa-3" elevation="1">
                   <div class="d-flex justify-space-between align-start">
@@ -365,6 +387,14 @@ export default {
     const architecturalRoleValue = computed(() => metadataValue.value?.architecturalRole || '')
     const activeCategoryId = ref('')
     const applicabilityFilter = ref('all')
+    const entrySearch = ref('')
+    const entrySort = ref('')
+
+    function cycleSort() {
+      if (entrySort.value === '') entrySort.value = 'asc'
+      else if (entrySort.value === 'asc') entrySort.value = 'desc'
+      else entrySort.value = ''
+    }
 
     function toArray(value) {
       if (!value) return []
@@ -417,16 +447,30 @@ export default {
 
     const visibleEntries = computed(() => {
       const entries = Array.isArray(currentCategory.value.entries) ? currentCategory.value.entries : []
-      const filteredByMetadata = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
-      
-      if (applicabilityFilter.value === 'all') {
-        return filteredByMetadata
+      let result = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
+
+      if (applicabilityFilter.value !== 'all') {
+        result = result.filter((entry) => {
+          const entryApplicability = entry.applicability || 'applicable'
+          return entryApplicability === applicabilityFilter.value
+        })
       }
-      
-      return filteredByMetadata.filter((entry) => {
-        const entryApplicability = entry.applicability || 'applicable'
-        return entryApplicability === applicabilityFilter.value
-      })
+
+      if (entrySearch.value && entrySearch.value.trim()) {
+        const q = entrySearch.value.trim().toLowerCase()
+        result = result.filter((entry) =>
+          (entry.aspect || '').toLowerCase().includes(q) ||
+          (entry.description || '').toLowerCase().includes(q)
+        )
+      }
+
+      if (entrySort.value === 'asc') {
+        result = [...result].sort((a, b) => (a.aspect || '').localeCompare(b.aspect || ''))
+      } else if (entrySort.value === 'desc') {
+        result = [...result].sort((a, b) => (b.aspect || '').localeCompare(a.aspect || ''))
+      }
+
+      return result
     })
 
     const applicabilityFilterOptions = computed(() => {
@@ -460,6 +504,8 @@ export default {
 
     function selectCategory(id) {
       activeCategoryId.value = id
+      entrySearch.value = ''
+      entrySort.value = ''
       scrollToTop()
     }
 
@@ -495,6 +541,8 @@ export default {
       const idx = visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value)
       if (idx < visibleCategories.value.length - 1) {
         activeCategoryId.value = visibleCategories.value[idx + 1].id
+        entrySearch.value = ''
+        entrySort.value = ''
         scrollToTop()
       }
     }
@@ -503,6 +551,8 @@ export default {
       const idx = visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value)
       if (idx > 0) {
         activeCategoryId.value = visibleCategories.value[idx - 1].id
+        entrySearch.value = ''
+        entrySort.value = ''
         scrollToTop()
       }
     }
@@ -595,7 +645,10 @@ export default {
       answerTypeOptions,
       isReference,
       parentProject,
-      toggleReference
+      toggleReference,
+      entrySearch,
+      entrySort,
+      cycleSort
     }
   }
 }
