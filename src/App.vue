@@ -17,7 +17,7 @@
 
       <v-spacer />
 
-      <v-btn class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
+      <v-btn v-if="!isElectron" class="mr-2" icon variant="text" size="small" @click="workspaceConfigOpen = true">
         <v-icon size="small">mdi-database-cog</v-icon>
         <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
       </v-btn>
