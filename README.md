@@ -4,7 +4,7 @@
   <img src="public/Logo-Large.png" alt="Solution Inventory" width="180" />
 </p>
 
-Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. Available as both a Progressive Web App (PWA) and an Electron desktop application. It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.
+Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. Available as both a Progressive Web App (PWA) and an Electron desktop application for **Windows** and **Linux**. The Electron app stores all data locally on the device (no cloud sync). The web version (hosted via GitHub Pages) stores all data exclusively in the browser's Local Storage (no server-side storage or sync). It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.
 
 ## Features
 - Project tree with create/rename/delete and drag-and-drop (move and reorder questionnaires)
@@ -41,7 +41,8 @@ npm install
 npm run dev
 ```
 
-### Development (Electron)
+
+### Development (Electron, Windows & Linux)
 ```bash
 npm run electron:dev
 ```
@@ -51,7 +52,8 @@ npm run electron:dev
 npm run build
 ```
 
-### Production Build (Electron)
+
+### Production Build (Electron, Windows & Linux)
 ```bash
 npm run electron:build
 ```
@@ -61,7 +63,8 @@ npm run electron:build
 npm run preview
 ```
 
-### Preview Build (Electron)
+
+### Preview Build (Electron, Windows & Linux)
 ```bash
 npm run electron:preview
 ```
@@ -161,12 +164,19 @@ Use the menu (⋮) in the toolbar to:
 - Export as ThoughtWorks Build-Your-Own-Radar JSON format
 - Download radar visualization as PNG image
 
+
 ## Project Import/Export
 - Export a single project from the project menu.
 - Import a project JSON using the import dialog in the project tree header.
 
+## Data Storage
+
+- **Electron App (Windows & Linux):** All data is stored locally on your device. No data is sent to any server or cloud service.
+- **Web App (GitHub Pages):** All data is stored exclusively in your browser's Local Storage. There is no server-side storage or synchronization. Clearing your browser data will remove all projects and questionnaires.
+
+
 ## GitHub Pages Deployment
-GitHub Actions builds and deploys on push to main. Pushes and PRs to dev build but do not deploy.
+GitHub Actions builds and deploys on push to main. The web version is hosted at GitHub Pages and stores all data only in the browser's Local Storage. Pushes and PRs to dev build but do not deploy.
 
 ## Dependencies
 - Vue 3
