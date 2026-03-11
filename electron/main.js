@@ -306,6 +306,24 @@ ipcMain.handle('write-data-file-to', async (event, dirPath, jsonString) => {
   }
 });
 
+ipcMain.handle('open-workspace-file', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Open Workspace',
+    filters: [{ name: 'Workspace JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const filePath = result.filePaths[0];
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(content);
+    return { filePath, dirPath: path.dirname(filePath), data };
+  } catch (error) {
+    console.error('Error reading workspace file:', error);
+    return { error: error.message };
+  }
+});
+
 ipcMain.on('update-menu-state', (event, state) => {
   updateMenuState(state);
 });

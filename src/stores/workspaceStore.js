@@ -170,6 +170,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     await initFromStorage()
   }
 
+  function loadFromData(data) {
+    if (!data) return false
+    const ok = applyStoredData(data)
+    if (ok) workspaceDirNeeded.value = false
+    return ok
+  }
+
   function seedWorkspace() {
     const catalogData = getCategoriesData()
     const initialQuestionnaire = createQuestionnaire('Current questionnaire', catalogData.categories)
@@ -920,6 +927,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     workspaceTabs,
     initFromStorage,
     setWorkspaceDir,
+    loadFromData,
     startAutoSave,
     persist,
     persistTo,

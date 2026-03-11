@@ -210,8 +210,11 @@ export default {
               store.newWorkspace()
               break
             case 'open-workspace': {
-              const dir = await window.electronAPI.selectWorkspaceDir()
-              if (dir) await store.setWorkspaceDir(dir)
+              const result = await window.electronAPI.openWorkspaceFile()
+              if (!result || result.error) break
+              // Set workspaceDir to the file's directory so future saves go there
+              await window.electronAPI.setWorkspaceDir(result.dirPath)
+              store.loadFromData(result.data)
               break
             }
             case 'save-workspace':
