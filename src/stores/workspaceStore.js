@@ -104,10 +104,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function applyStoredData(data) {
     if (data.version === STORAGE_VERSION && data.workspace) {
       workspace.value = data.workspace
-      activeQuestionnaireId.value = ''
-      openQuestionnaireIds.value = []
-      activeWorkspaceTabId.value = ''
-      openProjectSummaryIds.value = []
+      // Restore open tabs and active state, filtering out IDs that no longer exist
+      const existingIds = new Set(data.workspace.questionnaires?.map((q) => q.id) || [])
+      const restoredOpen = (data.openQuestionnaireIds || []).filter((id) => existingIds.has(id))
+      openQuestionnaireIds.value = restoredOpen
+      activeQuestionnaireId.value = existingIds.has(data.activeQuestionnaireId) ? data.activeQuestionnaireId : restoredOpen[0] || ''
+      const existingProjectIds = new Set(data.workspace.projects?.map((p) => p.id) || [])
+      openProjectSummaryIds.value = (data.openProjectSummaryIds || []).filter((id) => existingProjectIds.has(id))
+      activeWorkspaceTabId.value = data.activeWorkspaceTabId || activeQuestionnaireId.value
       questionnaireHiddenEntries.value = data.questionnaireHiddenEntries || {}
       hydrateLastSaved(data.timestamp)
       return true
