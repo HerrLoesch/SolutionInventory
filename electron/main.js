@@ -81,12 +81,12 @@ function createMenu() {
           click: () => mainWindow?.webContents.send('menu-action', 'save-workspace')
         },
         {
-          label: 'Toggle Autosave',
-          click: () => mainWindow?.webContents.send('menu-action', 'toggle-autosave')
-        },
-        {
           label: 'Save Workspace As...',
           click: () => mainWindow?.webContents.send('menu-action', 'save-workspace-as')
+        },
+        {
+          label: 'Toggle Autosave',
+          click: () => mainWindow?.webContents.send('menu-action', 'toggle-autosave')
         },
         {
           label: 'Duplicate Workspace...',
@@ -96,17 +96,6 @@ function createMenu() {
         {
           label: 'Close Workspace',
           click: () => mainWindow?.webContents.send('menu-action', 'close-workspace')
-        },
-        { type: 'separator' },
-        {
-          label: 'Save',
-          accelerator: 'CmdOrCtrl+Alt+S',
-          click: () => mainWindow?.webContents.send('menu-action', 'save')
-        },
-        {
-          label: 'Save All',
-          accelerator: 'CmdOrCtrl+Alt+Shift+S',
-          click: () => mainWindow?.webContents.send('menu-action', 'save-all')
         },
         { type: 'separator' },
         {

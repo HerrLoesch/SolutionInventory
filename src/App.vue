@@ -179,8 +179,6 @@ export default {
               break
             }
             case 'save-workspace':
-            case 'save':
-            case 'save-all':
               await store.persist()
               break
             case 'toggle-autosave':
