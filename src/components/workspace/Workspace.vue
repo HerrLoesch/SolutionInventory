@@ -121,6 +121,19 @@ export default {
       store.updateQuestionnaireCategories(activeQuestionnaireId.value, newCategories)
     }
 
+    // React to questionnaire-settings menu action
+    watch(
+      () => store.pendingMenuAction,
+      (pending) => {
+        if (!pending) return
+        if (pending.action === 'questionnaire-settings' && activeQuestionnaireId.value) {
+          configOpen.value = true
+          store.clearMenuAction()
+        }
+      },
+      { deep: true }
+    )
+
     return {
       workspaceTabs,
       activeTab,

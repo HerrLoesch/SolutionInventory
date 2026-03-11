@@ -1658,6 +1658,24 @@ export default {
       }
     }
 
+    // React to radar export menu actions
+    watch(
+      () => store.pendingMenuAction,
+      (pending) => {
+        if (!pending) return
+        if (store.activeProjectId !== props.projectId) return
+        const { action } = pending
+        if (action === 'radar-export-json') {
+          exportRadarJson()
+          store.clearMenuAction()
+        } else if (action === 'radar-export-png') {
+          downloadRadar()
+          store.clearMenuAction()
+        }
+      },
+      { deep: true }
+    )
+
     return {
       SIZE, CX, CY, OUTER_R, computedRings, BLIP_R, RING_META,
       tooltipWidth,

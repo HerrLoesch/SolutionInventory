@@ -393,7 +393,7 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export default {
@@ -888,6 +888,33 @@ export default {
     function isReorderTarget(questionnaireId) {
       return reorderTarget.value === questionnaireId
     }
+
+    // React to menu actions dispatched from the Electron menu bar
+    watch(
+      () => store.pendingMenuAction,
+      (pending) => {
+        if (!pending) return
+        const { action, payload } = pending
+        if (action === 'new-project') {
+          newProjectName.value = ''
+          projectDialogOpen.value = true
+          store.clearMenuAction()
+        } else if (action === 'import-project') {
+          openImportDialog()
+          store.clearMenuAction()
+        } else if (action === 'new-questionnaire') {
+          questionnaireImportProjectId.value = payload?.projectId || ''
+          targetProjectId.value = payload?.projectId || ''
+          newQuestionnaireName.value = ''
+          questionnaireDialogOpen.value = true
+          store.clearMenuAction()
+        } else if (action === 'import-questionnaire') {
+          openQuestionnaireImportDialog(payload?.projectId || '')
+          store.clearMenuAction()
+        }
+      },
+      { deep: true }
+    )
 
     return {
       projects,

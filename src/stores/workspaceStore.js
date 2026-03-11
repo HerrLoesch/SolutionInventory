@@ -43,11 +43,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const autoSaveStarted = ref(false)
   const autoSaveEnabled = ref(true)
   const pendingNavigation = ref(null) // { questionnaireId, categoryId, entryId } | null
+  const pendingMenuAction = ref(null) // { action: string, payload?: any } | null
   const workspaceDirNeeded = ref(false)
   const questionnaireHiddenEntries = ref({}) // Record<questionnaireId, string[]>
 
   const activeQuestionnaire = computed(() => {
     return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
+  })
+
+  const activeProjectId = computed(() => {
+    const tabId = activeWorkspaceTabId.value
+    if (!tabId) return ''
+    if (isProjectTabId(tabId)) return fromProjectTabId(tabId)
+    // questionnaire tab – find the project that owns it
+    const project = workspace.value.projects.find((p) =>
+      (p.questionnaireIds || []).includes(tabId)
+    )
+    return project?.id || ''
   })
 
   const activeCategories = computed(() => {
@@ -223,6 +235,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     autoSaveEnabled.value = !autoSaveEnabled.value
   }
 
+  function dispatchMenuAction(action, payload = null) {
+    pendingMenuAction.value = { action, payload }
+  }
+
+  function clearMenuAction() {
+    pendingMenuAction.value = null
+  }
+
   function newWorkspace() {
     workspace.value = createWorkspace()
     activeQuestionnaireId.value = ''
@@ -370,6 +390,25 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     workspace.value.projects = workspace.value.projects.filter((project) => project.id !== projectId)
   }
 
+  function duplicateProject(projectId) {
+    const source = workspace.value.projects.find((p) => p.id === projectId)
+    if (!source) return
+    const newProjectId = addProject(`${source.name} (Copy)`)
+    const newProject = workspace.value.projects.find((p) => p.id === newProjectId)
+    if (!newProject) return
+    ;(source.questionnaireIds || []).forEach((qId) => {
+      const q = getQuestionnaireById(qId)
+      if (!q) return
+      const copy = createQuestionnaire(q.name, normalizeCategories(q.categories))
+      workspace.value.questionnaires.push(copy)
+      newProject.questionnaireIds = [...(newProject.questionnaireIds || []), copy.id]
+    })
+    if (Array.isArray(source.radarRefs)) newProject.radarRefs = JSON.parse(JSON.stringify(source.radarRefs))
+    if (Array.isArray(source.radarOverrides)) newProject.radarOverrides = JSON.parse(JSON.stringify(source.radarOverrides))
+    if (Array.isArray(source.radarCategoryOrder)) newProject.radarCategoryOrder = [...source.radarCategoryOrder]
+    return newProjectId
+  }
+
   function renameProject(projectId, name) {
     const project = workspace.value.projects.find((item) => item.id === projectId)
     if (!project) return
@@ -418,6 +457,22 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (Array.isArray(radarData.radarRefs)) project.radarRefs = radarData.radarRefs
     if (Array.isArray(radarData.radarOverrides)) project.radarOverrides = radarData.radarOverrides
     if (Array.isArray(radarData.radarCategoryOrder)) project.radarCategoryOrder = radarData.radarCategoryOrder
+  }
+
+  function duplicateQuestionnaire(questionnaireId) {
+    const source = getQuestionnaireById(questionnaireId)
+    if (!source) return
+    const copy = createQuestionnaire(`${source.name} (Copy)`, normalizeCategories(source.categories))
+    workspace.value.questionnaires.push(copy)
+    // Assign to the same project as original, if any
+    const project = workspace.value.projects.find((p) =>
+      (p.questionnaireIds || []).includes(questionnaireId)
+    )
+    if (project) {
+      project.questionnaireIds = [...(project.questionnaireIds || []), copy.id]
+    }
+    openQuestionnaire(copy.id)
+    return copy.id
   }
 
   function deleteQuestionnaire(questionnaireId) {
@@ -917,9 +972,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updateProjectDeviationSettings,
     updateProjectVisibilitySettings,
     setReferenceQuestionnaire,
+    activeProjectId,
     pendingNavigation,
     navigateToEntry,
     clearPendingNavigation,
+    pendingMenuAction,
+    dispatchMenuAction,
+    clearMenuAction,
+    duplicateProject,
+    duplicateQuestionnaire,
     getQuestionnaireHiddenEntries,
     setQuestionnaireHiddenEntries
   }

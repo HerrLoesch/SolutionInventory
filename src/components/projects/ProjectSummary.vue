@@ -121,7 +121,7 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import ProjectMatrix from './ProjectMatrix.vue'
 import ProjectSuggestions from './ProjectSuggestions.vue'
@@ -185,6 +185,24 @@ export default {
     function saveVisibilitySettings (settings) {
       store.updateProjectVisibilitySettings(props.projectId, settings)
     }
+
+    // React to menu actions – only when this project is the active one
+    watch(
+      () => store.pendingMenuAction,
+      (pending) => {
+        if (!pending) return
+        if (store.activeProjectId !== props.projectId) return
+        const { action } = pending
+        if (action === 'project-settings' || action === 'radar-settings') {
+          categorySettingsOpen.value = true
+          store.clearMenuAction()
+        } else if (action === 'radar-open') {
+          activeTab.value = 'radar'
+          store.clearMenuAction()
+        }
+      },
+      { deep: true }
+    )
 
     return {
       project,
