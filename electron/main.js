@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -59,12 +59,73 @@ function createSplashWindow() {
   });
 }
 
+function createMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Workspace',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => mainWindow?.webContents.send('menu-action', 'new-workspace')
+        },
+        {
+          label: 'Open Workspace...',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => mainWindow?.webContents.send('menu-action', 'open-workspace')
+        },
+        { type: 'separator' },
+        {
+          label: 'Save Workspace',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => mainWindow?.webContents.send('menu-action', 'save-workspace')
+        },
+        {
+          label: 'Toggle Autosave',
+          click: () => mainWindow?.webContents.send('menu-action', 'toggle-autosave')
+        },
+        {
+          label: 'Save Workspace As...',
+          click: () => mainWindow?.webContents.send('menu-action', 'save-workspace-as')
+        },
+        {
+          label: 'Duplicate Workspace...',
+          click: () => mainWindow?.webContents.send('menu-action', 'duplicate-workspace')
+        },
+        { type: 'separator' },
+        {
+          label: 'Close Workspace',
+          click: () => mainWindow?.webContents.send('menu-action', 'close-workspace')
+        },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+Alt+S',
+          click: () => mainWindow?.webContents.send('menu-action', 'save')
+        },
+        {
+          label: 'Save All',
+          accelerator: 'CmdOrCtrl+Alt+Shift+S',
+          click: () => mainWindow?.webContents.send('menu-action', 'save-all')
+        },
+        { type: 'separator' },
+        {
+          label: 'Exit',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4',
+          click: () => app.quit()
+        }
+      ]
+    }
+  ];
+  return Menu.buildFromTemplate(template);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -98,6 +159,8 @@ function createWindow() {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app.whenReady().then(() => {
+  const menu = createMenu();
+  Menu.setApplicationMenu(menu);
   createSplashWindow();
   createWindow();
 
@@ -164,6 +227,27 @@ ipcMain.handle('write-data-file', async (event, jsonString) => {
     return { success: true, path: filePath };
   } catch (error) {
     console.error('Error writing data file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-workspace-as-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Save Workspace As',
+    properties: ['openDirectory', 'createDirectory'],
+    buttonLabel: 'Save Here'
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('write-data-file-to', async (event, dirPath, jsonString) => {
+  try {
+    const filePath = path.join(dirPath, DATA_FILE_NAME);
+    fs.writeFileSync(filePath, jsonString);
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('Error writing data file to path:', error);
     return { success: false, error: error.message };
   }
 });

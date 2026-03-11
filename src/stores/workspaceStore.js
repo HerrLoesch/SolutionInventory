@@ -41,6 +41,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const openProjectSummaryIds = ref([])
   const lastSaved = ref('')
   const autoSaveStarted = ref(false)
+  const autoSaveEnabled = ref(true)
   const pendingNavigation = ref(null) // { questionnaireId, categoryId, entryId } | null
   const workspaceDirNeeded = ref(false)
   const questionnaireHiddenEntries = ref({}) // Record<questionnaireId, string[]>
@@ -175,6 +176,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     watch(
       () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value, questionnaireHiddenEntries.value],
       () => {
+        if (!autoSaveEnabled.value) return
         clearTimeout(persistDebounceTimer)
         persistDebounceTimer = setTimeout(() => persist(), 1500)
       },
@@ -215,6 +217,50 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!timestamp) return
     const savedDate = new Date(timestamp)
     lastSaved.value = savedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function toggleAutoSave() {
+    autoSaveEnabled.value = !autoSaveEnabled.value
+  }
+
+  function newWorkspace() {
+    workspace.value = createWorkspace()
+    activeQuestionnaireId.value = ''
+    openQuestionnaireIds.value = []
+    activeWorkspaceTabId.value = ''
+    openProjectSummaryIds.value = []
+    questionnaireHiddenEntries.value = {}
+    lastSaved.value = ''
+  }
+
+  function closeWorkspace() {
+    newWorkspace()
+    if (window.electronAPI) {
+      workspaceDirNeeded.value = true
+    }
+  }
+
+  /**
+   * Saves the current workspace state to a specific directory (Electron only).
+   * Used for "Save Workspace As" and "Duplicate Workspace".
+   */
+  async function persistTo(dirPath) {
+    if (!window.electronAPI || !dirPath) return
+    const dataToSave = {
+      version: STORAGE_VERSION,
+      timestamp: new Date().toISOString(),
+      workspace: workspace.value,
+      activeQuestionnaireId: activeQuestionnaireId.value,
+      openQuestionnaireIds: openQuestionnaireIds.value,
+      activeWorkspaceTabId: activeWorkspaceTabId.value,
+      openProjectSummaryIds: openProjectSummaryIds.value,
+      questionnaireHiddenEntries: questionnaireHiddenEntries.value
+    }
+    try {
+      await window.electronAPI.writeDataFileTo(dirPath, JSON.stringify(dataToSave, null, 2))
+    } catch (error) {
+      console.error('Error saving workspace to path:', error)
+    }
   }
 
   function setActiveQuestionnaire(questionnaireId) {
@@ -812,6 +858,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openProjectSummaryIds,
     lastSaved,
     workspaceDirNeeded,
+    autoSaveEnabled,
     activeQuestionnaire,
     activeCategories,
     openTabs,
@@ -820,6 +867,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     setWorkspaceDir,
     startAutoSave,
     persist,
+    persistTo,
+    toggleAutoSave,
+    newWorkspace,
+    closeWorkspace,
     setActiveQuestionnaire,
     setActiveWorkspaceTab,
     openQuestionnaire,

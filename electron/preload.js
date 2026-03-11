@@ -11,4 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Data file I/O (replaces localStorage in Electron mode)
   readDataFile: () => ipcRenderer.invoke('read-data-file'),
   writeDataFile: (jsonString) => ipcRenderer.invoke('write-data-file', jsonString),
+  // Save workspace as / duplicate
+  saveWorkspaceAsDialog: () => ipcRenderer.invoke('save-workspace-as-dialog'),
+  writeDataFileTo: (dirPath, jsonString) => ipcRenderer.invoke('write-data-file-to', dirPath, jsonString),
+  // Menu action listener – calls callback(action) whenever a menu item is triggered
+  onMenuAction: (callback) => ipcRenderer.on('menu-action', (_event, action) => callback(action)),
 });

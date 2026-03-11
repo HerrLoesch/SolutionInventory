@@ -22,7 +22,7 @@
         <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
       </v-btn>
 
-      <v-btn icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
+      <v-btn v-if="!isElectron" icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
         <v-icon>mdi-github</v-icon>
         <v-tooltip activator="parent" location="bottom">GitHub Repository</v-tooltip>
       </v-btn>
@@ -144,7 +144,7 @@ export default {
       document.removeEventListener('mouseup', stopResize)
     })
     const store = useWorkspaceStore()
-    const { lastSaved, workspaceDirNeeded } = storeToRefs(store)
+    const { lastSaved, workspaceDirNeeded, autoSaveEnabled } = storeToRefs(store)
 
     const isElectron = !!(window.electronAPI)
     const baseUrl = import.meta.env.BASE_URL
@@ -165,6 +165,46 @@ export default {
     onMounted(async () => {
       await store.initFromStorage()
       store.startAutoSave()
+
+      // Electron: wire up menu actions
+      if (window.electronAPI) {
+        window.electronAPI.onMenuAction(async (action) => {
+          switch (action) {
+            case 'new-workspace':
+              store.newWorkspace()
+              break
+            case 'open-workspace': {
+              const dir = await window.electronAPI.selectWorkspaceDir()
+              if (dir) await store.setWorkspaceDir(dir)
+              break
+            }
+            case 'save-workspace':
+            case 'save':
+            case 'save-all':
+              await store.persist()
+              break
+            case 'toggle-autosave':
+              store.toggleAutoSave()
+              break
+            case 'save-workspace-as': {
+              const dir = await window.electronAPI.saveWorkspaceAsDialog()
+              if (dir) {
+                await store.persistTo(dir)
+                await store.setWorkspaceDir(dir)
+              }
+              break
+            }
+            case 'duplicate-workspace': {
+              const dir = await window.electronAPI.saveWorkspaceAsDialog()
+              if (dir) await store.persistTo(dir)
+              break
+            }
+            case 'close-workspace':
+              store.closeWorkspace()
+              break
+          }
+        })
+      }
     })
 
     return { 
@@ -177,6 +217,7 @@ export default {
       isElectron,
       baseUrl,
       appVersion,
+      autoSaveEnabled,
       workspaceDirNeeded,
       workspaceSetupDir,
       selectDirectory,
