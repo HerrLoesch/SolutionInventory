@@ -8,24 +8,22 @@
 - [x] Save workspace as...
 - [x] Duplicate workspace
 - [x] Close workspace (app behaves as if no workspace is loaded)
-- [x] Save (save current file/project/questionnaire)
-- [x] Save All (save all open files)
 - [x] Exit (close window)
 
 ## 2. Projects Menu (active only when workspace is loaded)
 - [x] Create new project
 - [x] Import project into workspace
-- [x] Duplicate project
-- [x] Save project as...
-- [x] Open project settings
+- [x] Duplicate project (active only when a project is selected)
+- [x] Save project as... (active only when a project is selected)
+- [x] Open project settings (active only when a project is selected)
 
 ## 3. Questionnaires Menu (active only when at least one project exists)
 - [x] Create new questionnaire
 - [x] Import questionnaire
-- [x] Duplicate questionnaire
-- [x] Save questionnaire as...
-- [x] Delete questionnaire
-- [x] Open questionnaire settings
+- [x] Duplicate questionnaire (active only when a questionnaire is selected)
+- [x] Save questionnaire as... (active only when a questionnaire is selected)
+- [x] Delete questionnaire (active only when a questionnaire is selected)
+- [x] Open questionnaire settings (active only when a questionnaire is selected)
 
 ## 4. Radar Menu (active only when a project is selected)
 - [x] Open Tech Radar

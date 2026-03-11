@@ -164,7 +164,7 @@ function createMenu() {
   return applicationMenu;
 }
 
-function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveProject = false } = {}) {
+function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveProject = false, hasActiveQuestionnaire = false } = {}) {
   if (!applicationMenu) return;
   const projectsItem = applicationMenu.items.find((i) => i.label === 'Projects');
   const questItem    = applicationMenu.items.find((i) => i.label === 'Questionnaires');
@@ -172,6 +172,24 @@ function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveP
   if (projectsItem)  projectsItem.enabled = hasWorkspace;
   if (questItem)     questItem.enabled    = hasProjects;
   if (radarItem)     radarItem.enabled    = hasActiveProject;
+
+  // Disable specific Projects submenu items if no project is selected
+  if (projectsItem?.submenu) {
+    projectsItem.submenu.forEach((item) => {
+      if (['Duplicate Project', 'Export Project As...', 'Project Settings'].includes(item.label)) {
+        item.enabled = hasActiveProject;
+      }
+    });
+  }
+
+  // Disable specific Questionnaires submenu items if no questionnaire is selected
+  if (questItem?.submenu) {
+    questItem.submenu.forEach((item) => {
+      if (['Duplicate Questionnaire', 'Export Questionnaire As...', 'Delete Questionnaire', 'Questionnaire Settings'].includes(item.label)) {
+        item.enabled = hasActiveQuestionnaire;
+      }
+    });
+  }
 }
 
 function createWindow() {

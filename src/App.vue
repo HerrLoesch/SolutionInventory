@@ -192,7 +192,8 @@ export default {
       window.electronAPI.updateMenuState({
         hasWorkspace: !workspaceDirNeeded.value,
         hasProjects: workspace.value.projects.length > 0,
-        hasActiveProject: !!activeProjectId.value
+        hasActiveProject: !!activeProjectId.value,
+        hasActiveQuestionnaire: !!store.activeQuestionnaireId
       })
     }
 
@@ -319,7 +320,7 @@ export default {
     // Sync menu enabled states whenever relevant store state changes
     if (isElectron) {
       watch(
-        () => [workspace.value.projects.length, activeProjectId.value, workspaceDirNeeded.value],
+        () => [workspace.value.projects.length, activeProjectId.value, workspaceDirNeeded.value, store.activeQuestionnaireId],
         () => syncMenuState(),
         { immediate: true, deep: false }
       )
