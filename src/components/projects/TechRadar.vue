@@ -792,6 +792,21 @@ export default {
       }
     })
 
+    // Open quadrant config dialog when menu action 'radar-settings' is dispatched
+    watch(
+      () => store.pendingMenuAction,
+      (pending) => {
+        if (!pending) return
+        if (store.activeProjectId !== props.projectId) return
+        const { action } = pending
+        if (action === 'radar-settings') {
+          quadrantConfigDialog.value = true
+          store.clearMenuAction()
+        }
+      },
+      { deep: true }
+    )
+
     // ── Visible ring tracking ────────────────────────────────────────────────
     // List of visible ring indices (0-4 corresponding to RING_META)
     const visibleRingIndices = computed(() => {

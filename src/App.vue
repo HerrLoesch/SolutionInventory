@@ -297,7 +297,7 @@ export default {
               store.dispatchMenuAction('radar-export-png')
               break
             case 'radar-settings':
-              if (activeProjectId.value) {
+              if (activeProjectId.value) {                
                 store.openProjectSummary(activeProjectId.value)
                 store.dispatchMenuAction('radar-settings')
               }
