@@ -1,6 +1,6 @@
 {
   "name": "solution-inventory-pwa",
-  "version": "1.3.2-dev.1",
+  "version": "1.3.2-dev.2",
   "description": "Solution Inventory - A questionnaire-based application for project assessment",
   "author": "Hendrik Lösch <loeschhendrik@googlemail.com>",
   "private": true,
