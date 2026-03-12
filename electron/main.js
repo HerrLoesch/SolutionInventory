@@ -174,8 +174,8 @@ function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveP
   if (radarItem)     radarItem.enabled    = hasActiveProject;
 
   // Disable specific Projects submenu items if no project is selected
-  if (projectsItem?.submenu) {
-    projectsItem.submenu.forEach((item) => {
+  if (projectsItem?.submenu?.items) {
+    projectsItem.submenu.items.forEach((item) => {
       if (['Duplicate Project', 'Export Project As...', 'Project Settings'].includes(item.label)) {
         item.enabled = hasActiveProject;
       }
@@ -183,8 +183,8 @@ function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveP
   }
 
   // Disable specific Questionnaires submenu items if no questionnaire is selected
-  if (questItem?.submenu) {
-    questItem.submenu.forEach((item) => {
+  if (questItem?.submenu?.items) {
+    questItem.submenu.items.forEach((item) => {
       if (['Duplicate Questionnaire', 'Export Questionnaire As...', 'Delete Questionnaire', 'Questionnaire Settings'].includes(item.label)) {
         item.enabled = hasActiveQuestionnaire;
       }
