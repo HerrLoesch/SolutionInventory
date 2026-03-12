@@ -73,16 +73,12 @@ function createMenu() {
       submenu: [
         { label: 'New Workspace',         accelerator: 'CmdOrCtrl+Shift+N', click: send('new-workspace') },
         { label: 'Open Workspace...',     accelerator: 'CmdOrCtrl+Shift+O', click: send('open-workspace') },
-        { type: 'separator' },
-        { label: 'Save Workspace',        accelerator: 'CmdOrCtrl+S',       click: send('save-workspace') },
-        { label: 'Toggle Autosave',                                          click: send('toggle-autosave') },
-        { label: 'Save Workspace As...',                                     click: send('save-workspace-as') },
         { label: 'Duplicate Workspace...', click: send('duplicate-workspace') },
         { type: 'separator' },
+        { label: 'Save Workspace',        accelerator: 'CmdOrCtrl+S',       click: send('save-workspace') },
+        { label: 'Save Workspace As...',                                     click: send('save-workspace-as') },
+        { label: 'Toggle Autosave',                                          click: send('toggle-autosave') },
         { label: 'Close Workspace',        click: send('close-workspace') },
-        { type: 'separator' },
-        { label: 'Save',                  accelerator: 'CmdOrCtrl+Alt+S',   click: send('save') },
-        { label: 'Save All',              accelerator: 'CmdOrCtrl+Alt+Shift+S', click: send('save-all') },
         { type: 'separator' },
         { label: 'Exit', accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4', click: () => app.quit() }
       ]
@@ -95,11 +91,6 @@ function createMenu() {
       submenu: [
         { label: 'New Project',          click: send('projects-new') },
         { label: 'Import Project...',    click: send('projects-import') },
-        { type: 'separator' },
-        { label: 'Duplicate Project',    click: send('projects-duplicate') },
-        { label: 'Export Project As...', click: send('projects-save-as') },
-        { type: 'separator' },
-        { label: 'Project Settings',     click: send('projects-settings') }
       ]
     },
     // ── 3. Questionnaires (enabled when at least one project exists) ──────
@@ -110,30 +101,9 @@ function createMenu() {
       submenu: [
         { label: 'New Questionnaire',         click: send('questionnaires-new') },
         { label: 'Import Questionnaire...',   click: send('questionnaires-import') },
-        { type: 'separator' },
-        { label: 'Duplicate Questionnaire',  click: send('questionnaires-duplicate') },
-        { label: 'Export Questionnaire As...', click: send('questionnaires-save-as') },
-        { type: 'separator' },
-        { label: 'Delete Questionnaire',  click: send('questionnaires-delete') },
-        { type: 'separator' },
-        { label: 'Questionnaire Settings', click: send('questionnaires-settings') }
       ]
     },
-    // ── 4. Radar (enabled when a project is selected) ─────────────────────
-    {
-      id: 'menu-radar',
-      label: 'Radar',
-      enabled: false,
-      submenu: [
-        { label: 'Open Tech Radar',          click: send('radar-open') },
-        { type: 'separator' },
-        { label: 'Export as ThoughtWorks JSON', click: send('radar-export-json') },
-        { label: 'Download as PNG',          click: send('radar-export-png') },
-        { type: 'separator' },
-        { label: 'Radar Settings',           click: send('radar-settings') }
-      ]
-    },
-    // ── 5. View ───────────────────────────────────────────────────────────
+    // ── 4. View ───────────────────────────────────────────────────────────
     {
       label: 'View',
       submenu: [
@@ -149,7 +119,7 @@ function createMenu() {
         { label: 'Toggle Sidebar',                                   click: send('view-toggle-sidebar') }
       ]
     },
-    // ── 6. Help ───────────────────────────────────────────────────────────
+    // ── 5. Help ───────────────────────────────────────────────────────────
     {
       label: 'Help',
       submenu: [
@@ -164,32 +134,12 @@ function createMenu() {
   return applicationMenu;
 }
 
-function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveProject = false, hasActiveQuestionnaire = false } = {}) {
+function updateMenuState({ hasWorkspace = false, hasProjects = false } = {}) {
   if (!applicationMenu) return;
   const projectsItem = applicationMenu.items.find((i) => i.label === 'Projects');
   const questItem    = applicationMenu.items.find((i) => i.label === 'Questionnaires');
-  const radarItem    = applicationMenu.items.find((i) => i.label === 'Radar');
   if (projectsItem)  projectsItem.enabled = hasWorkspace;
   if (questItem)     questItem.enabled    = hasProjects;
-  if (radarItem)     radarItem.enabled    = hasActiveProject;
-
-  // Disable specific Projects submenu items if no project is selected
-  if (projectsItem?.submenu?.items) {
-    projectsItem.submenu.items.forEach((item) => {
-      if (['Duplicate Project', 'Export Project As...', 'Project Settings'].includes(item.label)) {
-        item.enabled = hasActiveProject;
-      }
-    });
-  }
-
-  // Disable specific Questionnaires submenu items if no questionnaire is selected
-  if (questItem?.submenu?.items) {
-    questItem.submenu.items.forEach((item) => {
-      if (['Duplicate Questionnaire', 'Export Questionnaire As...', 'Delete Questionnaire', 'Questionnaire Settings'].includes(item.label)) {
-        item.enabled = hasActiveQuestionnaire;
-      }
-    });
-  }
 }
 
 function createWindow() {
