@@ -691,7 +691,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     ) || null
   }
 
-  function setRadarOverride(projectId, entryId, option, { status, comment, categoryOverride = '' }) {
+  function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '' }) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
     if (!Array.isArray(project.radarOverrides)) project.radarOverrides = []
@@ -699,7 +699,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const idx = project.radarOverrides.findIndex(
       (o) => o.entryId === entryId && String(o.option || '').toLowerCase() === norm
     )
-    const record = { entryId, option: String(option || '').trim(), status: String(status || ''), comment: String(comment || ''), categoryOverride: String(categoryOverride || '') }
+    const record = { entryId, option: String(option || '').trim(), status: String(status || ''), shortComment: String(shortComment || ''), comment: String(comment || ''), categoryOverride: String(categoryOverride || '') }
     if (idx !== -1) {
       project.radarOverrides.splice(idx, 1, record)
     } else {
