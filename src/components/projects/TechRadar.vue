@@ -247,7 +247,7 @@
               :x="clampTooltipX(hoveredBlip.x + 10)"
               :y="clampTooltipY(hoveredBlip.y - 14)"
               :width="tooltipWidth"
-              :height="76 + (hoveredBlip.entryTitle ? 14 : 0) + (hoveredBlip.shortComment || hoveredBlip.radarComment ? 14 : 0)"
+              :height="76 + (hoveredBlip.entryTitle ? 14 : 0) + ((hoveredBlip.shortComment || hoveredBlip.comment) ? 14 : 0)"
               rx="4"
               fill="var(--radar-tooltip-bg)"
               stroke="var(--radar-line)"
@@ -286,13 +286,13 @@
               fill="var(--radar-tooltip-text-dim)"
             >{{ truncate(hoveredBlip.entryTitle, 32) }}</text>
             <text
-              v-if="hoveredBlip.shortComment || hoveredBlip.radarComment"
+              v-if="hoveredBlip.shortComment || hoveredBlip.comment"
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
               :y="clampTooltipY(hoveredBlip.y - 14) + (hoveredBlip.entryTitle ? 88 : 74)"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text)"
               font-style="italic"
-            >{{ truncate(hoveredBlip.shortComment || hoveredBlip.radarComment, 32) }}</text>
+            >{{ truncate(hoveredBlip.shortComment || hoveredBlip.comment, 32) }}</text>
           </g>
         </svg>
       </div>
@@ -376,7 +376,7 @@
       </div>
 
       <!-- Blip detail dialog -->
-      <v-dialog v-model="detailDialog" max-width="500" scrollable>
+      <v-dialog v-model="detailDialog" max-width="700" scrollable>
         <v-card v-if="detailBlip">
           <!-- Header with colour bar -->
           <div class="detail-header" :style="{ borderTop: `4px solid ${detailBlip.ringColor}` }">
@@ -431,21 +431,10 @@
               </div>
             </div>
 
-            <!-- Short comment -->
-            <template v-if="detailBlip.shortComment">
-              <div class="detail-label mb-1">
-                <v-icon size="12" class="mr-1">mdi-pencil-circle</v-icon>
-                Short comment
-              </div>
-              <div class="text-body-2 mb-4" style="font-style:italic;">{{ detailBlip.shortComment }}</div>
-            </template>
-
-            <!-- Questionnaire comment -->
-            <template v-if="detailBlip.comment">
-              <div class="detail-label mb-1">Questionnaire comment</div>
-              <v-sheet rounded="lg" color="surface-variant" class="pa-3 mb-4">
-                <div class="text-body-2" style="white-space:pre-wrap;">{{ detailBlip.comment }}</div>
-              </v-sheet>
+            <!-- Short comment (override or questionnaire comment as default) -->
+            <template v-if="detailBlip.shortComment || detailBlip.comment">
+              <div class="detail-label mb-1">Short comment</div>
+              <div class="text-body-2 mb-4" style="font-style:italic; white-space:pre-wrap;">{{ detailBlip.shortComment || detailBlip.comment }}</div>
             </template>
 
             <!-- Radar detailed comment (Markdown) -->
@@ -530,9 +519,10 @@
               label="Short comment"
               density="compact"
               variant="outlined"
-              hide-details
               clearable
-              placeholder="Brief note shown in tooltips and overview…"
+              :hint="blipToEdit?.comment ? `Default (from questionnaire): ${blipToEdit.comment}` : ''"
+              persistent-hint
+              placeholder="Leave empty to use the questionnaire comment…"
               class="mt-3"
             />
             <div class="mt-4 mb-1">
@@ -1446,7 +1436,7 @@ export default {
       return Math.min(Math.max(x, 4), SIZE - TOOLTIP_W - 4)
     }
     function clampTooltipY (y) {
-      return Math.min(Math.max(y, 4), SIZE - 90)
+      return Math.min(Math.max(y, 4), SIZE - 110)
     }
     function truncate (str, max) {
       return str.length > max ? str.slice(0, max - 1) + '…' : str
