@@ -41,12 +41,25 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const openProjectSummaryIds = ref([])
   const lastSaved = ref('')
   const autoSaveStarted = ref(false)
+  const autoSaveEnabled = ref(true)
   const pendingNavigation = ref(null) // { questionnaireId, categoryId, entryId } | null
+  const pendingMenuAction = ref(null) // { action: string, payload?: any } | null
   const workspaceDirNeeded = ref(false)
   const questionnaireHiddenEntries = ref({}) // Record<questionnaireId, string[]>
 
   const activeQuestionnaire = computed(() => {
     return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
+  })
+
+  const activeProjectId = computed(() => {
+    const tabId = activeWorkspaceTabId.value
+    if (!tabId) return ''
+    if (isProjectTabId(tabId)) return fromProjectTabId(tabId)
+    // questionnaire tab – find the project that owns it
+    const project = workspace.value.projects.find((p) =>
+      (p.questionnaireIds || []).includes(tabId)
+    )
+    return project?.id || ''
   })
 
   const activeCategories = computed(() => {
@@ -91,10 +104,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function applyStoredData(data) {
     if (data.version === STORAGE_VERSION && data.workspace) {
       workspace.value = data.workspace
-      activeQuestionnaireId.value = ''
-      openQuestionnaireIds.value = []
-      activeWorkspaceTabId.value = ''
-      openProjectSummaryIds.value = []
+      // Restore open tabs and active state, filtering out IDs that no longer exist
+      const existingIds = new Set(data.workspace.questionnaires?.map((q) => q.id) || [])
+      const restoredOpen = (data.openQuestionnaireIds || []).filter((id) => existingIds.has(id))
+      openQuestionnaireIds.value = restoredOpen
+      activeQuestionnaireId.value = existingIds.has(data.activeQuestionnaireId) ? data.activeQuestionnaireId : restoredOpen[0] || ''
+      const existingProjectIds = new Set(data.workspace.projects?.map((p) => p.id) || [])
+      openProjectSummaryIds.value = (data.openProjectSummaryIds || []).filter((id) => existingProjectIds.has(id))
+      activeWorkspaceTabId.value = data.activeWorkspaceTabId || activeQuestionnaireId.value
       questionnaireHiddenEntries.value = data.questionnaireHiddenEntries || {}
       hydrateLastSaved(data.timestamp)
       return true
@@ -157,6 +174,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     await initFromStorage()
   }
 
+  function loadFromData(data) {
+    if (!data) return false
+    const ok = applyStoredData(data)
+    if (ok) workspaceDirNeeded.value = false
+    return ok
+  }
+
   function seedWorkspace() {
     const catalogData = getCategoriesData()
     const initialQuestionnaire = createQuestionnaire('Current questionnaire', catalogData.categories)
@@ -175,6 +199,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     watch(
       () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value, questionnaireHiddenEntries.value],
       () => {
+        if (!autoSaveEnabled.value) return
         clearTimeout(persistDebounceTimer)
         persistDebounceTimer = setTimeout(() => persist(), 1500)
       },
@@ -215,6 +240,58 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!timestamp) return
     const savedDate = new Date(timestamp)
     lastSaved.value = savedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function toggleAutoSave() {
+    autoSaveEnabled.value = !autoSaveEnabled.value
+  }
+
+  function dispatchMenuAction(action, payload = null) {
+    pendingMenuAction.value = { action, payload }
+  }
+
+  function clearMenuAction() {
+    pendingMenuAction.value = null
+  }
+
+  function newWorkspace() {
+    workspace.value = createWorkspace()
+    activeQuestionnaireId.value = ''
+    openQuestionnaireIds.value = []
+    activeWorkspaceTabId.value = ''
+    openProjectSummaryIds.value = []
+    questionnaireHiddenEntries.value = {}
+    lastSaved.value = ''
+  }
+
+  function closeWorkspace() {
+    newWorkspace()
+    if (window.electronAPI) {
+      workspaceDirNeeded.value = true
+    }
+  }
+
+  /**
+   * Saves the current workspace state to a specific directory (Electron only).
+   * Used for "Save Workspace As" and "Duplicate Workspace".
+   */
+  async function persistTo(dirPath) {
+    if (!window.electronAPI || !dirPath) return
+    const dataToSave = {
+      version: STORAGE_VERSION,
+      timestamp: new Date().toISOString(),
+      workspace: workspace.value,
+      activeQuestionnaireId: activeQuestionnaireId.value,
+      openQuestionnaireIds: openQuestionnaireIds.value,
+      activeWorkspaceTabId: activeWorkspaceTabId.value,
+      openProjectSummaryIds: openProjectSummaryIds.value,
+      questionnaireHiddenEntries: questionnaireHiddenEntries.value
+    }
+    try {
+      await window.electronAPI.writeDataFileTo(dirPath, JSON.stringify(dataToSave, null, 2))
+    } catch (error) {
+      console.error('Error saving workspace to path:', error)
+    }
   }
 
   function setActiveQuestionnaire(questionnaireId) {
@@ -324,6 +401,25 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     workspace.value.projects = workspace.value.projects.filter((project) => project.id !== projectId)
   }
 
+  function duplicateProject(projectId) {
+    const source = workspace.value.projects.find((p) => p.id === projectId)
+    if (!source) return
+    const newProjectId = addProject(`${source.name} (Copy)`)
+    const newProject = workspace.value.projects.find((p) => p.id === newProjectId)
+    if (!newProject) return
+    ;(source.questionnaireIds || []).forEach((qId) => {
+      const q = getQuestionnaireById(qId)
+      if (!q) return
+      const copy = createQuestionnaire(q.name, normalizeCategories(q.categories))
+      workspace.value.questionnaires.push(copy)
+      newProject.questionnaireIds = [...(newProject.questionnaireIds || []), copy.id]
+    })
+    if (Array.isArray(source.radarRefs)) newProject.radarRefs = JSON.parse(JSON.stringify(source.radarRefs))
+    if (Array.isArray(source.radarOverrides)) newProject.radarOverrides = JSON.parse(JSON.stringify(source.radarOverrides))
+    if (Array.isArray(source.radarCategoryOrder)) newProject.radarCategoryOrder = [...source.radarCategoryOrder]
+    return newProjectId
+  }
+
   function renameProject(projectId, name) {
     const project = workspace.value.projects.find((item) => item.id === projectId)
     if (!project) return
@@ -372,6 +468,22 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (Array.isArray(radarData.radarRefs)) project.radarRefs = radarData.radarRefs
     if (Array.isArray(radarData.radarOverrides)) project.radarOverrides = radarData.radarOverrides
     if (Array.isArray(radarData.radarCategoryOrder)) project.radarCategoryOrder = radarData.radarCategoryOrder
+  }
+
+  function duplicateQuestionnaire(questionnaireId) {
+    const source = getQuestionnaireById(questionnaireId)
+    if (!source) return
+    const copy = createQuestionnaire(`${source.name} (Copy)`, normalizeCategories(source.categories))
+    workspace.value.questionnaires.push(copy)
+    // Assign to the same project as original, if any
+    const project = workspace.value.projects.find((p) =>
+      (p.questionnaireIds || []).includes(questionnaireId)
+    )
+    if (project) {
+      project.questionnaireIds = [...(project.questionnaireIds || []), copy.id]
+    }
+    openQuestionnaire(copy.id)
+    return copy.id
   }
 
   function deleteQuestionnaire(questionnaireId) {
@@ -812,14 +924,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openProjectSummaryIds,
     lastSaved,
     workspaceDirNeeded,
+    autoSaveEnabled,
     activeQuestionnaire,
     activeCategories,
     openTabs,
     workspaceTabs,
     initFromStorage,
     setWorkspaceDir,
+    loadFromData,
     startAutoSave,
     persist,
+    persistTo,
+    toggleAutoSave,
+    newWorkspace,
+    closeWorkspace,
     setActiveQuestionnaire,
     setActiveWorkspaceTab,
     openQuestionnaire,
@@ -866,9 +984,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updateProjectDeviationSettings,
     updateProjectVisibilitySettings,
     setReferenceQuestionnaire,
+    activeProjectId,
     pendingNavigation,
     navigateToEntry,
     clearPendingNavigation,
+    pendingMenuAction,
+    dispatchMenuAction,
+    clearMenuAction,
+    duplicateProject,
+    duplicateQuestionnaire,
     getQuestionnaireHiddenEntries,
     setQuestionnaireHiddenEntries
   }

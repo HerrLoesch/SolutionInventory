@@ -22,9 +22,14 @@
         <v-tooltip activator="parent" location="bottom">Manage workspace</v-tooltip>
       </v-btn>
 
-      <v-btn icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
+      <v-btn v-if="!isElectron" icon variant="text" size="small" href="https://github.com/HerrLoesch/SolutionInventory" target="_blank">
         <v-icon>mdi-github</v-icon>
         <v-tooltip activator="parent" location="bottom">GitHub Repository</v-tooltip>
+      </v-btn>
+
+      <v-btn v-if="!isElectron" icon variant="text" size="small" @click="aboutDialogOpen = true">
+        <v-icon>mdi-information-outline</v-icon>
+        <v-tooltip activator="parent" location="bottom">About</v-tooltip>
       </v-btn>
     </v-app-bar>
 
@@ -56,8 +61,7 @@
     </v-dialog>
 
     <!-- Electron: Set up workspace directory (first launch) -->
-    <v-dialog v-if="isElectron" v-model="workspaceDirNeeded" persistent max-width="500">
-      <v-card>
+    <v-dialog v-if="isElectron" v-model="workspaceDirNeeded" persistent max-width="500">      <v-card>
         <v-card-title class="text-h6">Set Up Workspace</v-card-title>
         <v-divider />
         <v-card-text>
@@ -92,6 +96,26 @@
           >
             Confirm
           </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- About Dialog -->
+    <v-dialog v-model="aboutDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title class="d-flex align-center gap-2">
+          <v-img :src="baseUrl + 'Logo-small.png'" width="24" height="24" style="flex:none;" />
+          Solution Inventory
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <p class="mb-2">A questionnaire-based application for documenting and comparing solution assessments across multiple projects.</p>
+          <p class="text-caption text-medium-emphasis">Version {{ appVersion }}</p>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="aboutDialogOpen = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -144,12 +168,13 @@ export default {
       document.removeEventListener('mouseup', stopResize)
     })
     const store = useWorkspaceStore()
-    const { lastSaved, workspaceDirNeeded } = storeToRefs(store)
+    const { lastSaved, workspaceDirNeeded, autoSaveEnabled, workspace, activeProjectId } = storeToRefs(store)
 
     const isElectron = !!(window.electronAPI)
     const baseUrl = import.meta.env.BASE_URL
     const appVersion = __APP_VERSION__
     const workspaceSetupDir = ref('')
+    const aboutDialogOpen = ref(false)
 
     async function selectDirectory() {
       const dir = await window.electronAPI.selectWorkspaceDir()
@@ -161,11 +186,145 @@ export default {
       await store.setWorkspaceDir(workspaceSetupDir.value)
     }
 
+    // Push current state to Electron main so it can enable/disable menus
+    function syncMenuState() {
+      if (!window.electronAPI) return
+      window.electronAPI.updateMenuState({
+        hasWorkspace: !workspaceDirNeeded.value,
+        hasProjects: workspace.value.projects.length > 0,
+        hasActiveProject: !!activeProjectId.value,
+        hasActiveQuestionnaire: !!store.activeQuestionnaireId
+      })
+    }
+
     // Beim Start versuchen, gespeicherte Daten zu laden
     onMounted(async () => {
       await store.initFromStorage()
       store.startAutoSave()
+
+      // Electron: wire up menu actions
+      if (window.electronAPI) {
+        window.electronAPI.onMenuAction(async (action) => {
+          switch (action) {
+            // ── File ─────────────────────────────────────────────────────
+            case 'new-workspace':
+              store.newWorkspace()
+              break
+            case 'open-workspace': {
+              const result = await window.electronAPI.openWorkspaceFile()
+              if (!result || result.error) break
+              // Set workspaceDir to the file's directory so future saves go there
+              await window.electronAPI.setWorkspaceDir(result.dirPath)
+              store.loadFromData(result.data)
+              break
+            }
+            case 'save-workspace':
+            case 'save':
+            case 'save-all':
+              await store.persist()
+              break
+            case 'toggle-autosave':
+              store.toggleAutoSave()
+              break
+            case 'save-workspace-as': {
+              const dir = await window.electronAPI.saveWorkspaceAsDialog()
+              if (dir) {
+                await store.persistTo(dir)
+                await store.setWorkspaceDir(dir)
+              }
+              break
+            }
+            case 'duplicate-workspace': {
+              const dir = await window.electronAPI.saveWorkspaceAsDialog()
+              if (dir) await store.persistTo(dir)
+              break
+            }
+            case 'close-workspace':
+              store.closeWorkspace()
+              break
+
+            // ── Projects ─────────────────────────────────────────────────
+            case 'projects-new':
+              store.dispatchMenuAction('new-project')
+              break
+            case 'projects-import':
+              store.dispatchMenuAction('import-project')
+              break
+            case 'projects-duplicate':
+              if (activeProjectId.value) store.duplicateProject(activeProjectId.value)
+              break
+            case 'projects-save-as':
+              if (activeProjectId.value) store.exportProject(activeProjectId.value)
+              break
+            case 'projects-settings':
+              if (activeProjectId.value) {
+                store.openProjectSummary(activeProjectId.value)
+                store.dispatchMenuAction('project-settings')
+              }
+              break
+
+            // ── Questionnaires ────────────────────────────────────────────
+            case 'questionnaires-new':
+              store.dispatchMenuAction('new-questionnaire', { projectId: activeProjectId.value })
+              break
+            case 'questionnaires-import':
+              store.dispatchMenuAction('import-questionnaire', { projectId: activeProjectId.value })
+              break
+            case 'questionnaires-duplicate':
+              if (store.activeQuestionnaireId) store.duplicateQuestionnaire(store.activeQuestionnaireId)
+              break
+            case 'questionnaires-save-as':
+              if (store.activeQuestionnaireId) store.saveQuestionnaire(store.activeQuestionnaireId)
+              break
+            case 'questionnaires-delete':
+              if (store.activeQuestionnaireId) store.deleteQuestionnaire(store.activeQuestionnaireId)
+              break
+            case 'questionnaires-settings':
+              store.dispatchMenuAction('questionnaire-settings')
+              break
+
+            // ── Radar ─────────────────────────────────────────────────────
+            case 'radar-open':
+              if (activeProjectId.value) {
+                store.openProjectSummary(activeProjectId.value)
+                store.dispatchMenuAction('radar-open')
+              }
+              break
+            case 'radar-export-json':
+              store.dispatchMenuAction('radar-export-json')
+              break
+            case 'radar-export-png':
+              store.dispatchMenuAction('radar-export-png')
+              break
+            case 'radar-settings':
+              if (activeProjectId.value) {                
+                store.openProjectSummary(activeProjectId.value)
+                store.dispatchMenuAction('radar-settings')
+              }
+              break
+
+            // ── View ──────────────────────────────────────────────────────
+            case 'view-toggle-sidebar':
+              drawerOpen.value = !drawerOpen.value
+              break
+
+            // ── Help ──────────────────────────────────────────────────────
+            case 'help-about':
+              aboutDialogOpen.value = true
+              break
+          }
+        })
+      }
     })
+
+    // Sync menu enabled states whenever relevant store state changes
+    if (isElectron) {
+      watch(
+        () => [workspace.value.projects.length, activeProjectId.value, workspaceDirNeeded.value, store.activeQuestionnaireId],
+        () => syncMenuState(),
+        { immediate: true, deep: false }
+      )
+    }
 
     return { 
       activeTab,
@@ -177,10 +336,12 @@ export default {
       isElectron,
       baseUrl,
       appVersion,
+      autoSaveEnabled,
       workspaceDirNeeded,
       workspaceSetupDir,
       selectDirectory,
-      confirmWorkspace
+      confirmWorkspace,
+      aboutDialogOpen
     }
   }
 }
