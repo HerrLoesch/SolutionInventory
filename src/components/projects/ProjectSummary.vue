@@ -186,27 +186,6 @@ export default {
       store.updateProjectVisibilitySettings(props.projectId, settings)
     }
 
-    // React to menu actions – only when this project is the active one
-    watch(
-      () => store.pendingMenuAction,
-      (pending) => {
-        if (!pending) return
-        if (store.activeProjectId !== props.projectId) return
-        const { action } = pending
-        if (action === 'project-settings') {
-          categorySettingsOpen.value = true
-          store.clearMenuAction()
-        } else if (action === 'radar-open') {
-          activeTab.value = 'radar'
-          store.clearMenuAction()
-        } else if (action === 'radar-settings') {
-          activeTab.value = 'radar'
-          store.clearMenuAction()
-        }
-      },
-      { deep: true }
-    )
-
     return {
       project,
       questionnaires,

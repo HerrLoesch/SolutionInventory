@@ -5,11 +5,7 @@
 - [ ] Fix the menu handling for Electron to ensure proper functionality.
 - [ ] Implement functionality to define requirements for solutions and enable comparison of different solutions.
 
----
 
-## Electron Agent
-
-- [ ] Add an agent.md, similiar to vue, that checks the electron implementation.
 ---
 
 ## MCP Questionnaire Data Cleaning & Evaluation System

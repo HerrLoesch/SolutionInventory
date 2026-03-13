@@ -2,35 +2,64 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const path = require('path');
 const fs = require('fs');
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════════════════════════════════
+
 const DATA_FILE_NAME = 'solution-inventory-data.json';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Configuration Management
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get the path to the application configuration file
+ * @returns {string} Full path to app-config.json in userData directory
+ */
 function getConfigPath() {
   return path.join(app.getPath('userData'), 'app-config.json');
 }
 
+/**
+ * Read configuration from persistent storage
+ * @returns {Object} Configuration object (empty object if not found or error)
+ */
 function readConfig() {
   try {
     const configPath = getConfigPath();
     if (fs.existsSync(configPath)) {
       return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     }
-  } catch (e) {
-    console.error('Error reading config:', e);
+  } catch (error) {
+    console.error('[Config] Error reading config:', error.message);
   }
   return {};
 }
 
+/**
+ * Write configuration to persistent storage
+ * @param {Object} config - Configuration object to save
+ */
 function writeConfig(config) {
   try {
     fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
-  } catch (e) {
-    console.error('Error writing config:', e);
+  } catch (error) {
+    console.error('[Config] Error writing config:', error.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Window Management
+// ═══════════════════════════════════════════════════════════════════════════
 
 let mainWindow;
 let splashWindow;
 
+/**
+ * Get the path to application logo/icon based on size and package state
+ * @param {string} size - Size variant: 'icon', 'small', or 'large'
+ * @returns {string} Full path to logo file
+ */
 function getLogoPath(size) {
   if (size === 'icon') {
     return app.isPackaged
@@ -43,6 +72,9 @@ function getLogoPath(size) {
     : path.join(__dirname, '../public', name);
 }
 
+/**
+ * Create and display splash screen during initial load
+ */
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 360,
@@ -59,12 +91,25 @@ function createSplashWindow() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Application Menu
+// ═══════════════════════════════════════════════════════════════════════════
+
 let applicationMenu = null;
 
+/**
+ * Helper to send menu action to renderer process
+ * @param {string} action - Action name to send
+ * @returns {Function} Click handler that sends the action
+ */
 function send(action) {
   return () => mainWindow?.webContents.send('menu-action', action);
 }
 
+/**
+ * Create and configure the application menu
+ * @returns {Menu} Electron menu instance
+ */
 function createMenu() {
   const template = [
     // ── 1. File ───────────────────────────────────────────────────────────
@@ -73,16 +118,12 @@ function createMenu() {
       submenu: [
         { label: 'New Workspace',         accelerator: 'CmdOrCtrl+Shift+N', click: send('new-workspace') },
         { label: 'Open Workspace...',     accelerator: 'CmdOrCtrl+Shift+O', click: send('open-workspace') },
-        { type: 'separator' },
-        { label: 'Save Workspace',        accelerator: 'CmdOrCtrl+S',       click: send('save-workspace') },
-        { label: 'Toggle Autosave',                                          click: send('toggle-autosave') },
-        { label: 'Save Workspace As...',                                     click: send('save-workspace-as') },
         { label: 'Duplicate Workspace...', click: send('duplicate-workspace') },
         { type: 'separator' },
+        { label: 'Save Workspace',        accelerator: 'CmdOrCtrl+S',       click: send('save-workspace') },
+        { label: 'Save Workspace As...',                                     click: send('save-workspace-as') },
+        { label: 'Toggle Autosave',                                          click: send('toggle-autosave') },
         { label: 'Close Workspace',        click: send('close-workspace') },
-        { type: 'separator' },
-        { label: 'Save',                  accelerator: 'CmdOrCtrl+Alt+S',   click: send('save') },
-        { label: 'Save All',              accelerator: 'CmdOrCtrl+Alt+Shift+S', click: send('save-all') },
         { type: 'separator' },
         { label: 'Exit', accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4', click: () => app.quit() }
       ]
@@ -95,11 +136,6 @@ function createMenu() {
       submenu: [
         { label: 'New Project',          click: send('projects-new') },
         { label: 'Import Project...',    click: send('projects-import') },
-        { type: 'separator' },
-        { label: 'Duplicate Project',    click: send('projects-duplicate') },
-        { label: 'Export Project As...', click: send('projects-save-as') },
-        { type: 'separator' },
-        { label: 'Project Settings',     click: send('projects-settings') }
       ]
     },
     // ── 3. Questionnaires (enabled when at least one project exists) ──────
@@ -110,30 +146,9 @@ function createMenu() {
       submenu: [
         { label: 'New Questionnaire',         click: send('questionnaires-new') },
         { label: 'Import Questionnaire...',   click: send('questionnaires-import') },
-        { type: 'separator' },
-        { label: 'Duplicate Questionnaire',  click: send('questionnaires-duplicate') },
-        { label: 'Export Questionnaire As...', click: send('questionnaires-save-as') },
-        { type: 'separator' },
-        { label: 'Delete Questionnaire',  click: send('questionnaires-delete') },
-        { type: 'separator' },
-        { label: 'Questionnaire Settings', click: send('questionnaires-settings') }
       ]
     },
-    // ── 4. Radar (enabled when a project is selected) ─────────────────────
-    {
-      id: 'menu-radar',
-      label: 'Radar',
-      enabled: false,
-      submenu: [
-        { label: 'Open Tech Radar',          click: send('radar-open') },
-        { type: 'separator' },
-        { label: 'Export as ThoughtWorks JSON', click: send('radar-export-json') },
-        { label: 'Download as PNG',          click: send('radar-export-png') },
-        { type: 'separator' },
-        { label: 'Radar Settings',           click: send('radar-settings') }
-      ]
-    },
-    // ── 5. View ───────────────────────────────────────────────────────────
+    // ── 4. View ───────────────────────────────────────────────────────────
     {
       label: 'View',
       submenu: [
@@ -149,7 +164,7 @@ function createMenu() {
         { label: 'Toggle Sidebar',                                   click: send('view-toggle-sidebar') }
       ]
     },
-    // ── 6. Help ───────────────────────────────────────────────────────────
+    // ── 5. Help ───────────────────────────────────────────────────────────
     {
       label: 'Help',
       submenu: [
@@ -164,34 +179,27 @@ function createMenu() {
   return applicationMenu;
 }
 
-function updateMenuState({ hasWorkspace = false, hasProjects = false, hasActiveProject = false, hasActiveQuestionnaire = false } = {}) {
+/**
+ * Update menu item enabled states based on application state
+ * @param {Object} options - State flags
+ * @param {boolean} options.hasWorkspace - Whether workspace is loaded
+ * @param {boolean} options.hasProjects - Whether projects exist
+ */
+function updateMenuState({ hasWorkspace = false, hasProjects = false } = {}) {
   if (!applicationMenu) return;
   const projectsItem = applicationMenu.items.find((i) => i.label === 'Projects');
   const questItem    = applicationMenu.items.find((i) => i.label === 'Questionnaires');
-  const radarItem    = applicationMenu.items.find((i) => i.label === 'Radar');
   if (projectsItem)  projectsItem.enabled = hasWorkspace;
   if (questItem)     questItem.enabled    = hasProjects;
-  if (radarItem)     radarItem.enabled    = hasActiveProject;
-
-  // Disable specific Projects submenu items if no project is selected
-  if (projectsItem?.submenu?.items) {
-    projectsItem.submenu.items.forEach((item) => {
-      if (['Duplicate Project', 'Export Project As...', 'Project Settings'].includes(item.label)) {
-        item.enabled = hasActiveProject;
-      }
-    });
-  }
-
-  // Disable specific Questionnaires submenu items if no questionnaire is selected
-  if (questItem?.submenu?.items) {
-    questItem.submenu.items.forEach((item) => {
-      if (['Duplicate Questionnaire', 'Export Questionnaire As...', 'Delete Questionnaire', 'Questionnaire Settings'].includes(item.label)) {
-        item.enabled = hasActiveQuestionnaire;
-      }
-    });
-  }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Application Lifecycle
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Create the main application window with proper security settings
+ */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -199,14 +207,14 @@ function createWindow() {
     show: false,
     autoHideMenuBar: false,
     webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
+      nodeIntegration: false,        // Security: Disable Node.js in renderer
+      contextIsolation: true,         // Security: Isolate context
       preload: path.join(__dirname, 'preload.js')
     },
     icon: process.platform === 'win32' ? getLogoPath('icon') : getLogoPath('large')
   });
 
-  // In production, load the built files
+  // Load app content based on environment
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   } else {
@@ -214,6 +222,7 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   }
 
+  // Handle window ready state
   mainWindow.webContents.once('did-finish-load', () => {
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
@@ -223,13 +232,15 @@ function createWindow() {
     mainWindow.focus();
   });
 
+  // Cleanup on window close
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
+/**
+ * Initialize app when Electron is ready
+ */
 app.whenReady().then(() => {
   const menu = createMenu();
   Menu.setApplicationMenu(menu);
@@ -237,27 +248,37 @@ app.whenReady().then(() => {
   createWindow();
 
   app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
+    // On macOS, re-create window when dock icon is clicked
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
 });
 
-// Quit when all windows are closed, except on macOS.
+/**
+ * Quit when all windows are closed (except on macOS)
+ */
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-// IPC handlers for workspace directory management
+// ═══════════════════════════════════════════════════════════════════════════
+// IPC Handlers - Workspace Directory Management
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * IPC: Get the current workspace directory path from config
+ */
 ipcMain.handle('get-workspace-dir', async () => {
   const config = readConfig();
   return config.workspaceDir || null;
 });
 
+/**
+ * IPC: Set the workspace directory path in config
+ */
 ipcMain.handle('set-workspace-dir', async (event, dirPath) => {
   const config = readConfig();
   config.workspaceDir = dirPath;
@@ -265,6 +286,9 @@ ipcMain.handle('set-workspace-dir', async (event, dirPath) => {
   return { success: true };
 });
 
+/**
+ * IPC: Show directory selection dialog for workspace
+ */
 ipcMain.handle('select-workspace-dir', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Select Workspace Directory',
@@ -275,34 +299,55 @@ ipcMain.handle('select-workspace-dir', async () => {
   return result.filePaths[0];
 });
 
-// IPC handlers for data file I/O in the workspace directory
+// ═══════════════════════════════════════════════════════════════════════════
+// IPC Handlers - Data File I/O
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * IPC: Read workspace data file from configured workspace directory
+ */
 ipcMain.handle('read-data-file', async () => {
   try {
     const config = readConfig();
-    if (!config.workspaceDir) return { success: false, error: 'No workspace dir configured' };
+    if (!config.workspaceDir) {
+      return { success: false, error: 'No workspace directory configured' };
+    }
+    
     const filePath = path.join(config.workspaceDir, DATA_FILE_NAME);
-    if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Workspace data file not found' };
+    }
+    
     const content = fs.readFileSync(filePath, 'utf-8');
     return { success: true, data: JSON.parse(content) };
   } catch (error) {
-    console.error('Error reading data file:', error);
+    console.error('[IPC] Error reading data file:', error.message);
     return { success: false, error: error.message };
   }
 });
 
+/**
+ * IPC: Write workspace data to configured workspace directory
+ */
 ipcMain.handle('write-data-file', async (event, jsonString) => {
   try {
     const config = readConfig();
-    if (!config.workspaceDir) return { success: false, error: 'No workspace dir configured' };
+    if (!config.workspaceDir) {
+      return { success: false, error: 'No workspace directory configured' };
+    }
+    
     const filePath = path.join(config.workspaceDir, DATA_FILE_NAME);
     fs.writeFileSync(filePath, jsonString);
     return { success: true, path: filePath };
   } catch (error) {
-    console.error('Error writing data file:', error);
+    console.error('[IPC] Error writing data file:', error.message);
     return { success: false, error: error.message };
   }
 });
 
+/**
+ * IPC: Show directory selection dialog for "Save Workspace As"
+ */
 ipcMain.handle('save-workspace-as-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Save Workspace As',
@@ -313,35 +358,46 @@ ipcMain.handle('save-workspace-as-dialog', async () => {
   return result.filePaths[0];
 });
 
+/**
+ * IPC: Write workspace data to a specific directory path
+ */
 ipcMain.handle('write-data-file-to', async (event, dirPath, jsonString) => {
   try {
     const filePath = path.join(dirPath, DATA_FILE_NAME);
     fs.writeFileSync(filePath, jsonString);
     return { success: true, path: filePath };
   } catch (error) {
-    console.error('Error writing data file to path:', error);
+    console.error('[IPC] Error writing data file to path:', error.message);
     return { success: false, error: error.message };
   }
 });
 
+/**
+ * IPC: Show file open dialog and read workspace JSON file
+ */
 ipcMain.handle('open-workspace-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Workspace',
     filters: [{ name: 'Workspace JSON', extensions: ['json'] }],
     properties: ['openFile']
   });
+  
   if (result.canceled || result.filePaths.length === 0) return null;
+  
   const filePath = result.filePaths[0];
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
     const data = JSON.parse(content);
     return { filePath, dirPath: path.dirname(filePath), data };
   } catch (error) {
-    console.error('Error reading workspace file:', error);
+    console.error('[IPC] Error reading workspace file:', error.message);
     return { error: error.message };
   }
 });
 
+/**
+ * IPC: Receive menu state updates from renderer process
+ */
 ipcMain.on('update-menu-state', (event, state) => {
   updateMenuState(state);
 });

@@ -119,7 +119,7 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.shortComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
                 </div>
               </div>
               <div class="legend-row-actions">
@@ -247,7 +247,7 @@
               :x="clampTooltipX(hoveredBlip.x + 10)"
               :y="clampTooltipY(hoveredBlip.y - 14)"
               :width="tooltipWidth"
-              :height="76 + (hoveredBlip.entryTitle ? 14 : 0) + (hoveredBlip.radarComment ? 14 : 0)"
+              :height="76 + (hoveredBlip.entryTitle ? 14 : 0) + ((hoveredBlip.shortComment || hoveredBlip.comment) ? 14 : 0)"
               rx="4"
               fill="var(--radar-tooltip-bg)"
               stroke="var(--radar-line)"
@@ -286,13 +286,13 @@
               fill="var(--radar-tooltip-text-dim)"
             >{{ truncate(hoveredBlip.entryTitle, 32) }}</text>
             <text
-              v-if="hoveredBlip.radarComment"
+              v-if="hoveredBlip.shortComment || hoveredBlip.comment"
               :x="clampTooltipX(hoveredBlip.x + 10) + 8"
               :y="clampTooltipY(hoveredBlip.y - 14) + (hoveredBlip.entryTitle ? 88 : 74)"
               class="tooltip-sub"
               fill="var(--radar-tooltip-text)"
               font-style="italic"
-            >{{ truncate(hoveredBlip.radarComment, 32) }}</text>
+            >{{ truncate(hoveredBlip.shortComment || hoveredBlip.comment, 32) }}</text>
           </g>
         </svg>
       </div>
@@ -353,7 +353,7 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.shortComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
                 </div>
               </div>
               <div class="legend-row-actions">
@@ -376,7 +376,7 @@
       </div>
 
       <!-- Blip detail dialog -->
-      <v-dialog v-model="detailDialog" max-width="500" scrollable>
+      <v-dialog v-model="detailDialog" max-width="700" scrollable>
         <v-card v-if="detailBlip">
           <!-- Header with colour bar -->
           <div class="detail-header" :style="{ borderTop: `4px solid ${detailBlip.ringColor}` }">
@@ -431,26 +431,24 @@
               </div>
             </div>
 
-            <!-- Questionnaire comment -->
-            <template v-if="detailBlip.comment">
-              <div class="detail-label mb-1">Questionnaire comment</div>
-              <v-sheet rounded="lg" color="surface-variant" class="pa-3 mb-4">
-                <div class="text-body-2" style="white-space:pre-wrap;">{{ detailBlip.comment }}</div>
-              </v-sheet>
+            <!-- Short comment (override or questionnaire comment as default) -->
+            <template v-if="detailBlip.shortComment || detailBlip.comment">
+              <div class="detail-label mb-1">Short comment</div>
+              <div class="text-body-2 mb-4" style="font-style:italic; white-space:pre-wrap;">{{ detailBlip.shortComment || detailBlip.comment }}</div>
             </template>
 
-            <!-- Radar comment (override) -->
+            <!-- Radar detailed comment (Markdown) -->
             <template v-if="detailBlip.radarComment">
               <div class="detail-label mb-1">
                 <v-icon size="12" class="mr-1">mdi-pencil-circle</v-icon>
-                Radar comment
+                Detailed comment
               </div>
-              <v-sheet rounded="lg" color="primary" variant="tonal" class="pa-3 mb-4">
-                <div class="text-body-2" style="white-space:pre-wrap;">{{ detailBlip.radarComment }}</div>
+              <v-sheet rounded="lg" variant="outlined" class="pa-2 mb-4 radar-comment-preview">
+                <MdPreview :modelValue="detailBlip.radarComment" language="en-US" class="md-preview-inline" />
               </v-sheet>
             </template>
 
-            <div v-if="!detailBlip.comment && !detailBlip.radarComment" class="text-caption text-medium-emphasis">
+            <div v-if="!detailBlip.comment && !detailBlip.radarComment && !detailBlip.shortComment" class="text-caption text-medium-emphasis">
               No comments available.
             </div>
           </v-card-text>
@@ -482,7 +480,7 @@
       </v-dialog>
 
       <!-- Edit blip dialog -->
-      <v-dialog v-model="editDialog" max-width="440">
+      <v-dialog v-model="editDialog" max-width="760">
         <v-card>
           <v-card-title class="text-body-1 font-weight-bold pt-4 px-4">
             <v-icon start size="18">mdi-pencil-outline</v-icon>
@@ -490,39 +488,53 @@
           </v-card-title>
           <v-card-subtitle class="px-4 pb-0">{{ blipToEdit?.name }}</v-card-subtitle>
           <v-card-text class="px-4 pt-3 pb-2">
-            <v-select
-              v-model="editForm.status"
-              :items="RADAR_STATUS_OPTIONS"
-              item-title="title"
-              item-value="value"
-              label="Status"
+            <div class="d-flex" style="gap:12px;">
+              <v-select
+                v-model="editForm.status"
+                :items="RADAR_STATUS_OPTIONS"
+                item-title="title"
+                item-value="value"
+                label="Status"
+                density="compact"
+                variant="outlined"
+                clearable
+                :hint="blipToEdit?.status && !editForm.status ? `Inherited from questionnaire: ${blipToEdit.status}` : ''"
+                persistent-hint
+                style="flex:1;"
+              />
+              <v-select
+                v-model="editForm.categoryOverride"
+                :items="availableCategoriesForEdit"
+                label="Category (Quadrant)"
+                density="compact"
+                variant="outlined"
+                clearable
+                :hint="editForm.categoryOverride && blipToEdit && editForm.categoryOverride !== blipToEdit.naturalCategoryTitle ? 'Overrides the questionnaire-defined quadrant' : (blipToEdit ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}` : '')"
+                persistent-hint
+                style="flex:1;"
+              />
+            </div>
+            <v-text-field
+              v-model="editForm.shortComment"
+              label="Short comment"
               density="compact"
               variant="outlined"
               clearable
-              :hint="blipToEdit?.status && !editForm.status ? `Inherited from questionnaire: ${blipToEdit.status}` : ''"
+              :hint="blipToEdit?.comment ? `Default (from questionnaire): ${blipToEdit.comment}` : ''"
               persistent-hint
-              class="mb-3"
+              placeholder="Leave empty to use the questionnaire comment…"
+              class="mt-3"
             />
-            <v-select
-              v-model="editForm.categoryOverride"
-              :items="availableCategoriesForEdit"
-              label="Category (Quadrant)"
-              density="compact"
-              variant="outlined"
-              clearable
-              :hint="editForm.categoryOverride && blipToEdit && editForm.categoryOverride !== blipToEdit.naturalCategoryTitle ? 'Overrides the questionnaire-defined quadrant' : (blipToEdit ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}` : '')"
-              persistent-hint
-              class="mb-3"
-            />
-            <v-textarea
+            <div class="mt-4 mb-1">
+              <div class="edit-comment-label">Detailed comment (Markdown)</div>
+            </div>
+            <MdEditor
               v-model="editForm.comment"
-              label="Radar comment"
-              density="compact"
-              variant="outlined"
-              rows="3"
-              auto-grow
-              hide-details
-              placeholder="Notes specific to this radar entry…"
+              language="en-US"
+              :preview="false"
+              :toolbars="mdToolbars"
+              style="min-height:220px;"
+              placeholder="Detailed notes with Markdown formatting…"
             />
           </v-card-text>
           <v-card-actions class="px-4 pb-3">
@@ -623,6 +635,8 @@
 import { computed, ref, watch } from 'vue'
 import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { MdEditor, MdPreview } from 'md-editor-v3'
+import 'md-editor-v3/lib/style.css'
 
 // ── Radar geometry constants ─────────────────────────────────────────────────
 const SIZE = 720
@@ -743,6 +757,7 @@ function typeLabelOf (type) {
 
 export default {
   name: 'TechRadar',
+  components: { MdEditor, MdPreview },
   props: {
     projectId: {
       type: String,
@@ -775,6 +790,14 @@ export default {
     const draggedCategory = ref(null)
     const visibleStatuses = ref(new Set(['adopt', 'trial', 'assess', 'hold', 'retire']))
 
+    // Markdown editor toolbar – minimal set for comment editing
+    const mdToolbars = [
+      'bold', 'italic', 'strikethrough', '-',
+      'title', 'quote', 'unorderedList', 'orderedList', '-',
+      'link', 'code', 'codeRow', '-',
+      'fullscreen'
+    ]
+
     // ── Quadrant label overrides ─────────────────────────────────────────────
     // Local form state for editing in the config dialog (0-3 keyed by quadrant index)
     const quadrantLabelForm = ref({ 0: '', 1: '', 2: '', 3: '' })
@@ -791,21 +814,6 @@ export default {
         }
       }
     })
-
-    // Open quadrant config dialog when menu action 'radar-settings' is dispatched
-    watch(
-      () => store.pendingMenuAction,
-      (pending) => {
-        if (!pending) return
-        if (store.activeProjectId !== props.projectId) return
-        const { action } = pending
-        if (action === 'radar-settings') {
-          quadrantConfigDialog.value = true
-          store.clearMenuAction()
-        }
-      },
-      { deep: true }
-    )
 
     // ── Visible ring tracking ────────────────────────────────────────────────
     // List of visible ring indices (0-4 corresponding to RING_META)
@@ -1082,6 +1090,7 @@ export default {
           answerType: String(answer?.answerType || '').trim(),
           comment: String(answer?.comments || '').trim(),
           radarComment: String(override?.comment || '').trim(),
+          shortComment: String(override?.shortComment || '').trim(),
           overrideStatus: String(override?.status || '').trim(),
           overrideCategoryTitle: String(override?.categoryOverride || '').trim(),
           naturalCategoryTitle: entryData?.categoryTitle || '',
@@ -1427,7 +1436,7 @@ export default {
       return Math.min(Math.max(x, 4), SIZE - TOOLTIP_W - 4)
     }
     function clampTooltipY (y) {
-      return Math.min(Math.max(y, 4), SIZE - 90)
+      return Math.min(Math.max(y, 4), SIZE - 110)
     }
     function truncate (str, max) {
       return str.length > max ? str.slice(0, max - 1) + '…' : str
@@ -1449,6 +1458,7 @@ export default {
       blipToEdit.value = blip
       editForm.value = {
         status: (blip.overrideStatus || blip.status || '').toLowerCase(),
+        shortComment: blip.shortComment || '',
         comment: blip.radarComment || '',
         categoryOverride: blip.overrideCategoryTitle || blip.naturalCategoryTitle || ''
       }
@@ -1462,6 +1472,7 @@ export default {
       const naturalCat = (blipToEdit.value.naturalCategoryTitle || '').trim()
       store.setRadarOverride(props.projectId, blipToEdit.value.entryId, blipToEdit.value.option, {
         status: editForm.value.status,
+        shortComment: editForm.value.shortComment,
         comment: editForm.value.comment,
         categoryOverride: catOverride === naturalCat ? '' : catOverride
       })
@@ -1673,24 +1684,6 @@ export default {
       }
     }
 
-    // React to radar export menu actions
-    watch(
-      () => store.pendingMenuAction,
-      (pending) => {
-        if (!pending) return
-        if (store.activeProjectId !== props.projectId) return
-        const { action } = pending
-        if (action === 'radar-export-json') {
-          exportRadarJson()
-          store.clearMenuAction()
-        } else if (action === 'radar-export-png') {
-          downloadRadar()
-          store.clearMenuAction()
-        }
-      },
-      { deep: true }
-    )
-
     return {
       SIZE, CX, CY, OUTER_R, computedRings, BLIP_R, RING_META,
       tooltipWidth,
@@ -1750,7 +1743,8 @@ export default {
       quadrantLabelForm,
       effectiveQuadrantLabels,
       autoQuadrantLabel,
-      updateQuadrantLabel
+      updateQuadrantLabel,
+      mdToolbars
     }
   }
 }
@@ -2076,5 +2070,41 @@ export default {
   opacity: 1;
   background: rgba(var(--v-theme-error), 0.1);
   border-color: rgb(var(--v-theme-error));
+}
+
+/* Markdown editor in edit dialog */
+.edit-comment-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  margin-bottom: 4px;
+}
+
+/* Strip md-editor-v3 default background and borders so it blends into the dialog */
+:deep(.md-editor) {
+  border-radius: 8px;
+  border-color: rgba(var(--v-theme-on-surface), 0.23);
+}
+:deep(.md-editor-toolbar-wrapper) {
+  border-bottom-color: rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* Inline preview inside the detail dialog */
+.radar-comment-preview {
+  overflow: hidden;
+  max-height: 260px;
+  overflow-y: auto;
+}
+:deep(.md-preview-inline) {
+  background: transparent !important;
+  padding: 0 !important;
+}
+:deep(.md-preview-inline .md-editor-preview-wrapper) {
+  padding: 4px 8px !important;
+}
+:deep(.md-preview-inline p:last-child) {
+  margin-bottom: 0;
 }
 </style>

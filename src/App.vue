@@ -191,9 +191,7 @@ export default {
       if (!window.electronAPI) return
       window.electronAPI.updateMenuState({
         hasWorkspace: !workspaceDirNeeded.value,
-        hasProjects: workspace.value.projects.length > 0,
-        hasActiveProject: !!activeProjectId.value,
-        hasActiveQuestionnaire: !!store.activeQuestionnaireId
+        hasProjects: workspace.value.projects.length > 0
       })
     }
 
@@ -250,18 +248,6 @@ export default {
             case 'projects-import':
               store.dispatchMenuAction('import-project')
               break
-            case 'projects-duplicate':
-              if (activeProjectId.value) store.duplicateProject(activeProjectId.value)
-              break
-            case 'projects-save-as':
-              if (activeProjectId.value) store.exportProject(activeProjectId.value)
-              break
-            case 'projects-settings':
-              if (activeProjectId.value) {
-                store.openProjectSummary(activeProjectId.value)
-                store.dispatchMenuAction('project-settings')
-              }
-              break
 
             // ── Questionnaires ────────────────────────────────────────────
             case 'questionnaires-new':
@@ -269,38 +255,6 @@ export default {
               break
             case 'questionnaires-import':
               store.dispatchMenuAction('import-questionnaire', { projectId: activeProjectId.value })
-              break
-            case 'questionnaires-duplicate':
-              if (store.activeQuestionnaireId) store.duplicateQuestionnaire(store.activeQuestionnaireId)
-              break
-            case 'questionnaires-save-as':
-              if (store.activeQuestionnaireId) store.saveQuestionnaire(store.activeQuestionnaireId)
-              break
-            case 'questionnaires-delete':
-              if (store.activeQuestionnaireId) store.deleteQuestionnaire(store.activeQuestionnaireId)
-              break
-            case 'questionnaires-settings':
-              store.dispatchMenuAction('questionnaire-settings')
-              break
-
-            // ── Radar ─────────────────────────────────────────────────────
-            case 'radar-open':
-              if (activeProjectId.value) {
-                store.openProjectSummary(activeProjectId.value)
-                store.dispatchMenuAction('radar-open')
-              }
-              break
-            case 'radar-export-json':
-              store.dispatchMenuAction('radar-export-json')
-              break
-            case 'radar-export-png':
-              store.dispatchMenuAction('radar-export-png')
-              break
-            case 'radar-settings':
-              if (activeProjectId.value) {                
-                store.openProjectSummary(activeProjectId.value)
-                store.dispatchMenuAction('radar-settings')
-              }
               break
 
             // ── View ──────────────────────────────────────────────────────
@@ -320,7 +274,7 @@ export default {
     // Sync menu enabled states whenever relevant store state changes
     if (isElectron) {
       watch(
-        () => [workspace.value.projects.length, activeProjectId.value, workspaceDirNeeded.value, store.activeQuestionnaireId],
+        () => [workspace.value.projects.length, workspaceDirNeeded.value],
         () => syncMenuState(),
         { immediate: true, deep: false }
       )
