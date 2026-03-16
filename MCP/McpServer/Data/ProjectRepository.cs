@@ -119,6 +119,142 @@ public sealed class ProjectRepository
 
     // ── Query ─────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Returns all distinct categories (by id) that exist in the workspace,
+    /// including their entries (subcategories) with id and aspect label.
+    /// </summary>
+    public IReadOnlyList<CategoryDefinition>? GetCategories()
+    {
+        if (_workspace is null) return null;
+
+        // Collect the first occurrence of each category id across all questionnaires
+        // so the caller gets a complete, deduplicated catalog.
+        var seen = new Dictionary<string, CategoryDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var q in _workspace.Questionnaires)
+        {
+            foreach (var cat in q.Categories)
+            {
+                if (cat.IsMetadata == true) continue;
+                if (seen.ContainsKey(cat.Id)) continue;
+
+                var entries = (cat.Entries ?? [])
+                    .Select(e => new EntryDefinition(e.Id, e.Aspect))
+                    .ToList();
+
+                seen[cat.Id] = new CategoryDefinition(cat.Id, cat.Title, entries.AsReadOnly());
+            }
+        }
+
+        return seen.Values.ToList().AsReadOnly();
+    }
+
+    /// <summary>
+    /// Returns the structural outline of every questionnaire – id, name and the
+    /// non-metadata categories with their entry ids/aspects. No answers or metadata.
+    /// </summary>
+    public IReadOnlyList<QuestionnaireStructure>? GetQuestionnaireStructures()
+    {
+        if (_workspace is null) return null;
+
+        return _workspace.Questionnaires.Select(q =>
+        {
+            var cats = q.Categories
+                .Where(c => c.IsMetadata != true)
+                .Select(c => new CategoryStructure(
+                    c.Id,
+                    c.Title,
+                    (c.Entries ?? []).Select(e => new EntryDefinition(e.Id, e.Aspect)).ToList().AsReadOnly()))
+                .ToList();
+
+            return new QuestionnaireStructure(q.Id, q.Name, cats.AsReadOnly());
+        }).ToList().AsReadOnly();
+    }
+
+    /// <summary>
+    /// Returns every answer given for a specific category (and optional entry),
+    /// optionally filtered to a single questionnaire.
+    /// </summary>
+    public IReadOnlyList<AnswerRecord>? GetAnswersForCategory(
+        string categoryId,
+        string? entryId         = null,
+        string? questionnaireId = null)
+    {
+        if (_workspace is null) return null;
+
+        var questionnaires = string.IsNullOrWhiteSpace(questionnaireId)
+            ? _workspace.Questionnaires
+            : _workspace.Questionnaires.Where(q =>
+                q.Id.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase) ||
+                q.Name.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var records = new List<AnswerRecord>();
+
+        foreach (var q in questionnaires)
+        {
+            var category = q.Categories.FirstOrDefault(c =>
+                c.Id.Equals(categoryId, StringComparison.OrdinalIgnoreCase));
+
+            if (category is null) continue;
+
+            var entries = (category.Entries ?? [])
+                .Where(e => string.IsNullOrWhiteSpace(entryId) ||
+                            e.Id.Equals(entryId, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var entry in entries)
+            {
+                foreach (var answer in entry.Answers ?? [])
+                {
+                    records.Add(new AnswerRecord(
+                        q.Id,
+                        q.Name,
+                        category.Id,
+                        category.Title,
+                        entry.Id,
+                        entry.Aspect,
+                        answer.Technology,
+                        answer.Status,
+                        answer.Comments,
+                        entry.Applicability,
+                        entry.EntryComment));
+                }
+
+                // If the entry has no answers but a comment/applicability, record that too
+                if ((entry.Answers is null || entry.Answers.Count == 0) &&
+                    (!string.IsNullOrWhiteSpace(entry.EntryComment) || !string.IsNullOrWhiteSpace(entry.Applicability)))
+                {
+                    records.Add(new AnswerRecord(
+                        q.Id,
+                        q.Name,
+                        category.Id,
+                        category.Title,
+                        entry.Id,
+                        entry.Aspect,
+                        null,
+                        null,
+                        null,
+                        entry.Applicability,
+                        entry.EntryComment));
+                }
+            }
+        }
+
+        return records.AsReadOnly();
+    }
+
+    /// <summary>Returns the tech radar (overrides + category order) from the loaded project.</summary>
+    public TechRadarData? GetTechRadar()
+    {
+        if (_workspace?.Project is null) return null;
+        var p = _workspace.Project;
+        return new TechRadarData(
+            p.RadarOverrides.AsReadOnly(),
+            p.RadarRefs.AsReadOnly(),
+            p.RadarCategoryOrder.AsReadOnly());
+    }
+
+    // ── Summary helper (used by the UI API) ───────────────────────────────────
+
     public WorkspaceSummary? GetSummary()
     {
         if (_workspace is null) return null;
@@ -145,8 +281,8 @@ public sealed class ProjectRepository
             );
         }).ToList();
 
-        var totalEntries  = questSummaries.Sum(q => q.EntryCount);
-        var totalAnswers  = _workspace.Questionnaires
+        var totalEntries = questSummaries.Sum(q => q.EntryCount);
+        var totalAnswers = _workspace.Questionnaires
             .SelectMany(q => q.Categories)
             .SelectMany(c => c.Entries ?? [])
             .Sum(e => e.Answers?.Count ?? 0);
@@ -156,113 +292,6 @@ public sealed class ProjectRepository
             _workspace.Questionnaires.Count,
             questSummaries.AsReadOnly(),
             totalEntries,
-            totalAnswers
-        );
+            totalAnswers);
     }
-
-    public Questionnaire? GetQuestionnaire(string idOrName) =>
-        _workspace?.Questionnaires.FirstOrDefault(q =>
-            q.Id.Equals(idOrName, StringComparison.OrdinalIgnoreCase) ||
-            q.Name.Equals(idOrName, StringComparison.OrdinalIgnoreCase));
-
-    // ── Search ────────────────────────────────────────────────────────────────
-
-    public WorkspaceSearchResponse Search(string query)
-    {
-        if (_workspace is null || string.IsNullOrWhiteSpace(query))
-            return new WorkspaceSearchResponse(query, 0, []);
-
-        var results = new List<WorkspaceSearchResult>();
-
-        foreach (var questionnaire in _workspace.Questionnaires)
-        {
-            if (Matches(questionnaire.Name, query))
-            {
-                results.Add(new WorkspaceSearchResult(
-                    questionnaire.Id, questionnaire.Name,
-                    string.Empty, string.Empty,
-                    null, null,
-                    "questionnaire", questionnaire.Name,
-                    null));
-            }
-
-            foreach (var category in questionnaire.Categories)
-            {
-                if (Matches(category.Title, query) || Matches(category.Desc, query))
-                {
-                    results.Add(new WorkspaceSearchResult(
-                        questionnaire.Id, questionnaire.Name,
-                        category.Id, category.Title,
-                        null, null,
-                        "category", category.Title,
-                        null));
-                }
-
-                // Search solution metadata fields
-                if (category.IsMetadata == true && category.Metadata is { } meta)
-                {
-                    var fields = new[] { meta.ProductName, meta.Company, meta.Department, meta.ContactPerson, meta.Description };
-                    var hit    = fields.FirstOrDefault(f => Matches(f, query));
-                    if (hit is not null)
-                    {
-                        results.Add(new WorkspaceSearchResult(
-                            questionnaire.Id, questionnaire.Name,
-                            category.Id, category.Title,
-                            null, null,
-                            "metadata", hit,
-                            null));
-                    }
-                }
-
-                foreach (var entry in category.Entries ?? [])
-                {
-                    if (Matches(entry.Aspect, query) || Matches(entry.Description, query) || Matches(entry.EntryComment, query))
-                    {
-                        results.Add(new WorkspaceSearchResult(
-                            questionnaire.Id, questionnaire.Name,
-                            category.Id, category.Title,
-                            entry.Id, entry.Aspect,
-                            "entry", entry.Aspect,
-                            entry.Applicability));
-                    }
-
-                    foreach (var answer in entry.Answers ?? [])
-                    {
-                        if (Matches(answer.Technology, query) || Matches(answer.Comments, query))
-                        {
-                            results.Add(new WorkspaceSearchResult(
-                                questionnaire.Id, questionnaire.Name,
-                                category.Id, category.Title,
-                                entry.Id, entry.Aspect,
-                                "answer", $"{answer.Technology} ({answer.Status})",
-                                entry.Applicability));
-                        }
-                    }
-
-                    foreach (var example in entry.Examples ?? [])
-                    {
-                        if (Matches(example.Label, query) || example.Tools.Any(t => Matches(t, query)))
-                        {
-                            var matchText = Matches(example.Label, query)
-                                ? example.Label
-                                : example.Tools.First(t => Matches(t, query));
-
-                            results.Add(new WorkspaceSearchResult(
-                                questionnaire.Id, questionnaire.Name,
-                                category.Id, category.Title,
-                                entry.Id, entry.Aspect,
-                                "example", matchText,
-                                entry.Applicability));
-                        }
-                    }
-                }
-            }
-        }
-
-        return new WorkspaceSearchResponse(query, results.Count, results.AsReadOnly());
-    }
-
-    private static bool Matches(string? text, string query) =>
-        !string.IsNullOrEmpty(text) &&
-        text.Contains(query, StringComparison.OrdinalIgnoreCase);
 }

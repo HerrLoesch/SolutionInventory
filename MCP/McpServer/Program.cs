@@ -94,12 +94,6 @@ app.MapGet("/api/workspace/summary", (ProjectRepository repo) =>
     return summary is not null ? Results.Ok(summary) : Results.NoContent();
 });
 
-app.MapGet("/api/workspace/search", (ProjectRepository repo, string? q) =>
-{
-    if (string.IsNullOrWhiteSpace(q)) return Results.BadRequest("Missing query parameter 'q'.");
-    return Results.Ok(repo.Search(q));
-});
-
 // ── MCP protocol (SSE transport, JSON-RPC 2.0) ───────────────────────────────
 var mcp = app.Services.GetRequiredService<McpSessionManager>();
 app.MapGet("/sse",      mcp.HandleSseAsync);

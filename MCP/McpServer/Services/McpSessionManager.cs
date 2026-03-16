@@ -189,8 +189,8 @@ public sealed class McpSessionManager
             {
                 new JsonObject
                 {
-                    ["name"]        = "get_current_time",
-                    ["description"] = "Returns the current local date and time of the MCP server host.",
+                    ["name"]        = "list_categories",
+                    ["description"] = "Returns all distinct categories (and their subcategory entries with IDs) that exist across the loaded workspace. Use this to discover which category IDs and entry IDs are available before making other calls.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
@@ -200,8 +200,8 @@ public sealed class McpSessionManager
                 },
                 new JsonObject
                 {
-                    ["name"]        = "get_workspace_summary",
-                    ["description"] = "Returns a summary of the loaded Solution Inventory workspace including the project name, questionnaire list and entry statistics.",
+                    ["name"]        = "list_questionnaires",
+                    ["description"] = "Returns the structural outline of every questionnaire in the workspace: questionnaire ID, name, and the categories/subcategories (entry IDs and aspect labels) each one covers. No metadata, no answers.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
@@ -211,38 +211,41 @@ public sealed class McpSessionManager
                 },
                 new JsonObject
                 {
-                    ["name"]        = "search_workspace",
-                    ["description"] = "Searches the loaded workspace for questionnaires, technologies, answers and architectural decisions matching the given query.",
+                    ["name"]        = "get_answers_for_category",
+                    ["description"] = "Returns all answers given for a specific category across all questionnaires. Optionally filter by a specific subcategory entry (entryId) or a specific questionnaire (questionnaireId).",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
                         ["properties"] = new JsonObject
                         {
-                            ["query"] = new JsonObject
+                            ["categoryId"] = new JsonObject
                             {
                                 ["type"]        = "string",
-                                ["description"] = "The search term to look for across questionnaire names, categories, entries, answers and examples."
-                            }
-                        },
-                        ["required"] = new JsonArray { "query" }
-                    }
-                },
-                new JsonObject
-                {
-                    ["name"]        = "get_questionnaire_detail",
-                    ["description"] = "Returns full details for a specific questionnaire by its ID or name, including all categories, entries and answers.",
-                    ["inputSchema"] = new JsonObject
-                    {
-                        ["type"]       = "object",
-                        ["properties"] = new JsonObject
-                        {
+                                ["description"] = "The category ID to retrieve answers for, e.g. 'backend', 'frontend', 'architecture'."
+                            },
+                            ["entryId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Filter to a specific subcategory entry by its ID, e.g. 'be-runtime', 'fe-apptype'."
+                            },
                             ["questionnaireId"] = new JsonObject
                             {
                                 ["type"]        = "string",
-                                ["description"] = "The ID or name of the questionnaire to retrieve."
+                                ["description"] = "Optional. Limit results to a single questionnaire by ID or name."
                             }
                         },
-                        ["required"] = new JsonArray { "questionnaireId" }
+                        ["required"] = new JsonArray { "categoryId" }
+                    }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "get_tech_radar",
+                    ["description"] = "Returns the project-level tech radar: all technology overrides (with status 'adopt', 'trial', 'hold', or 'retire' and optional comments), the questionnaire references that contributed each item, and the radar category order.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject(),
+                        ["required"]   = new JsonArray()
                     }
                 }
             }
@@ -255,11 +258,11 @@ public sealed class McpSessionManager
 
         return toolName switch
         {
-            "get_current_time"        => Task.FromResult(BuildTextToolResponse(id, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))),
-            "get_workspace_summary"   => Task.FromResult(BuildWorkspaceSummaryResponse(id)),
-            "search_workspace"        => Task.FromResult(BuildSearchResponse(id, args?["query"]?.GetValue<string>())),
-            "get_questionnaire_detail"=> Task.FromResult(BuildQuestionnaireDetailResponse(id, args?["questionnaireId"]?.GetValue<string>())),
-            _                         => Task.FromResult(BuildError(id, -32602, $"Unknown tool: {toolName}"))
+            "list_categories"          => Task.FromResult(BuildListCategoriesResponse(id)),
+            "list_questionnaires"      => Task.FromResult(BuildListQuestionnairesResponse(id)),
+            "get_answers_for_category" => Task.FromResult(BuildAnswersForCategoryResponse(id, args)),
+            "get_tech_radar"           => Task.FromResult(BuildTechRadarResponse(id)),
+            _                          => Task.FromResult(BuildError(id, -32602, $"Unknown tool: {toolName}"))
         };
     }
 
@@ -272,97 +275,157 @@ public sealed class McpSessionManager
             }
         });
 
-    private string BuildWorkspaceSummaryResponse(JsonNode id)
+    private string BuildListCategoriesResponse(JsonNode id)
     {
-        var summary = _repo.GetSummary();
-        if (summary is null)
-            return BuildTextToolResponse(id, "No workspace loaded. Use the management UI to load a workspace first.");
+        var categories = _repo.GetCategories();
+        if (categories is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# Workspace: {summary.ProjectName}");
-        sb.AppendLine($"Questionnaires: {summary.QuestionnaireCount}  |  Entries: {summary.TotalEntries}  |  Answers: {summary.TotalAnswers}");
+        sb.AppendLine($"# Categories ({categories.Count})");
         sb.AppendLine();
 
-        foreach (var q in summary.Questionnaires)
+        foreach (var cat in categories)
         {
-            sb.AppendLine($"## {q.Name}");
-            if (!string.IsNullOrWhiteSpace(q.ProductName)) sb.AppendLine($"  Product: {q.ProductName}");
-            if (!string.IsNullOrWhiteSpace(q.Company))     sb.AppendLine($"  Company: {q.Company}");
-            if (!string.IsNullOrWhiteSpace(q.Department))  sb.AppendLine($"  Dept: {q.Department}");
-            sb.AppendLine($"  Categories: {q.CategoryCount}  |  Entries: {q.EntryCount}");
-        }
-
-        return BuildTextToolResponse(id, sb.ToString());
-    }
-
-    private string BuildSearchResponse(JsonNode id, string? query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return BuildError(id, -32602, "Parameter 'query' is required.");
-
-        var response = _repo.Search(query);
-        if (response.TotalCount == 0)
-            return BuildTextToolResponse(id, $"No results found for '{query}'.");
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"Found {response.TotalCount} result(s) for '{query}':");
-        sb.AppendLine();
-
-        foreach (var r in response.Results)
-        {
-            sb.Append($"[{r.MatchType.ToUpper()}] {r.QuestionnaireName}");
-            if (!string.IsNullOrEmpty(r.CategoryTitle)) sb.Append($" › {r.CategoryTitle}");
-            if (!string.IsNullOrEmpty(r.Aspect))        sb.Append($" › {r.Aspect}");
-            sb.AppendLine();
-            sb.Append($"  → {r.MatchText}");
-            if (!string.IsNullOrEmpty(r.Applicability)) sb.Append($"  ({r.Applicability})");
+            sb.AppendLine($"## {cat.Title}  `{cat.Id}`");
+            foreach (var entry in cat.Entries)
+                sb.AppendLine($"  - `{entry.Id}` — {entry.Aspect}");
             sb.AppendLine();
         }
 
         return BuildTextToolResponse(id, sb.ToString());
     }
 
-    private string BuildQuestionnaireDetailResponse(JsonNode id, string? questionnaireId)
+    private string BuildListQuestionnairesResponse(JsonNode id)
     {
-        if (string.IsNullOrWhiteSpace(questionnaireId))
-            return BuildError(id, -32602, "Parameter 'questionnaireId' is required.");
-
-        var q = _repo.GetQuestionnaire(questionnaireId);
-        if (q is null)
-            return BuildTextToolResponse(id, $"Questionnaire '{questionnaireId}' not found.");
+        var structures = _repo.GetQuestionnaireStructures();
+        if (structures is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# Questionnaire: {q.Name} ({q.Id})");
+        sb.AppendLine($"# Questionnaires ({structures.Count})");
         sb.AppendLine();
 
-        foreach (var cat in q.Categories)
+        foreach (var q in structures)
         {
-            sb.AppendLine($"## {cat.Title}");
-
-            if (cat.IsMetadata == true && cat.Metadata is { } meta)
+            sb.AppendLine($"## {q.Name}  `{q.Id}`");
+            foreach (var cat in q.Categories)
             {
-                if (!string.IsNullOrWhiteSpace(meta.ProductName))     sb.AppendLine($"  Product: {meta.ProductName}");
-                if (!string.IsNullOrWhiteSpace(meta.Company))         sb.AppendLine($"  Company: {meta.Company}");
-                if (!string.IsNullOrWhiteSpace(meta.Department))      sb.AppendLine($"  Department: {meta.Department}");
-                if (!string.IsNullOrWhiteSpace(meta.ContactPerson))   sb.AppendLine($"  Contact: {meta.ContactPerson}");
-                if (!string.IsNullOrWhiteSpace(meta.ExecutionType))   sb.AppendLine($"  Execution type: {meta.ExecutionType}");
-                if (!string.IsNullOrWhiteSpace(meta.ArchitecturalRole)) sb.AppendLine($"  Architectural role: {meta.ArchitecturalRole}");
+                sb.AppendLine($"  ### {cat.Title}  `{cat.Id}`  ({cat.Entries.Count} entries)");
+                foreach (var entry in cat.Entries)
+                    sb.AppendLine($"    - `{entry.Id}` — {entry.Aspect}");
             }
-
-            foreach (var entry in cat.Entries ?? [])
-            {
-                sb.AppendLine($"  ### {entry.Aspect} [{entry.Applicability ?? "not set"}]");
-                if (!string.IsNullOrWhiteSpace(entry.EntryComment)) sb.AppendLine($"    Note: {entry.EntryComment}");
-
-                foreach (var ans in entry.Answers ?? [])
-                    sb.AppendLine($"    - {ans.Technology}: {ans.Status}");
-            }
-
             sb.AppendLine();
         }
 
         return BuildTextToolResponse(id, sb.ToString());
     }
+
+    private string BuildAnswersForCategoryResponse(JsonNode id, JsonNode? args)
+    {
+        var categoryId      = args?["categoryId"]?.GetValue<string>();
+        var entryId         = args?["entryId"]?.GetValue<string>();
+        var questionnaireId = args?["questionnaireId"]?.GetValue<string>();
+
+        if (string.IsNullOrWhiteSpace(categoryId))
+            return BuildError(id, -32602, "Parameter 'categoryId' is required.");
+
+        var records = _repo.GetAnswersForCategory(categoryId, entryId, questionnaireId);
+        if (records is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        if (records.Count == 0)
+            return BuildTextToolResponse(id, $"No answers found for category '{categoryId}'" +
+                (entryId         is not null ? $", entry '{entryId}'"                     : "") +
+                (questionnaireId is not null ? $", questionnaire '{questionnaireId}'"     : "") + ".");
+
+        var sb = new StringBuilder();
+        var header = $"# Answers for category `{categoryId}`";
+        if (entryId         is not null) header += $" › `{entryId}`";
+        if (questionnaireId is not null) header += $" (questionnaire: {questionnaireId})";
+        sb.AppendLine(header);
+        sb.AppendLine();
+
+        // Group by questionnaire → category entry for readability
+        foreach (var byQ in records.GroupBy(r => r.QuestionnaireName))
+        {
+            sb.AppendLine($"## {byQ.Key}");
+            foreach (var byEntry in byQ.GroupBy(r => r.Aspect))
+            {
+                var first = byEntry.First();
+                sb.Append($"  ### {byEntry.Key}  `{first.EntryId}`");
+                if (!string.IsNullOrWhiteSpace(first.Applicability))
+                    sb.Append($"  [{first.Applicability}]");
+                sb.AppendLine();
+
+                if (!string.IsNullOrWhiteSpace(first.EntryComment))
+                    sb.AppendLine($"  > {first.EntryComment}");
+
+                foreach (var r in byEntry.Where(r => r.Technology is not null))
+                {
+                    sb.Append($"    - **{r.Technology}** ({r.Status})");
+                    if (!string.IsNullOrWhiteSpace(r.Comment))
+                        sb.Append($" — {r.Comment}");
+                    sb.AppendLine();
+                }
+            }
+            sb.AppendLine();
+        }
+
+        return BuildTextToolResponse(id, sb.ToString());
+    }
+
+    private string BuildTechRadarResponse(JsonNode id)
+    {
+        var radar = _repo.GetTechRadar();
+        if (radar is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Tech Radar");
+        sb.AppendLine();
+
+        sb.AppendLine($"**Category order:** {string.Join(" › ", radar.CategoryOrder)}");
+        sb.AppendLine();
+
+        // Group overrides by status ring for a radar-style overview
+        var rings = new[] { "adopt", "trial", "hold", "retire" };
+        foreach (var ring in rings)
+        {
+            var items = radar.Overrides
+                .Where(o => o.Status.Equals(ring, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (items.Count == 0) continue;
+
+            sb.AppendLine($"## {ring.ToUpper()}  ({items.Count})");
+            foreach (var item in items)
+            {
+                var cat = string.IsNullOrWhiteSpace(item.CategoryOverride) ? item.EntryId : item.CategoryOverride;
+                sb.Append($"  - **{item.Option}** [{cat}]");
+                if (!string.IsNullOrWhiteSpace(item.ShortComment)) sb.Append($" — {item.ShortComment}");
+                sb.AppendLine();
+                if (!string.IsNullOrWhiteSpace(item.Comment))
+                {
+                    foreach (var line in item.Comment.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                        sb.AppendLine($"    > {line.Trim()}");
+                }
+            }
+            sb.AppendLine();
+        }
+
+        // Questionnaire references summary
+        sb.AppendLine($"## Questionnaire References  ({radar.Refs.Count} total)");
+        foreach (var byEntry in radar.Refs.GroupBy(r => r.EntryId))
+        {
+            sb.AppendLine($"  - `{byEntry.Key}`: {string.Join(", ", byEntry.Select(r => r.Option))}");
+        }
+
+        return BuildTextToolResponse(id, sb.ToString());
+    }
+
+    private const string NotLoadedMessage =
+        "No workspace loaded. Use the management UI (Workspace tab → Load Example or Load File) to load a workspace first.";
 
     private static string BuildResponse(JsonNode id, JsonNode result) =>
         new JsonObject
