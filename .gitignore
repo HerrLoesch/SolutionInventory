@@ -32,3 +32,33 @@ release/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userprefs
+*.DotSettings.user
+
+# .NET publish output
+publish/
+out/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# .NET runtime & test
+*.coverage
+*.coveragexml
+TestResults/
+coverage-report/
+
+# Secrets & config overrides
+appsettings.*.json
+!appsettings.Development.json
+secrets.json
