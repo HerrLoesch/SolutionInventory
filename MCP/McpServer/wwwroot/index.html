@@ -255,6 +255,101 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tab {
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+      user-select: none;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-pane { display: none; overflow-y: auto; flex: 1; }
+    .tab-pane.active { display: flex; flex-direction: column; }
+
+    /* ── Workspace panel ── */
+    .ws-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .ws-stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .ws-stat-value { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .ws-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Tree */
+    .ws-tree { font-size: 13px; }
+    .ws-tree details { margin-bottom: 2px; }
+    .ws-tree summary {
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ws-tree summary::-webkit-details-marker { display: none; }
+    .ws-tree summary:hover { background: var(--surface2); }
+    .ws-tree .tree-icon { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+    .ws-tree .tree-label { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ws-tree .tree-badge {
+      font-size: 10px; padding: 1px 5px; border-radius: 3px;
+      background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .ws-tree .tree-inner { padding-left: 18px; border-left: 1px solid var(--border); margin-left: 6px; }
+    .ws-tree .tree-cat {
+      padding: 3px 8px; font-size: 12px; color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px;
+      border-radius: 3px; cursor: default;
+    }
+    .ws-tree .tree-cat:hover { background: var(--surface2); color: var(--text); }
+    .ws-tree .cat-entries { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+    /* Search results */
+    .search-result-item {
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      margin-bottom: 6px;
+      cursor: default;
+    }
+    .search-result-item:hover { border-color: var(--accent); }
+    .search-result-breadcrumb { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+    .search-result-text { font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .search-result-type {
+      font-size: 10px; padding: 1px 5px; border-radius: 3px;
+      background: var(--surface); color: var(--accent); border: 1px solid var(--accent);
+      flex-shrink: 0;
+    }
+    .appl-badge {
+      font-size: 10px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0;
+      background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border);
+    }
+    .search-empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+    #ws-search-count { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
   </style>
 </head>
 <body>
@@ -282,54 +377,111 @@
     <div id="log-output" role="log" aria-live="polite" aria-label="Server log output"></div>
   </section>
 
-  <!-- ── Right: Configuration ── -->
+  <!-- ── Right: Config & Workspace ── -->
   <section class="panel" id="config-panel">
-    <div class="panel-header">
-      <h2>Configuration</h2>
+
+    <div class="tab-bar">
+      <div class="tab active" data-tab="config">Configuration</div>
+      <div class="tab" data-tab="workspace">Workspace</div>
     </div>
-    <div class="config-body">
 
-      <div class="config-section">
-        <h3>Access Control</h3>
-        <label class="toggle-row" for="access-toggle">
-          <span>Allow incoming MCP requests</span>
-          <span class="toggle">
-            <input type="checkbox" id="access-toggle" />
-            <span class="toggle-slider"></span>
-          </span>
-        </label>
-      </div>
+    <!-- ── Configuration Tab ── -->
+    <div class="tab-pane active" id="tab-config">
+      <div class="config-body">
 
-      <div class="config-section">
-        <h3>Data Source</h3>
-        <div class="field">
-          <label for="data-source">Source type</label>
-          <select id="data-source">
-            <option value="local">Local (built-in)</option>
-            <option value="remote">Remote URL</option>
-            <option value="filesystem">File system path</option>
-          </select>
+        <div class="config-section">
+          <h3>Access Control</h3>
+          <label class="toggle-row" for="access-toggle">
+            <span>Allow incoming MCP requests</span>
+            <span class="toggle">
+              <input type="checkbox" id="access-toggle" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
         </div>
-        <div class="field" id="url-field">
-          <label for="data-source-url">URL / Path</label>
-          <input type="text" id="data-source-url" placeholder="https://… or /path/to/data" />
+
+        <div class="config-section">
+          <h3>Data Source</h3>
+          <div class="field">
+            <label for="data-source">Source type</label>
+            <select id="data-source">
+              <option value="local">Local (built-in)</option>
+              <option value="remote">Remote URL</option>
+              <option value="filesystem">File system path</option>
+            </select>
+          </div>
+          <div class="field" id="url-field">
+            <label for="data-source-url">URL / Path</label>
+            <input type="text" id="data-source-url" placeholder="https://… or /path/to/data" />
+          </div>
         </div>
-      </div>
 
-      <div class="config-section">
-        <h3>Available Tools</h3>
-        <div style="font-size:13px;line-height:1.7;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
-          <code style="font-family:var(--mono);color:var(--accent);">get_current_time</code>
-          <p style="color:var(--text-muted);font-size:12px;margin-top:4px;">Returns the current local date and time of the MCP server host.</p>
+        <div class="config-section">
+          <h3>Available Tools</h3>
+          <div style="font-size:13px;line-height:1.7;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <code style="font-family:var(--mono);color:var(--accent);">get_current_time</code>
+              <p style="color:var(--text-muted);font-size:12px;margin-top:2px;">Returns the current local date and time.</p>
+            </div>
+            <div>
+              <code style="font-family:var(--mono);color:var(--accent);">get_workspace_summary</code>
+              <p style="color:var(--text-muted);font-size:12px;margin-top:2px;">Returns a summary of the loaded workspace.</p>
+            </div>
+            <div>
+              <code style="font-family:var(--mono);color:var(--accent);">search_workspace</code>
+              <p style="color:var(--text-muted);font-size:12px;margin-top:2px;">Searches questionnaires, technologies and answers.</p>
+            </div>
+            <div>
+              <code style="font-family:var(--mono);color:var(--accent);">get_questionnaire_detail</code>
+              <p style="color:var(--text-muted);font-size:12px;margin-top:2px;">Returns full detail for a questionnaire by ID or name.</p>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="save-row">
-        <button class="btn btn-primary" id="save-btn">Save Configuration</button>
-        <span id="save-feedback">&#10003; Saved</span>
-      </div>
+        <div class="save-row">
+          <button class="btn btn-primary" id="save-btn">Save Configuration</button>
+          <span id="save-feedback">&#10003; Saved</span>
+        </div>
 
+      </div>
     </div>
+
+    <!-- ── Workspace Tab ── -->
+    <div class="tab-pane" id="tab-workspace">
+      <div class="config-body">
+
+        <div class="config-section">
+          <h3>Load Workspace</h3>
+          <input type="file" id="ws-file-input" accept=".json" style="display:none" />
+          <div class="save-row">
+            <button class="btn btn-primary" id="ws-load-btn">Load File…</button>
+            <button class="btn btn-ghost" id="ws-example-btn">Load Example</button>
+            <span id="ws-feedback" style="font-size:12px;opacity:0;transition:opacity 0.4s;"></span>
+          </div>
+        </div>
+
+        <div class="config-section" id="ws-status-section" style="display:none">
+          <h3>Loaded Workspace</h3>
+          <div id="ws-stats"></div>
+        </div>
+
+        <div class="config-section" id="ws-search-section" style="display:none">
+          <h3>Search</h3>
+          <div class="field">
+            <input type="text" id="ws-search-input" placeholder="Search technologies, questionnaires…" autocomplete="off" />
+          </div>
+          <div id="ws-search-count"></div>
+          <div id="ws-search-results"></div>
+        </div>
+
+        <div class="config-section" id="ws-tree-section" style="display:none">
+          <h3>Structure</h3>
+          <div class="ws-tree" id="ws-tree"></div>
+        </div>
+
+      </div>
+    </div>
+
   </section>
 
 </main>
@@ -464,6 +616,227 @@
   });
 
   loadConfig();
+
+  // ── Tab switching ─────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + target));
+    });
+  });
+
+  // ── Workspace elements ────────────────────────────────────────────────────
+  const wsFileInput   = document.getElementById('ws-file-input');
+  const wsLoadBtn     = document.getElementById('ws-load-btn');
+  const wsExampleBtn  = document.getElementById('ws-example-btn');
+  const wsFeedback    = document.getElementById('ws-feedback');
+  const wsStatusSec   = document.getElementById('ws-status-section');
+  const wsStats       = document.getElementById('ws-stats');
+  const wsSearchSec   = document.getElementById('ws-search-section');
+  const wsSearchInput = document.getElementById('ws-search-input');
+  const wsSearchCount = document.getElementById('ws-search-count');
+  const wsSearchRes   = document.getElementById('ws-search-results');
+  const wsTreeSec     = document.getElementById('ws-tree-section');
+  const wsTree        = document.getElementById('ws-tree');
+
+  function showWsFeedback(msg, isError) {
+    wsFeedback.textContent = msg;
+    wsFeedback.style.color = isError ? 'var(--danger)' : 'var(--success)';
+    wsFeedback.style.opacity = '1';
+    setTimeout(() => { wsFeedback.style.opacity = '0'; }, 3500);
+  }
+
+  async function loadWorkspaceSummary() {
+    const res  = await fetch('/api/workspace/summary');
+    if (res.status === 204) return;
+    const data = await res.json();
+    renderWorkspaceSummary(data);
+  }
+
+  function renderWorkspaceSummary(data) {
+    wsStatusSec.style.display = '';
+    wsSearchSec.style.display = '';
+    wsTreeSec.style.display   = '';
+
+    // Stats cards
+    wsStats.innerHTML = `
+      <div class="ws-stats-grid">
+        <div class="ws-stat-card">
+          <div class="ws-stat-value">${data.questionnaireCount}</div>
+          <div class="ws-stat-label">Questionnaires</div>
+        </div>
+        <div class="ws-stat-card">
+          <div class="ws-stat-value">${data.totalEntries}</div>
+          <div class="ws-stat-label">Entries</div>
+        </div>
+        <div class="ws-stat-card">
+          <div class="ws-stat-value">${data.totalAnswers}</div>
+          <div class="ws-stat-label">Answers</div>
+        </div>
+        <div class="ws-stat-card" style="grid-column:1/-1;text-align:left;padding:8px 12px;">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Project</div>
+          <div style="font-size:15px;font-weight:600;">${escHtml(data.projectName)}</div>
+        </div>
+      </div>`;
+
+    // Tree
+    wsTree.innerHTML = '';
+    for (const q of data.questionnaires) {
+      const det = document.createElement('details');
+      det.open = false;
+
+      const productLabel = q.productName ? ` <span style="color:var(--text-muted);font-size:11px;">${escHtml(q.productName)}</span>` : '';
+      det.innerHTML = `
+        <summary>
+          <span class="tree-icon">▶</span>
+          <span class="tree-label">${escHtml(q.name)}${productLabel}</span>
+          <span class="tree-badge">${q.entryCount} entries</span>
+        </summary>`;
+
+      if (q.company || q.department || q.contactPerson) {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'tree-inner';
+        const parts = [q.company, q.department, q.contactPerson].filter(Boolean);
+        metaDiv.innerHTML = `<div class="tree-cat" style="font-size:11px;color:var(--text-muted);">${parts.map(escHtml).join(' · ')}</div>`;
+        det.appendChild(metaDiv);
+      }
+
+      det.addEventListener('toggle', () => {
+        det.querySelector('.tree-icon').textContent = det.open ? '▼' : '▶';
+      });
+
+      det.appendChild(buildQuestTreeInner(q));
+      wsTree.appendChild(det);
+    }
+  }
+
+  function buildQuestTreeInner(q) {
+    // We only have summary data here; show categories lazily by fetching details on expand
+    const inner = document.createElement('div');
+    inner.className = 'tree-inner';
+    inner.dataset.questId = q.id;
+    inner.dataset.loaded  = 'false';
+    inner.innerHTML = `<div class="tree-cat" style="color:var(--text-muted);font-size:11px;cursor:pointer;" id="load-cats-${q.id}">Click to expand categories…</div>`;
+
+    inner.querySelector(`#load-cats-${q.id}`).addEventListener('click', async () => {
+      if (inner.dataset.loaded === 'true') return;
+      inner.dataset.loaded = 'true';
+      inner.innerHTML = '<div class="tree-cat" style="color:var(--text-muted);font-size:11px;">Loading…</div>';
+
+      try {
+        const res  = await fetch(`/api/workspace/search?q=${encodeURIComponent(q.name)}`);
+        // Fallback: use the summary API directly (no per-questionnaire category endpoint yet)
+        // Just show a placeholder with category count
+        inner.innerHTML = `<div class="tree-cat"><span class="tree-icon">📋</span><span>${q.categoryCount} categories, ${q.entryCount} entries</span></div>`;
+      } catch {
+        inner.innerHTML = '<div class="tree-cat" style="color:var(--danger)">Load failed</div>';
+        inner.dataset.loaded = 'false';
+      }
+    });
+
+    return inner;
+  }
+
+  // ── Workspace loading ─────────────────────────────────────────────────────
+  wsExampleBtn.addEventListener('click', async () => {
+    wsExampleBtn.disabled = true;
+    wsLoadBtn.disabled    = true;
+    try {
+      const res  = await fetch('/api/workspace/load-example', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { showWsFeedback(data.message, true); return; }
+      showWsFeedback(data.message, false);
+      await loadWorkspaceSummary();
+    } catch (e) {
+      showWsFeedback('Request failed: ' + e.message, true);
+    } finally {
+      wsExampleBtn.disabled = false;
+      wsLoadBtn.disabled    = false;
+    }
+  });
+
+  // "Load File…" opens the OS file picker; upload happens on file selection
+  wsLoadBtn.addEventListener('click', () => {
+    wsFileInput.value = '';   // reset so re-picking the same file still fires change
+    wsFileInput.click();
+  });
+
+  wsFileInput.addEventListener('change', async () => {
+    const file = wsFileInput.files[0];
+    if (!file) return;
+
+    wsLoadBtn.disabled = true;
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res  = await fetch('/api/workspace/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) { showWsFeedback(data.message, true); return; }
+      showWsFeedback(data.message, false);
+      await loadWorkspaceSummary();
+    } catch (e) {
+      showWsFeedback('Upload failed: ' + e.message, true);
+    } finally {
+      wsLoadBtn.disabled = false;
+    }
+  });
+
+  // ── Workspace search ──────────────────────────────────────────────────────
+  let searchDebounce;
+  wsSearchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    const q = wsSearchInput.value.trim();
+    if (!q) { wsSearchRes.innerHTML = ''; wsSearchCount.textContent = ''; return; }
+    searchDebounce = setTimeout(() => runSearch(q), 280);
+  });
+
+  async function runSearch(q) {
+    try {
+      const res  = await fetch(`/api/workspace/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      renderSearchResults(data);
+    } catch (e) {
+      wsSearchRes.innerHTML = `<div class="search-empty">Search failed: ${escHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderSearchResults(data) {
+    wsSearchCount.textContent = data.totalCount > 0 ? `${data.totalCount} result(s)` : '';
+
+    if (data.totalCount === 0) {
+      wsSearchRes.innerHTML = '<div class="search-empty">No results found.</div>';
+      return;
+    }
+
+    wsSearchRes.innerHTML = '';
+    for (const r of data.results) {
+      const item = document.createElement('div');
+      item.className = 'search-result-item';
+
+      const crumbs = [r.questionnaireName, r.categoryTitle, r.aspect].filter(Boolean);
+      const applBadge = r.applicability
+        ? `<span class="appl-badge">${escHtml(r.applicability)}</span>`
+        : '';
+
+      item.innerHTML = `
+        <div class="search-result-breadcrumb">${crumbs.map(escHtml).join(' › ')}</div>
+        <div class="search-result-text">
+          <span class="search-result-type">${escHtml(r.matchType)}</span>
+          ${escHtml(r.matchText)}
+          ${applBadge}
+        </div>`;
+      wsSearchRes.appendChild(item);
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Try to load any previously stored workspace on page load
+  loadWorkspaceSummary().catch(() => {});
 }());
 </script>
 
