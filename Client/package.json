@@ -8,12 +8,12 @@
   "scripts": {
     "postinstall": "npx playwright install",
     "dev": "vite",
-    "build": "cucumber-js && vite build",
+    "build": "start-server-and-test dev http://localhost:5173/SolutionInventory/ cucumber-js && vite build",
     "preview": "vite preview",
     "electron:dev": "vite --mode electron",
     "electron:build": "vite build --mode electron && electron-builder",
     "electron:preview": "vite build --mode electron && electron .",
-    "test:e2e": "cucumber-js",
+    "test:e2e": "start-server-and-test dev http://localhost:5173/SolutionInventory/ cucumber-js",
     "test:e2e:report": "start ./cucumber-report.html"
   },
   "dependencies": {
@@ -29,6 +29,7 @@
     "@vitejs/plugin-vue": "^4.0.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
+    "start-server-and-test": "^2.1.5",
     "vite": "^4.4.9",
     "vite-plugin-pwa": "^0.14.7"
   },
