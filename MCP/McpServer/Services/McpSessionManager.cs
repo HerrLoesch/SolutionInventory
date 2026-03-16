@@ -155,6 +155,13 @@ public sealed class McpSessionManager
 
         await _log.LogAsync("INFO", $"MCP ← {method}");
 
+        // For tools/call also log the specific tool name
+        if (method == "tools/call")
+        {
+            var toolName = @params?["name"]?.GetValue<string>() ?? "?";
+            await _log.LogAsync("INFO", $"  tool: {toolName}");
+        }
+
         var response = method switch
         {
             "initialize" => BuildInitializeResponse(id),
@@ -166,6 +173,69 @@ public sealed class McpSessionManager
 
         await _log.LogAsync("INFO", $"MCP → {method} (replied)");
         await session.Send(response);
+    }
+
+    // ── Direct (sessionless) tool-call endpoint  POST /api/tool/call ─────────────────
+    //
+    // Allows the mcp-bridge.js to invoke a tool without needing an active SSE
+    // session. Returns the JSON-RPC "result" object directly as HTTP 200 JSON,
+    // or HTTP 400 with the JSON-RPC error object on failure.
+
+    public async Task HandleDirectToolCallAsync(HttpContext ctx)
+    {
+        var cfg = await _config.GetAsync();
+        if (!cfg.AccessEnabled)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        JsonNode? body;
+        try   { body = await JsonNode.ParseAsync(ctx.Request.Body); }
+        catch
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await ctx.Response.WriteAsync("Invalid JSON body.");
+            return;
+        }
+
+        if (body is null)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await ctx.Response.WriteAsync("Missing request body.");
+            return;
+        }
+
+        var toolName = body["name"]?.GetValue<string>() ?? string.Empty;
+        var args     = body["arguments"];
+
+        await _log.LogAsync("INFO", $"MCP tool call (direct): {toolName}");
+
+        var fakeId        = JsonValue.Create(1);
+        var jsonRpcParams = new JsonObject
+        {
+            ["name"]      = toolName,
+            ["arguments"] = args?.DeepClone()
+        };
+
+        var responseJson = await BuildToolCallResponseAsync(fakeId, jsonRpcParams);
+        var parsed       = JsonNode.Parse(responseJson);
+
+        ctx.Response.ContentType = "application/json";
+
+        if (parsed?["error"] is JsonNode err)
+        {
+            var errMsg = err["message"]?.GetValue<string>() ?? "Unknown tool error";
+            await _log.LogAsync("ERROR", $"Tool error [{toolName}]: {errMsg}");
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await ctx.Response.WriteAsync(err.ToJsonString());
+            return;
+        }
+
+        var result = parsed?["result"];
+        await _log.LogAsync("INFO", $"MCP tool call completed: {toolName}");
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        await ctx.Response.WriteAsync(result?.ToJsonString() ?? "{}");
     }
 
     // ── Response builders ─────────────────────────────────────────────────────

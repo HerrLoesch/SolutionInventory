@@ -96,8 +96,9 @@ app.MapGet("/api/workspace/summary", (ProjectRepository repo) =>
 
 // ── MCP protocol (SSE transport, JSON-RPC 2.0) ───────────────────────────────
 var mcp = app.Services.GetRequiredService<McpSessionManager>();
-app.MapGet("/sse",      mcp.HandleSseAsync);
-app.MapPost("/message", mcp.HandleMessageAsync);
+app.MapGet("/sse",            mcp.HandleSseAsync);
+app.MapPost("/message",       mcp.HandleMessageAsync);
+app.MapPost("/api/tool/call", mcp.HandleDirectToolCallAsync);
 
 app.Run();
 

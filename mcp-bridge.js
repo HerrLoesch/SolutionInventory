@@ -165,13 +165,9 @@ async function handleCallTool(params, id) {
   try {
     const { name, arguments: args } = params;
 
-    // Build the POST body for the .NET server
-    const toolParams = {
-      name,
-      arguments: args || {}
-    };
-
-    const response = await makeRequest('/message', 'POST', JSON.stringify(toolParams));
+    // POST directly to the stateless /api/tool/call endpoint – no SSE session required
+    const response = await makeRequest('/api/tool/call', 'POST',
+      JSON.stringify({ name, arguments: args || {} }));
 
     if (response.status !== 200) {
       sendJsonRpc(createError(id, -32603, `Tool call failed with status ${response.status}`));
@@ -209,6 +205,9 @@ rl.on('line', async (line) => {
       return;
     }
 
+    // Notifications have no id – they must not receive a response
+    if (id === undefined || id === null) return;
+
     switch (method) {
       case 'initialize':
         await handleInitialize(params, id);
@@ -218,6 +217,9 @@ rl.on('line', async (line) => {
         break;
       case 'tools/call':
         await handleCallTool(params, id);
+        break;
+      case 'ping':
+        sendJsonRpc(createResponse(id, {}));
         break;
       default:
         sendJsonRpc(createError(id, -32601, `Unknown method: ${method}`));
