@@ -148,6 +148,20 @@ async function handleListTools(params, id) {
           properties: {},
           required: []
         }
+      },
+      {
+        name: 'evaluate_responses',
+        description: 'Evaluates response quality of a questionnaire. Returns consistency_score (0.0-1.0), completeness_% (0-100), and a warnings array with detected issues.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            questionnaire_id: {
+              type: 'string',
+              description: 'The unique identifier (ID or name) of the questionnaire to evaluate.'
+            }
+          },
+          required: ['questionnaire_id']
+        }
       }
     ];
 

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json.Nodes;
 using McpServer.Data;
+using McpServer.Logic;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace McpServer.Services;
@@ -33,15 +34,17 @@ public sealed class McpSessionManager
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
-    private readonly ConfigService       _config;
-    private readonly LogBroadcaster      _log;
-    private readonly ProjectRepository   _repo;
+    private readonly ConfigService          _config;
+    private readonly LogBroadcaster         _log;
+    private readonly ProjectRepository      _repo;
+    private readonly QuestionnaireEvaluator _evaluator;
 
-    public McpSessionManager(ConfigService config, LogBroadcaster log, ProjectRepository repo)
+    public McpSessionManager(ConfigService config, LogBroadcaster log, ProjectRepository repo, QuestionnaireEvaluator evaluator)
     {
-        _config = config;
-        _log    = log;
-        _repo   = repo;
+        _config    = config;
+        _log       = log;
+        _repo      = repo;
+        _evaluator = evaluator;
     }
 
     // ── SSE endpoint  GET /sse ────────────────────────────────────────────────
@@ -490,15 +493,11 @@ public sealed class McpSessionManager
         sb.AppendLine($"**Category order:** {string.Join(" › ", radar.CategoryOrder)}");
         sb.AppendLine();
 
-        // Group overrides by status ring for a radar-style overview
-        var rings = new[] { "adopt", "trial", "hold", "retire" };
-        foreach (var ring in rings)
+        // Group overrides by their actual status values from the data
+        foreach (var group in radar.Overrides.GroupBy(o => o.Status, StringComparer.OrdinalIgnoreCase))
         {
-            var items = radar.Overrides
-                .Where(o => o.Status.Equals(ring, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (items.Count == 0) continue;
+            var ring  = group.Key;
+            var items = group.ToList();
 
             sb.AppendLine($"## {ring.ToUpper()}  ({items.Count})");
             foreach (var item in items)
@@ -532,13 +531,15 @@ public sealed class McpSessionManager
         if (string.IsNullOrWhiteSpace(questionnaireId))
             return BuildError(id, -32602, "Parameter 'questionnaire_id' is required.");
 
-        var result = _repo.EvaluateResponses(questionnaireId);
-        if (result is null)
+        var questionnaire = _repo.FindQuestionnaire(questionnaireId);
+        if (questionnaire is null)
         {
             return BuildTextToolResponse(id, _repo.IsLoaded
                 ? $"No questionnaire found with ID or name '{questionnaireId}'."
                 : NotLoadedMessage);
         }
+
+        var result = _evaluator.Evaluate(questionnaire);
 
         var warningsArray = new JsonArray();
         foreach (var w in result.Warnings)

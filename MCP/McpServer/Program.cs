@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using McpServer.Data;
+using McpServer.Logic;
 using McpServer.Models;
 using McpServer.Services;
 
@@ -8,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<LogBroadcaster>();
 builder.Services.AddSingleton<ProjectRepository>();
+builder.Services.AddSingleton<QuestionnaireEvaluator>();
 builder.Services.AddSingleton<McpSessionManager>();
 
 var app = builder.Build();
@@ -53,13 +55,6 @@ app.MapPost("/api/config", async (ConfigService cfgSvc, HttpRequest req) =>
 });
 
 // ── Workspace API ─────────────────────────────────────────────────────────────
-app.MapPost("/api/workspace/load-example", async (ProjectRepository repo, LogBroadcaster log) =>
-{
-    var (success, message) = await repo.LoadExampleAsync();
-    await log.LogAsync(success ? "INFO" : "WARNING", $"Workspace load-example: {message}");
-    return success ? Results.Ok(new { message }) : Results.UnprocessableEntity(new { message });
-});
-
 app.MapPost("/api/workspace/load", async (ProjectRepository repo, LogBroadcaster log, HttpRequest req) =>
 {
     var body = await req.ReadFromJsonAsync<WorkspaceLoadRequest>();
