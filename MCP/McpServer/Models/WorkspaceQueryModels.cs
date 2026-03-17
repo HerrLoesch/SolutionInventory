@@ -43,3 +43,9 @@ public record TechRadarData(
     IReadOnlyList<RadarRef> Refs,
     IReadOnlyList<string> CategoryOrder
 );
+
+public record EvaluateResponsesResult(
+    float ConsistencyScore,
+    float CompletenessPercentage,
+    IReadOnlyList<string> Warnings
+);
