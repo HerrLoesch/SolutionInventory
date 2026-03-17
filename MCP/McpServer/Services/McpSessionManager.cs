@@ -317,6 +317,24 @@ public sealed class McpSessionManager
                         ["properties"] = new JsonObject(),
                         ["required"]   = new JsonArray()
                     }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "evaluate_responses",
+                    ["description"] = "Evaluates the response quality of a single questionnaire. Returns a consistency_score (0.0–1.0) measuring internal consistency of answers, a completeness_% (0–100) representing the fraction of mandatory fields and entries that have been filled in, and a warnings array listing detected issues such as missing metadata, unanswered entries, conflicting technology statuses, or critical statuses (Hold/Retire) without explanatory comments.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["questionnaire_id"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "The unique identifier (ID or name) of the questionnaire to evaluate."
+                            }
+                        },
+                        ["required"] = new JsonArray { "questionnaire_id" }
+                    }
                 }
             }
         });
@@ -335,6 +353,7 @@ public sealed class McpSessionManager
             "list_questionnaires"      => BuildListQuestionnairesResponse(id, excludedIds, referenceId),
             "get_answers_for_category" => BuildAnswersForCategoryResponse(id, args, excludedIds),
             "get_tech_radar"           => BuildTechRadarResponse(id),
+            "evaluate_responses"       => BuildEvaluateResponsesResponse(id, args),
             _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -464,7 +483,6 @@ public sealed class McpSessionManager
         var radar = _repo.GetTechRadar();
         if (radar is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
-
         var sb = new StringBuilder();
         sb.AppendLine("# Tech Radar");
         sb.AppendLine();
@@ -506,6 +524,34 @@ public sealed class McpSessionManager
         }
 
         return BuildTextToolResponse(id, sb.ToString());
+    }
+
+    private string BuildEvaluateResponsesResponse(JsonNode id, JsonNode? args)
+    {
+        var questionnaireId = args?["questionnaire_id"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(questionnaireId))
+            return BuildError(id, -32602, "Parameter 'questionnaire_id' is required.");
+
+        var result = _repo.EvaluateResponses(questionnaireId);
+        if (result is null)
+        {
+            return BuildTextToolResponse(id, _repo.IsLoaded
+                ? $"No questionnaire found with ID or name '{questionnaireId}'."
+                : NotLoadedMessage);
+        }
+
+        var warningsArray = new JsonArray();
+        foreach (var w in result.Warnings)
+            warningsArray.Add(JsonValue.Create(w));
+
+        var json = new JsonObject
+        {
+            ["consistency_score"] = result.ConsistencyScore,
+            ["completeness_%"]    = result.CompletenessPercentage,
+            ["warnings"]          = warningsArray
+        };
+
+        return BuildTextToolResponse(id, json.ToJsonString());
     }
 
     private const string NotLoadedMessage =
