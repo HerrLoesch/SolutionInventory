@@ -112,7 +112,7 @@ jobs:
         working-directory: Client
 
       - name: Build Vite + Electron app
-        run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }}
+        run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: Client
