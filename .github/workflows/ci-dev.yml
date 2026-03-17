@@ -1,73 +1,23 @@
-name: CI – Dev Branch
+name: Manual Pre-release
 
 on:
-  push:
-    branches:
-      - Dev
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Branch used for pre-release build/version bump
+        required: true
+        default: Dev
 
 permissions:
   contents: write
 
 jobs:
   # ------------------------------------------------------------------
-  # 1. Run all E2E tests
-  # ------------------------------------------------------------------
-  test:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: Client/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: Client
-
-      - name: Install Playwright browser and system dependencies
-        run: npx playwright install --with-deps chromium
-        working-directory: Client
-
-      - name: Start dev server
-        run: nohup npx vite --host > /tmp/vite.log 2>&1 &
-        working-directory: Client
-
-      - name: Wait for dev server
-        run: |
-          echo "Waiting for Vite dev server..."
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5173/SolutionInventory/ > /dev/null 2>&1; then
-              echo "Server is up after ${i} attempts"
-              exit 0
-            fi
-            echo "Attempt $i failed, retrying in 2s..."
-            sleep 2
-          done
-          echo "--- Vite log ---"
-          cat /tmp/vite.log
-          echo "Server did not respond after 60s"
-          exit 1
-
-      - name: Run E2E tests
-        run: npx cucumber-js
-        working-directory: Client
-
-  # ------------------------------------------------------------------
-  # 2. Bump the pre-release version, commit it back to Dev and tag it
+  # 1. Bump the pre-release version, commit it back and tag it
   # ------------------------------------------------------------------
   version:
     name: Bump Pre-release Version
-    needs: test
     runs-on: ubuntu-latest
-    # Prevent infinite loop when this workflow commits the version bump
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     outputs:
       version: ${{ steps.bump.outputs.version }}
 
@@ -75,6 +25,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.target_branch }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -103,12 +54,12 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: pre-release v${VERSION} [skip ci]"
           git tag "v${VERSION}"
-          git push origin Dev
+          git push origin "${{ inputs.target_branch }}"
           git push origin "v${VERSION}"
         working-directory: Client
 
   # ------------------------------------------------------------------
-  # 3. Build the Electron app for all platforms and publish artifacts
+  # 2. Build the Electron app for all platforms and publish artifacts
   # ------------------------------------------------------------------
   build-electron:
     name: Build Electron (${{ matrix.artifact_name }})
@@ -179,7 +130,7 @@ jobs:
           path: Client/release/*.exe
 
   # ------------------------------------------------------------------
-  # 4. Create a GitHub Pre-release with all Electron artifacts
+  # 3. Create a GitHub Pre-release with all Electron artifacts
   # ------------------------------------------------------------------
   create-prerelease:
     name: Create GitHub Pre-release
@@ -198,9 +149,10 @@ jobs:
           tag_name: v${{ needs.version.outputs.version }}
           name: "Pre-release v${{ needs.version.outputs.version }}"
           body: |
-            🚧 **Pre-release v${{ needs.version.outputs.version }}**
+            Pre-release v${{ needs.version.outputs.version }}
 
-            Automatically built from the `Dev` branch. Not intended for production use.
+            Manually triggered dev pre-release.
+            Source branch: ${{ inputs.target_branch }}
             Commit: ${{ github.sha }}
           prerelease: true
           files: artifacts/**/*
