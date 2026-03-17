@@ -1,6 +1,9 @@
-name: Manual Pre-release
+name: Dev CI and Manual Pre-release
 
 on:
+  push:
+    branches:
+      - Dev
   workflow_dispatch:
     inputs:
       target_branch:
@@ -13,10 +16,138 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------
+  # CI on push to Dev: test and build only (no deployment)
+  # ------------------------------------------------------------------
+  test-dev:
+    name: E2E Tests (Dev Push)
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Client
+
+      - name: Install Playwright browser and system dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: Client
+
+      - name: Start dev server
+        run: nohup npx vite --host > /tmp/vite.log 2>&1 &
+        working-directory: Client
+
+      - name: Wait for dev server
+        run: |
+          echo "Waiting for Vite dev server..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173/SolutionInventory/ > /dev/null 2>&1; then
+              echo "Server is up after ${i} attempts"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 2s..."
+            sleep 2
+          done
+          echo "--- Vite log ---"
+          cat /tmp/vite.log
+          echo "Server did not respond after 60s"
+          exit 1
+
+      - name: Run E2E tests
+        run: npx cucumber-js
+        working-directory: Client
+
+  build-web-dev:
+    name: Build Web App (Dev Push)
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: test-dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Client
+
+      - name: Build web application
+        run: npx vite build
+        working-directory: Client
+
+  build-electron-dev:
+    name: Build Electron (Dev Push - ${{ matrix.artifact_name }})
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: test-dev
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: linux-x64
+            electron_flags: --linux --x64
+          - os: windows-latest
+            artifact_name: windows-x64
+            electron_flags: --win --x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-xcb1 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 \
+            libxfixes3 libxi6 libgtk-3-0t64 libatk1.0-0t64 libcairo-gobject2 \
+            libgdk-pixbuf-2.0-0 libasound2t64 libgtk-4-1 libvulkan1 libopus0 \
+            libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
+            libgstreamer-plugins-bad1.0-0 libflite1 libwebp7 libharfbuzz-icu0 \
+            libwayland-server0 libmanette-0.2-0 libenchant-2-2 libgbm1 libdrm2 \
+            libhyphen0 libgles2 rpm fakeroot dpkg
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Client
+
+      - name: Build Vite + Electron app
+        run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: Client
+
+  # ------------------------------------------------------------------
   # 1. Bump the pre-release version, commit it back and tag it
   # ------------------------------------------------------------------
   version:
     name: Bump Pre-release Version
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version }}
@@ -63,6 +194,7 @@ jobs:
   # ------------------------------------------------------------------
   build-electron:
     name: Build Electron (${{ matrix.artifact_name }})
+    if: github.event_name == 'workflow_dispatch'
     needs: version
     runs-on: ${{ matrix.os }}
 
@@ -134,6 +266,7 @@ jobs:
   # ------------------------------------------------------------------
   create-prerelease:
     name: Create GitHub Pre-release
+    if: github.event_name == 'workflow_dispatch'
     needs: [version, build-electron]
     runs-on: ubuntu-latest
 
