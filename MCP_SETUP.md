@@ -108,9 +108,8 @@ Falls Node.js nicht im PATH ist, kannst du auch einen **PowerShell-Wrapper** ver
   "modelContextProtocol": {
     "servers": {
       "SolutionInventory": {
-        "command": "C:\\Program Files\\nodejs\\node.exe",
-        "args": ["mcp-bridge.js"],
-        "cwd": "${workspaceFolder}"
+        "args": ["${workspaceFolder}/mcp-bridge.js"],
+        "command": "node"
       }
     }
   }
