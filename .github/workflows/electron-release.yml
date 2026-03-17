@@ -38,9 +38,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: Client/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: Client
 
       - name: Configure Git identity
         run: |
@@ -58,6 +60,7 @@ jobs:
           git tag "v${VERSION}"
           git push origin main
           git push origin "v${VERSION}"
+        working-directory: Client
 
   # ------------------------------------------------------------------
   # 2. Build the Electron app (parallel matrix: Linux + Windows)
@@ -89,6 +92,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: Client/package-lock.json
 
       - name: Install system dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -105,11 +109,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        working-directory: Client
 
       - name: Build Vite + Electron app
         run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: Client
 
       - name: Upload artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -117,15 +123,15 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            release/*.AppImage
-            release/*.deb
+            Client/release/*.AppImage
+            Client/release/*.deb
 
       - name: Upload artifacts (Windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: release/*.exe
+          path: Client/release/*.exe
 
   # ------------------------------------------------------------------
   # 3. Create a GitHub Release with all Electron artifacts
@@ -178,17 +184,20 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: Client/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: Client
 
       - name: Build web application
         run: npx vite build
+        working-directory: Client
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ./Client/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
