@@ -8,21 +8,21 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #1a1d23;
-      --surface: #22262e;
-      --surface2: #2b303b;
-      --border: #353b48;
-      --accent: #4f8ef7;
-      --accent-hover: #6ba3ff;
-      --danger: #e05555;
-      --success: #4caf82;
-      --text: #d4d8e2;
-      --text-muted: #7a8190;
-      --log-bg: #0d0f13;
-      --log-text: #b8c0cc;
-      --log-info: #7ec8e3;
-      --log-warn: #e0c055;
-      --log-error: #e05555;
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --surface2: #f0f1f3;
+      --border: #e0e2e6;
+      --accent: #0052a3;
+      --accent-hover: #003d7a;
+      --danger: #d32f2f;
+      --success: #388e3c;
+      --text: #1a1a1a;
+      --text-muted: #666666;
+      --log-bg: #fafbfc;
+      --log-text: #222222;
+      --log-info: #0052a3;
+      --log-warn: #f57c00;
+      --log-error: #d32f2f;
       --radius: 8px;
       --font: 'Segoe UI', system-ui, sans-serif;
       --mono: 'Cascadia Code', 'Consolas', 'Menlo', monospace;
@@ -112,9 +112,9 @@
       padding: 1px 5px; border-radius: 3px;
       align-self: flex-start; margin-top: 2px; white-space: nowrap;
     }
-    .badge-INFO    { background: #1d3a5c; color: var(--log-info); }
-    .badge-WARNING { background: #3d2e08; color: var(--log-warn); }
-    .badge-ERROR   { background: #3d1010; color: var(--log-error); }
+    .badge-INFO    { background: #e3f2fd; color: #0052a3; }
+    .badge-WARNING { background: #fff3e0; color: #e65100; }
+    .badge-ERROR   { background: #ffebee; color: #c62828; }
     .log-msg { word-break: break-word; }
     .log-controls { display: flex; gap: 8px; align-items: center; }
 
@@ -206,7 +206,7 @@
       background: var(--text-muted); border-radius: 50%;
       transition: transform 0.25s, background 0.25s;
     }
-    .toggle input:checked + .toggle-slider { background: #1a3a5c; border-color: var(--accent); }
+    .toggle input:checked + .toggle-slider { background: #ffffff; border-color: var(--accent); }
     .toggle input:checked + .toggle-slider::before { background: var(--accent); transform: translateX(18px); }
 
     /* ── Workspace stats grid ── */
@@ -261,6 +261,25 @@
     /* ── Config save row ── */
     #save-feedback { font-size: 12px; color: var(--success); opacity: 0; transition: opacity 0.4s; }
     #save-feedback.visible { opacity: 1; }
+
+    /* ── Questionnaire visibility ── */
+    #q-toggle-list { display: flex; flex-direction: column; gap: 6px; }
+    .q-toggle-row {
+      display: flex; align-items: center;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border-radius: var(--radius); border: 1px solid var(--border);
+    }
+    .q-toggle-row.is-reference { border-color: #ff9800; border-width: 2px; }
+    .q-toggle-name { font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .q-toggle-id   { font-size: 10px; color: var(--text-muted); font-family: var(--mono); margin-right: 10px; flex-shrink: 0; }
+    .q-ref-btn {
+      background: none; border: none; cursor: pointer; padding: 0 6px 0 0;
+      font-size: 17px; opacity: 0.2; transition: opacity 0.15s; flex-shrink: 0;
+      line-height: 1; color: #ff9800;
+    }
+    .q-ref-btn.active { opacity: 1; }
+    .q-ref-btn:hover  { opacity: 0.6; }
 
     /* ── Scrollbars ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -346,6 +365,14 @@
               <span class="toggle-slider"></span>
             </span>
           </label>
+        </div>
+
+        <!-- Questionnaire Visibility -->
+        <div>
+          <div class="section-title">Questionnaire Visibility</div>
+          <div id="q-toggle-list">
+            <span style="font-size:12px;color:var(--text-muted);">Load a workspace to manage visibility.</span>
+          </div>
         </div>
 
         <!-- Available tools -->
@@ -436,30 +463,87 @@
   const accessToggle = document.getElementById('access-toggle');
   const saveBtn      = document.getElementById('save-btn');
   const saveFeedback = document.getElementById('save-feedback');
+  const qToggleList  = document.getElementById('q-toggle-list');
+  let allQuestionnaires = [];
+  let excludedIds       = new Set();
+  let referenceId       = '';
+
+  function renderQuestionnaireToggles() {
+    if (!allQuestionnaires.length) {
+      qToggleList.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Load a workspace to manage visibility.</span>';
+      return;
+    }
+    qToggleList.innerHTML = '';
+    for (const q of allQuestionnaires) {
+      const isEnabled = !excludedIds.has(q.id.toLowerCase());
+      const isRef     = referenceId !== '' && referenceId.toLowerCase() === q.id.toLowerCase();
+
+      const row = document.createElement('div');
+      row.className = 'q-toggle-row' + (isRef ? ' is-reference' : '');
+
+      // ── Star: reference button ──
+      const star = document.createElement('button');
+      star.className   = 'q-ref-btn' + (isRef ? ' active' : '');
+      star.textContent = '★';
+      star.title = isRef ? 'Reference catalog – click to unset' : 'Mark as reference catalog';
+      star.addEventListener('click', () => {
+        referenceId = isRef ? '' : q.id.toLowerCase();
+        renderQuestionnaireToggles();
+        saveConfig();
+      });
+
+      // ── Label: enable/disable toggle ──
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;min-width:0;';
+      lbl.innerHTML = `
+        <span class="q-toggle-name">${esc(q.name)}</span>
+        <span class="q-toggle-id">${esc(q.id)}</span>
+        <span class="toggle">
+          <input type="checkbox" ${isEnabled ? 'checked' : ''} data-qid="${esc(q.id)}" />
+          <span class="toggle-slider"></span>
+        </span>`;
+      lbl.querySelector('input').addEventListener('change', e => {
+        const id = e.target.dataset.qid.toLowerCase();
+        if (e.target.checked) excludedIds.delete(id);
+        else                  excludedIds.add(id);
+        saveConfig();
+      });
+
+      row.appendChild(star);
+      row.appendChild(lbl);
+      qToggleList.appendChild(row);
+    }
+  }
 
   async function loadConfig() {
     try {
       const cfg = await (await fetch('/api/config')).json();
       accessToggle.checked = !!cfg.access_enabled;
+      excludedIds = new Set((cfg.excluded_questionnaire_ids || []).map(id => id.toLowerCase()));
+      referenceId = (cfg.reference_questionnaire_id || '').toLowerCase();
+      renderQuestionnaireToggles();
     } catch {}
   }
 
-  saveBtn.addEventListener('click', async () => {
-    saveBtn.disabled = true;
+  async function saveConfig() {
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_enabled: accessToggle.checked, data_source: 'local', data_source_url: '' }),
+        body: JSON.stringify({ access_enabled: accessToggle.checked, data_source: 'local', data_source_url: '', excluded_questionnaire_ids: [...excludedIds], reference_questionnaire_id: referenceId || null }),
       });
       if (!res.ok) throw new Error(await res.text());
       saveFeedback.classList.add('visible');
       setTimeout(() => saveFeedback.classList.remove('visible'), 2500);
     } catch (e) {
       alert('Failed to save: ' + e.message);
-    } finally {
-      saveBtn.disabled = false;
     }
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    try   { await saveConfig(); }
+    finally { saveBtn.disabled = false; }
   });
 
   loadConfig();
@@ -484,7 +568,10 @@
   async function refreshSummary() {
     const res = await fetch('/api/workspace/summary');
     if (res.status === 204) return;
-    renderSummary(await res.json());
+    const data = await res.json();
+    allQuestionnaires = data.questionnaires || [];
+    renderSummary(data);
+    renderQuestionnaireToggles();
   }
 
   function renderSummary(data) {
@@ -512,9 +599,9 @@
         </div>
       </div>`;
 
-    // ── Questionnaire tree ──
+    // ── Questionnaire tree (enabled only) ──
     wsTree.innerHTML = '';
-    for (const q of data.questionnaires) {
+    for (const q of data.questionnaires.filter(q => q.isEnabled !== false)) {
       const det = document.createElement('details');
 
       const metaParts = [q.productName, q.company, q.department, q.contactPerson].filter(Boolean);

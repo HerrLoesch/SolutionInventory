@@ -18,5 +18,7 @@ public record QuestionnaireSummary(
     string? ExecutionType,
     string? ArchitecturalRole,
     int CategoryCount,
-    int EntryCount
+    int EntryCount,
+    bool IsEnabled   = true,
+    bool IsReference = false
 );

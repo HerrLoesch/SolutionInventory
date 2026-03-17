@@ -321,18 +321,21 @@ public sealed class McpSessionManager
             }
         });
 
-    private Task<string> BuildToolCallResponseAsync(JsonNode id, JsonNode? @params)
+    private async Task<string> BuildToolCallResponseAsync(JsonNode id, JsonNode? @params)
     {
-        var toolName = @params?["name"]?.GetValue<string>() ?? string.Empty;
-        var args     = @params?["arguments"];
+        var toolName    = @params?["name"]?.GetValue<string>() ?? string.Empty;
+        var args        = @params?["arguments"];
+        var cfg         = await _config.GetAsync();
+        var excludedIds = cfg.ExcludedQuestionnaireIds;
+        var referenceId = cfg.ReferenceQuestionnaireId;
 
         return toolName switch
         {
-            "list_categories"          => Task.FromResult(BuildListCategoriesResponse(id)),
-            "list_questionnaires"      => Task.FromResult(BuildListQuestionnairesResponse(id)),
-            "get_answers_for_category" => Task.FromResult(BuildAnswersForCategoryResponse(id, args)),
-            "get_tech_radar"           => Task.FromResult(BuildTechRadarResponse(id)),
-            _                          => Task.FromResult(BuildError(id, -32602, $"Unknown tool: {toolName}"))
+            "list_categories"          => BuildListCategoriesResponse(id, excludedIds),
+            "list_questionnaires"      => BuildListQuestionnairesResponse(id, excludedIds, referenceId),
+            "get_answers_for_category" => BuildAnswersForCategoryResponse(id, args, excludedIds),
+            "get_tech_radar"           => BuildTechRadarResponse(id),
+            _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
     }
 
@@ -345,9 +348,9 @@ public sealed class McpSessionManager
             }
         });
 
-    private string BuildListCategoriesResponse(JsonNode id)
+    private string BuildListCategoriesResponse(JsonNode id, IReadOnlyList<string> excludedIds)
     {
-        var categories = _repo.GetCategories();
+        var categories = _repo.GetCategories(excludedIds);
         if (categories is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
@@ -366,19 +369,30 @@ public sealed class McpSessionManager
         return BuildTextToolResponse(id, sb.ToString());
     }
 
-    private string BuildListQuestionnairesResponse(JsonNode id)
+    private string BuildListQuestionnairesResponse(JsonNode id, IReadOnlyList<string> excludedIds, string? referenceId)
     {
-        var structures = _repo.GetQuestionnaireStructures();
+        var structures = _repo.GetQuestionnaireStructures(excludedIds, referenceId);
         if (structures is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
         var sb = new StringBuilder();
         sb.AppendLine($"# Questionnaires ({structures.Count})");
+
+        var refQ = structures.FirstOrDefault(q => q.IsReference);
+        if (refQ is not null)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"> ⭐ **Reference catalog:** **{refQ.Name}** (`{refQ.Id}`) — This catalog defines the official technology standards for this project. Its answers represent authoritative baseline decisions that apply to all other questionnaires.");
+        }
+
         sb.AppendLine();
 
         foreach (var q in structures)
         {
-            sb.AppendLine($"## {q.Name}  `{q.Id}`");
+            var heading = q.IsReference
+                ? $"## ⭐ {q.Name}  `{q.Id}`  [REFERENCE CATALOG]"
+                : $"## {q.Name}  `{q.Id}`";
+            sb.AppendLine(heading);
             foreach (var cat in q.Categories)
             {
                 sb.AppendLine($"  ### {cat.Title}  `{cat.Id}`  ({cat.Entries.Count} entries)");
@@ -391,7 +405,7 @@ public sealed class McpSessionManager
         return BuildTextToolResponse(id, sb.ToString());
     }
 
-    private string BuildAnswersForCategoryResponse(JsonNode id, JsonNode? args)
+    private string BuildAnswersForCategoryResponse(JsonNode id, JsonNode? args, IReadOnlyList<string> excludedIds)
     {
         var categoryId      = args?["categoryId"]?.GetValue<string>();
         var entryId         = args?["entryId"]?.GetValue<string>();
@@ -400,7 +414,7 @@ public sealed class McpSessionManager
         if (string.IsNullOrWhiteSpace(categoryId))
             return BuildError(id, -32602, "Parameter 'categoryId' is required.");
 
-        var records = _repo.GetAnswersForCategory(categoryId, entryId, questionnaireId);
+        var records = _repo.GetAnswersForCategory(categoryId, entryId, questionnaireId, excludedIds);
         if (records is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 

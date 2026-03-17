@@ -1,0 +1,10 @@
+{
+  "access_enabled": true,
+  "data_source": "local",
+  "data_source_url": "",
+  "excluded_questionnaire_ids": [
+    "questionnaire-8hocc331",
+    "questionnaire-tccm5w35"
+  ],
+  "reference_questionnaire_id": "questionnaire-tm37szzw"
+}

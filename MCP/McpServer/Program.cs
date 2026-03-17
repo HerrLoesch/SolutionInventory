@@ -88,9 +88,10 @@ app.MapPost("/api/workspace/upload", async (ProjectRepository repo, LogBroadcast
     return success ? Results.Ok(new { message }) : Results.UnprocessableEntity(new { message });
 });
 
-app.MapGet("/api/workspace/summary", (ProjectRepository repo) =>
+app.MapGet("/api/workspace/summary", async (ProjectRepository repo, ConfigService cfgSvc) =>
 {
-    var summary = repo.GetSummary();
+    var cfg     = await cfgSvc.GetAsync();
+    var summary = repo.GetSummary(cfg.ExcludedQuestionnaireIds, cfg.ReferenceQuestionnaireId);
     return summary is not null ? Results.Ok(summary) : Results.NoContent();
 });
 

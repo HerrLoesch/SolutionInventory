@@ -20,7 +20,8 @@ public record CategoryStructure(
 public record QuestionnaireStructure(
     string Id,
     string Name,
-    IReadOnlyList<CategoryStructure> Categories
+    IReadOnlyList<CategoryStructure> Categories,
+    bool IsReference = false
 );
 
 public record AnswerRecord(

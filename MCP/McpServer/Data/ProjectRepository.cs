@@ -119,19 +119,26 @@ public sealed class ProjectRepository
 
     // ── Query ─────────────────────────────────────────────────────────────────
 
+    private static IEnumerable<Questionnaire> FilterQuestionnaires(
+        IEnumerable<Questionnaire> questionnaires,
+        IReadOnlyCollection<string>? excludedIds)
+    {
+        if (excludedIds is null || excludedIds.Count == 0) return questionnaires;
+        return questionnaires.Where(q => !excludedIds.Any(id =>
+            id.Equals(q.Id, StringComparison.OrdinalIgnoreCase)));
+    }
+
     /// <summary>
     /// Returns all distinct categories (by id) that exist in the workspace,
     /// including their entries (subcategories) with id and aspect label.
     /// </summary>
-    public IReadOnlyList<CategoryDefinition>? GetCategories()
+    public IReadOnlyList<CategoryDefinition>? GetCategories(IReadOnlyCollection<string>? excludedIds = null)
     {
         if (_workspace is null) return null;
 
-        // Collect the first occurrence of each category id across all questionnaires
-        // so the caller gets a complete, deduplicated catalog.
         var seen = new Dictionary<string, CategoryDefinition>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var q in _workspace.Questionnaires)
+        foreach (var q in FilterQuestionnaires(_workspace.Questionnaires, excludedIds))
         {
             foreach (var cat in q.Categories)
             {
@@ -153,11 +160,13 @@ public sealed class ProjectRepository
     /// Returns the structural outline of every questionnaire – id, name and the
     /// non-metadata categories with their entry ids/aspects. No answers or metadata.
     /// </summary>
-    public IReadOnlyList<QuestionnaireStructure>? GetQuestionnaireStructures()
+    public IReadOnlyList<QuestionnaireStructure>? GetQuestionnaireStructures(
+        IReadOnlyCollection<string>? excludedIds = null,
+        string? referenceId = null)
     {
         if (_workspace is null) return null;
 
-        return _workspace.Questionnaires.Select(q =>
+        return FilterQuestionnaires(_workspace.Questionnaires, excludedIds).Select(q =>
         {
             var cats = q.Categories
                 .Where(c => c.IsMetadata != true)
@@ -167,7 +176,10 @@ public sealed class ProjectRepository
                     (c.Entries ?? []).Select(e => new EntryDefinition(e.Id, e.Aspect)).ToList().AsReadOnly()))
                 .ToList();
 
-            return new QuestionnaireStructure(q.Id, q.Name, cats.AsReadOnly());
+            var isReference = !string.IsNullOrEmpty(referenceId) &&
+                referenceId.Equals(q.Id, StringComparison.OrdinalIgnoreCase);
+
+            return new QuestionnaireStructure(q.Id, q.Name, cats.AsReadOnly(), isReference);
         }).ToList().AsReadOnly();
     }
 
@@ -177,22 +189,25 @@ public sealed class ProjectRepository
     /// </summary>
     public IReadOnlyList<AnswerRecord>? GetAnswersForCategory(
         string categoryId,
-        string? entryId         = null,
-        string? questionnaireId = null)
+        string? entryId                      = null,
+        string? questionnaireId              = null,
+        IReadOnlyCollection<string>? excludedIds = null)
     {
         if (_workspace is null) return null;
 
-        var questionnaires = string.IsNullOrWhiteSpace(questionnaireId)
-            ? _workspace.Questionnaires
-            : _workspace.Questionnaires.Where(q =>
+        var questionnaires = FilterQuestionnaires(_workspace.Questionnaires, excludedIds);
+        if (!string.IsNullOrWhiteSpace(questionnaireId))
+            questionnaires = questionnaires.Where(q =>
                 q.Id.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase) ||
-                q.Name.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase)).ToList();
+                q.Name.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase));
 
         var records = new List<AnswerRecord>();
 
         foreach (var q in questionnaires)
         {
+            // Metadata categories store PII (company, department, etc.) – never expose via MCP.
             var category = q.Categories.FirstOrDefault(c =>
+                c.IsMetadata != true &&
                 c.Id.Equals(categoryId, StringComparison.OrdinalIgnoreCase));
 
             if (category is null) continue;
@@ -255,17 +270,24 @@ public sealed class ProjectRepository
 
     // ── Summary helper (used by the UI API) ───────────────────────────────────
 
-    public WorkspaceSummary? GetSummary()
+    public WorkspaceSummary? GetSummary(
+        IReadOnlyCollection<string>? excludedIds = null,
+        string? referenceId = null)
     {
         if (_workspace is null) return null;
 
-        var questSummaries = _workspace.Questionnaires.Select(q =>
+        var allSummaries = _workspace.Questionnaires.Select(q =>
         {
             var metaCat    = q.Categories.FirstOrDefault(c => c.IsMetadata == true);
             var meta       = metaCat?.Metadata;
             var entryCount = q.Categories
                 .Where(c => c.Entries is not null)
                 .Sum(c => c.Entries!.Count);
+
+            var isEnabled = excludedIds is null || !excludedIds.Any(id =>
+                id.Equals(q.Id, StringComparison.OrdinalIgnoreCase));
+            var isReference = !string.IsNullOrEmpty(referenceId) &&
+                referenceId.Equals(q.Id, StringComparison.OrdinalIgnoreCase);
 
             return new QuestionnaireSummary(
                 q.Id,
@@ -277,20 +299,27 @@ public sealed class ProjectRepository
                 meta?.ExecutionType,
                 meta?.ArchitecturalRole,
                 q.Categories.Count,
-                entryCount
+                entryCount,
+                isEnabled,
+                isReference
             );
         }).ToList();
 
-        var totalEntries = questSummaries.Sum(q => q.EntryCount);
+        var enabledIds = new HashSet<string>(
+            allSummaries.Where(q => q.IsEnabled).Select(q => q.Id),
+            StringComparer.OrdinalIgnoreCase);
+
+        var totalEntries = allSummaries.Where(q => q.IsEnabled).Sum(q => q.EntryCount);
         var totalAnswers = _workspace.Questionnaires
+            .Where(q => enabledIds.Contains(q.Id))
             .SelectMany(q => q.Categories)
             .SelectMany(c => c.Entries ?? [])
             .Sum(e => e.Answers?.Count ?? 0);
 
         return new WorkspaceSummary(
             _workspace.Project?.Name ?? string.Empty,
-            _workspace.Questionnaires.Count,
-            questSummaries.AsReadOnly(),
+            enabledIds.Count,
+            allSummaries.AsReadOnly(),
             totalEntries,
             totalAnswers);
     }
