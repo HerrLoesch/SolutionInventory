@@ -148,6 +148,24 @@ async function handleListTools(params, id) {
           properties: {},
           required: []
         }
+      },
+      {
+        name: 'generate_questionnaire',
+        description: 'Generates a new questionnaire with meaningful example content based on the structure of an existing questionnaire. Each entry is pre-filled with a sensible default answer drawn from the available examples. Returns a Markdown summary and an importable JSON object for the generated questionnaire.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            questionnaireId: {
+              type: 'string',
+              description: 'The ID (or name) of the questionnaire to use as a structural template'
+            },
+            name: {
+              type: 'string',
+              description: "Optional. The name for the generated questionnaire. Defaults to '<source name> (Generated)'"
+            }
+          },
+          required: ['questionnaireId']
+        }
       }
     ];
 

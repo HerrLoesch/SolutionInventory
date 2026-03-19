@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using McpServer.Data;
 using Microsoft.AspNetCore.Http.Features;
@@ -317,6 +318,29 @@ public sealed class McpSessionManager
                         ["properties"] = new JsonObject(),
                         ["required"]   = new JsonArray()
                     }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "generate_questionnaire",
+                    ["description"] = "Generates a new questionnaire with meaningful example content based on the structure of an existing questionnaire. Each entry is pre-filled with a sensible default answer drawn from the available examples. Returns a Markdown summary and an importable JSON object for the generated questionnaire.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["questionnaireId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "The ID (or name) of the questionnaire to use as a structural template."
+                            },
+                            ["name"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. The name for the generated questionnaire. Defaults to '<source name> (Generated)'."
+                            }
+                        },
+                        ["required"] = new JsonArray { "questionnaireId" }
+                    }
                 }
             }
         });
@@ -335,6 +359,7 @@ public sealed class McpSessionManager
             "list_questionnaires"      => BuildListQuestionnairesResponse(id, excludedIds, referenceId),
             "get_answers_for_category" => BuildAnswersForCategoryResponse(id, args, excludedIds),
             "get_tech_radar"           => BuildTechRadarResponse(id),
+            "generate_questionnaire"   => BuildGenerateQuestionnaireResponse(id, args),
             _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -504,6 +529,140 @@ public sealed class McpSessionManager
         {
             sb.AppendLine($"  - `{byEntry.Key}`: {string.Join(", ", byEntry.Select(r => r.Option))}");
         }
+
+        return BuildTextToolResponse(id, sb.ToString());
+    }
+
+    private string BuildGenerateQuestionnaireResponse(JsonNode id, JsonNode? args)
+    {
+        var questionnaireId = args?["questionnaireId"]?.GetValue<string>();
+        var name            = args?["name"]?.GetValue<string>();
+
+        if (string.IsNullOrWhiteSpace(questionnaireId))
+            return BuildError(id, -32602, "Parameter 'questionnaireId' is required.");
+
+        var workspace = _repo.Current;
+        if (workspace is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        var source = workspace.Questionnaires.FirstOrDefault(q =>
+            q.Id.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase) ||
+            q.Name.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase));
+
+        if (source is null)
+            return BuildError(id, -32602,
+                $"Questionnaire '{questionnaireId}' not found in the loaded workspace.");
+
+        var generatedName = string.IsNullOrWhiteSpace(name)
+            ? $"{source.Name} (Generated)"
+            : name;
+
+        var generatedId = Guid.NewGuid().ToString("N")[..8];
+
+        // Build a JSON representation of the generated questionnaire.
+        var categories = new JsonArray();
+
+        foreach (var cat in source.Categories)
+        {
+            if (cat.IsMetadata == true)
+            {
+                // Preserve the metadata category structure but reset personal data.
+                var metaObj = new JsonObject
+                {
+                    ["id"]         = cat.Id,
+                    ["title"]      = cat.Title,
+                    ["desc"]       = cat.Desc,
+                    ["isMetadata"] = true,
+                    ["metadata"]   = new JsonObject
+                    {
+                        ["productName"]       = generatedName,
+                        ["company"]           = "",
+                        ["department"]        = "",
+                        ["contactPerson"]     = "",
+                        ["description"]       = $"Generated from '{source.Name}'",
+                        ["executionType"]     = cat.Metadata?.ExecutionType ?? "Not specified",
+                        ["architecturalRole"] = cat.Metadata?.ArchitecturalRole ?? "Not specified"
+                    }
+                };
+                categories.Add(metaObj);
+                continue;
+            }
+
+            // For regular categories, pre-fill each entry with the first available example.
+            var entries = new JsonArray();
+
+            foreach (var entry in cat.Entries ?? [])
+            {
+                var firstExample = entry.Examples?.FirstOrDefault();
+                var answers = new JsonArray();
+
+                if (firstExample is not null)
+                {
+                    answers.Add(new JsonObject
+                    {
+                        ["technology"] = firstExample.Label,
+                        ["status"]     = "adopt",
+                        ["comments"]   = string.IsNullOrWhiteSpace(firstExample.Description)
+                            ? null
+                            : (JsonNode)firstExample.Description
+                    });
+                }
+
+                entries.Add(new JsonObject
+                {
+                    ["id"]      = entry.Id,
+                    ["aspect"]  = entry.Aspect,
+                    ["answers"] = answers
+                });
+            }
+
+            categories.Add(new JsonObject
+            {
+                ["id"]      = cat.Id,
+                ["title"]   = cat.Title,
+                ["desc"]    = cat.Desc,
+                ["entries"] = entries
+            });
+        }
+
+        var generated = new JsonObject
+        {
+            ["id"]         = generatedId,
+            ["name"]       = generatedName,
+            ["categories"] = categories
+        };
+
+        // Build a human-readable summary together with the importable JSON.
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Generated Questionnaire: {generatedName}");
+        sb.AppendLine();
+        sb.AppendLine($"Based on template: **{source.Name}** (`{source.Id}`)");
+        sb.AppendLine($"Generated ID: `{generatedId}`");
+        sb.AppendLine();
+        sb.AppendLine("## Pre-filled entries");
+        sb.AppendLine();
+
+        foreach (var cat in source.Categories.Where(c => c.IsMetadata != true))
+        {
+            sb.AppendLine($"### {cat.Title}");
+            foreach (var entry in cat.Entries ?? [])
+            {
+                var firstExample = entry.Examples?.FirstOrDefault();
+                if (firstExample is not null)
+                    sb.AppendLine($"  - **{entry.Aspect}**: {firstExample.Label} *(adopt)*");
+                else
+                    sb.AppendLine($"  - **{entry.Aspect}**: *(no examples available)*");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("## Importable JSON");
+        sb.AppendLine();
+        sb.AppendLine("Copy the JSON below and import it into SolutionInventory as a new questionnaire:");
+        sb.AppendLine();
+        sb.AppendLine("```json");
+        sb.AppendLine(generated.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        sb.AppendLine("```");
 
         return BuildTextToolResponse(id, sb.ToString());
     }
