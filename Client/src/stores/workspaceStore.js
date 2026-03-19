@@ -101,9 +101,35 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return [...projectTabs, ...questionnaireTabs]
   })
 
+  function migrateProjectRadar(project) {
+    // Already migrated to new format
+    if (Array.isArray(project.radar)) return
+    // Migrate from legacy radarRefs + radarOverrides to unified radar array
+    const refs = Array.isArray(project.radarRefs) ? project.radarRefs : []
+    const overrides = Array.isArray(project.radarOverrides) ? project.radarOverrides : []
+    project.radar = refs.map((ref) => {
+      const norm = String(ref.option || '').trim().toLowerCase()
+      const override = overrides.find(
+        (o) => o.entryId === ref.entryId && String(o.option || '').toLowerCase() === norm
+      )
+      return {
+        entryId: ref.entryId,
+        option: String(ref.option || '').trim(),
+        category: String(override?.categoryOverride || '').trim(),
+        status: String(override?.status || '').trim(),
+        shortComment: String(override?.shortComment || '').trim(),
+        description: String(override?.comment || '').trim()
+      }
+    })
+    delete project.radarRefs
+    delete project.radarOverrides
+  }
+
   function applyStoredData(data) {
     if (data.version === STORAGE_VERSION && data.workspace) {
       workspace.value = data.workspace
+      // Migrate any projects still using the legacy two-array format
+      ;(workspace.value.projects || []).forEach(migrateProjectRadar)
       // Restore open tabs and active state, filtering out IDs that no longer exist
       const existingIds = new Set(data.workspace.questionnaires?.map((q) => q.id) || [])
       const restoredOpen = (data.openQuestionnaireIds || []).filter((id) => existingIds.has(id))
@@ -414,8 +440,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       workspace.value.questionnaires.push(copy)
       newProject.questionnaireIds = [...(newProject.questionnaireIds || []), copy.id]
     })
-    if (Array.isArray(source.radarRefs)) newProject.radarRefs = JSON.parse(JSON.stringify(source.radarRefs))
-    if (Array.isArray(source.radarOverrides)) newProject.radarOverrides = JSON.parse(JSON.stringify(source.radarOverrides))
+    if (Array.isArray(source.radar)) newProject.radar = JSON.parse(JSON.stringify(source.radar))
     if (Array.isArray(source.radarCategoryOrder)) newProject.radarCategoryOrder = [...source.radarCategoryOrder]
     return newProjectId
   }
@@ -465,8 +490,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         ? [...project.questionnaireIds, created.id]
         : [created.id]
     })
-    if (Array.isArray(radarData.radarRefs)) project.radarRefs = radarData.radarRefs
-    if (Array.isArray(radarData.radarOverrides)) project.radarOverrides = radarData.radarOverrides
+    if (Array.isArray(radarData.radar)) {
+      project.radar = radarData.radar
+    } else if (Array.isArray(radarData.radarRefs) || Array.isArray(radarData.radarOverrides)) {
+      // Migrate legacy format from imported file
+      Object.assign(project, { radarRefs: radarData.radarRefs, radarOverrides: radarData.radarOverrides })
+      migrateProjectRadar(project)
+    }
     if (Array.isArray(radarData.radarCategoryOrder)) project.radarCategoryOrder = radarData.radarCategoryOrder
   }
 
@@ -593,8 +623,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       project: {
         id: project.id,
         name: project.name,
-        radarRefs: Array.isArray(project.radarRefs) ? project.radarRefs : [],
-        radarOverrides: Array.isArray(project.radarOverrides) ? project.radarOverrides : [],
+        radar: Array.isArray(project.radar) ? project.radar : [],
         radarCategoryOrder: Array.isArray(project.radarCategoryOrder) ? project.radarCategoryOrder : []
       },
       questionnaires
@@ -657,53 +686,89 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function toggleProjectRadarRef(projectId, entryId, option, questionnaireId = '') {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
-    if (!Array.isArray(project.radarRefs)) project.radarRefs = []
+    if (!Array.isArray(project.radar)) project.radar = []
     const norm = String(option || '').trim().toLowerCase()
-    const idx = project.radarRefs.findIndex(
+    const idx = project.radar.findIndex(
       (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
     )
     if (idx !== -1) {
-      project.radarRefs.splice(idx, 1)
+      project.radar.splice(idx, 1)
     } else {
-      project.radarRefs.push({
+      // Populate category, status and shortComment from the questionnaire entry
+      let categoryTitle = ''
+      let answerStatus = ''
+      let answerComments = ''
+      const projectQuestionnaires = workspace.value.questionnaires.filter(
+        (q) => (project.questionnaireIds || []).includes(q.id)
+      )
+      const preferred = projectQuestionnaires.find((q) => q.id === questionnaireId)
+      const toSearch = preferred
+        ? [preferred, ...projectQuestionnaires.filter((q) => q.id !== questionnaireId)]
+        : projectQuestionnaires
+      for (const q of toSearch) {
+        for (const cat of (q.categories || [])) {
+          if (cat.isMetadata) continue
+          const entry = (cat.entries || []).find((e) => e.id === entryId)
+          if (entry) {
+            categoryTitle = String(cat.title || '').trim()
+            const answer = (entry.answers || []).find(
+              (a) => String(a.technology || '').trim().toLowerCase() === norm
+            )
+            if (answer) {
+              answerStatus = String(answer.status || '').trim()
+              answerComments = String(answer.comments || '').trim()
+            }
+            break
+          }
+        }
+        if (categoryTitle) break
+      }
+      project.radar.push({
         entryId,
         option: String(option || '').trim(),
-        questionnaireId: String(questionnaireId || '').trim()
+        category: categoryTitle,
+        status: answerStatus,
+        shortComment: answerComments,
+        description: ''
       })
     }
   }
 
   function isProjectRadarRef(projectId, entryId, option) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
-    if (!project || !Array.isArray(project.radarRefs)) return false
+    if (!project || !Array.isArray(project.radar)) return false
     const norm = String(option || '').trim().toLowerCase()
-    return project.radarRefs.some(
+    return project.radar.some(
       (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
     )
   }
 
   function getRadarOverride(projectId, entryId, option) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
-    if (!project || !Array.isArray(project.radarOverrides)) return null
+    if (!project || !Array.isArray(project.radar)) return null
     const norm = String(option || '').trim().toLowerCase()
-    return project.radarOverrides.find(
-      (o) => o.entryId === entryId && String(o.option || '').toLowerCase() === norm
+    return project.radar.find(
+      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
     ) || null
   }
 
   function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '' }) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
-    if (!Array.isArray(project.radarOverrides)) project.radarOverrides = []
+    if (!Array.isArray(project.radar)) project.radar = []
     const norm = String(option || '').trim().toLowerCase()
-    const idx = project.radarOverrides.findIndex(
-      (o) => o.entryId === entryId && String(o.option || '').toLowerCase() === norm
+    const idx = project.radar.findIndex(
+      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
     )
-    const record = { entryId, option: String(option || '').trim(), status: String(status || ''), shortComment: String(shortComment || ''), comment: String(comment || ''), categoryOverride: String(categoryOverride || '') }
     if (idx !== -1) {
-      project.radarOverrides.splice(idx, 1, record)
-    } else {
-      project.radarOverrides.push(record)
+      const existing = project.radar[idx]
+      project.radar.splice(idx, 1, {
+        ...existing,
+        status: String(status || ''),
+        shortComment: String(shortComment || ''),
+        description: String(comment || ''),
+        category: String(categoryOverride || existing.category || '')
+      })
     }
   }
 

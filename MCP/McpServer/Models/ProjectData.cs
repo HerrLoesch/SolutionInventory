@@ -10,6 +10,10 @@ public record ProjectData
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
+    [JsonPropertyName("radar")]
+    public List<RadarEntry> Radar { get; init; } = [];
+
+    // Legacy fields kept for backward-compatible reading of old workspace exports
     [JsonPropertyName("radarRefs")]
     public List<RadarRef> RadarRefs { get; init; } = [];
 

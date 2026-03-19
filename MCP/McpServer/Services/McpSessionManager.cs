@@ -313,7 +313,7 @@ public sealed class McpSessionManager
                 new JsonObject
                 {
                     ["name"]        = "get_tech_radar",
-                    ["description"] = "Returns the project-level tech radar: all technology overrides (with status 'adopt', 'trial', 'hold', or 'retire' and optional comments), the questionnaire references that contributed each item, and the radar category order.",
+                    ["description"] = "Returns the project-level tech radar: all radar entries (with option, category, status, shortComment and description), grouped by status ring, and the radar category order.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
@@ -493,8 +493,7 @@ public sealed class McpSessionManager
         sb.AppendLine($"**Category order:** {string.Join(" › ", radar.CategoryOrder)}");
         sb.AppendLine();
 
-        // Group overrides by their actual status values from the data
-        foreach (var group in radar.Overrides.GroupBy(o => o.Status, StringComparer.OrdinalIgnoreCase))
+        foreach (var group in radar.Entries.GroupBy(e => e.Status, StringComparer.OrdinalIgnoreCase))
         {
             var ring  = group.Key;
             var items = group.ToList();
@@ -502,24 +501,16 @@ public sealed class McpSessionManager
             sb.AppendLine($"## {ring.ToUpper()}  ({items.Count})");
             foreach (var item in items)
             {
-                var cat = string.IsNullOrWhiteSpace(item.CategoryOverride) ? item.EntryId : item.CategoryOverride;
-                sb.Append($"  - **{item.Option}** [{cat}]");
+                sb.Append($"  - **{item.Option}** [{item.Category}]");
                 if (!string.IsNullOrWhiteSpace(item.ShortComment)) sb.Append($" — {item.ShortComment}");
                 sb.AppendLine();
-                if (!string.IsNullOrWhiteSpace(item.Comment))
+                if (!string.IsNullOrWhiteSpace(item.Description))
                 {
-                    foreach (var line in item.Comment.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    foreach (var line in item.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                         sb.AppendLine($"    > {line.Trim()}");
                 }
             }
             sb.AppendLine();
-        }
-
-        // Questionnaire references summary
-        sb.AppendLine($"## Questionnaire References  ({radar.Refs.Count} total)");
-        foreach (var byEntry in radar.Refs.GroupBy(r => r.EntryId))
-        {
-            sb.AppendLine($"  - `{byEntry.Key}`: {string.Join(", ", byEntry.Select(r => r.Option))}");
         }
 
         return BuildTextToolResponse(id, sb.ToString());

@@ -39,8 +39,7 @@ public record AnswerRecord(
 );
 
 public record TechRadarData(
-    IReadOnlyList<RadarOverride> Overrides,
-    IReadOnlyList<RadarRef> Refs,
+    IReadOnlyList<RadarEntry> Entries,
     IReadOnlyList<string> CategoryOrder
 );
 

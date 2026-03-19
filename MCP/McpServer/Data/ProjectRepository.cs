@@ -232,15 +232,27 @@ public sealed class ProjectRepository
         return records.AsReadOnly();
     }
 
-    /// <summary>Returns the tech radar (overrides + category order) from the loaded project.</summary>
+    /// <summary>Returns the tech radar from the loaded project, migrating from legacy format if needed.</summary>
     public TechRadarData? GetTechRadar()
     {
         if (_workspace?.Project is null) return null;
         var p = _workspace.Project;
-        return new TechRadarData(
-            p.RadarOverrides.AsReadOnly(),
-            p.RadarRefs.AsReadOnly(),
-            p.RadarCategoryOrder.AsReadOnly());
+
+        // Use the new unified radar array if present
+        if (p.Radar.Count > 0)
+            return new TechRadarData(p.Radar.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
+
+        // Fallback: build from legacy radarOverrides for old workspace exports
+        var migrated = p.RadarOverrides.Select(o => new RadarEntry
+        {
+            EntryId      = o.EntryId,
+            Option       = o.Option,
+            Category     = string.IsNullOrWhiteSpace(o.CategoryOverride) ? o.EntryId : o.CategoryOverride,
+            Status       = o.Status,
+            ShortComment = o.ShortComment,
+            Description  = o.Comment
+        }).ToList();
+        return new TechRadarData(migrated.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
     }
 
     // ── Questionnaire lookup ──────────────────────────────────────────────────
