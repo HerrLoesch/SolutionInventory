@@ -162,6 +162,21 @@ async function handleListTools(params, id) {
           },
           required: ['questionnaire_id']
         }
+      },
+      {
+        name: 'get_json_schema',
+        description: 'Returns a JSON Schema (Draft-07) document describing a SolutionInventory data format. Use "workspace" to get the schema for the complete workspace export file (project + questionnaires, including all valid category IDs, entry IDs, and enum values). Use "questionnaire" to get the schema for a single standalone questionnaire document.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'The schema to retrieve: "workspace" (full export with project + questionnaires) or "questionnaire" (single questionnaire document).',
+              enum: ['workspace', 'questionnaire']
+            }
+          },
+          required: ['type']
+        }
       }
     ];
 

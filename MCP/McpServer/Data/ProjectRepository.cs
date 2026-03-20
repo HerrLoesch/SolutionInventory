@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using McpServer.Models;
 
 namespace McpServer.Data;
@@ -42,8 +43,8 @@ public sealed class ProjectRepository
         await _sem.WaitAsync();
         try
         {
-            await using var stream = File.OpenRead(fullPath);
-            var ws = await JsonSerializer.DeserializeAsync<WorkspaceExport>(stream, s_opts);
+            var json = await File.ReadAllTextAsync(fullPath);
+            var ws = ParseWorkspaceExport(json);
             if (ws is null)
                 return (false, "Deserialization returned null.");
 
@@ -72,7 +73,7 @@ public sealed class ProjectRepository
         await _sem.WaitAsync();
         try
         {
-            var ws = JsonSerializer.Deserialize<WorkspaceExport>(json, s_opts);
+            var ws = ParseWorkspaceExport(json);
             if (ws is null)
                 return (false, "Deserialization returned null.");
 
@@ -232,27 +233,165 @@ public sealed class ProjectRepository
         return records.AsReadOnly();
     }
 
-    /// <summary>Returns the tech radar from the loaded project, migrating from legacy format if needed.</summary>
+    /// <summary>Returns the tech radar from the loaded project, migrating from legacy format if needed.
+    /// Radar entries with no stored status are enriched from the matching questionnaire answer.
+    /// </summary>
     public TechRadarData? GetTechRadar()
     {
         if (_workspace?.Project is null) return null;
         var p = _workspace.Project;
 
-        // Use the new unified radar array if present
-        if (p.Radar.Count > 0)
-            return new TechRadarData(p.Radar.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
+        List<RadarEntry> entries;
 
-        // Fallback: build from legacy radarOverrides for old workspace exports
-        var migrated = p.RadarOverrides.Select(o => new RadarEntry
+        if (p.Radar.Count > 0)
         {
-            EntryId      = o.EntryId,
-            Option       = o.Option,
-            Category     = string.IsNullOrWhiteSpace(o.CategoryOverride) ? o.EntryId : o.CategoryOverride,
-            Status       = o.Status,
-            ShortComment = o.ShortComment,
-            Description  = o.Comment
-        }).ToList();
-        return new TechRadarData(migrated.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
+            // New unified format: use radar array directly
+            entries = p.Radar.ToList();
+        }
+        else
+        {
+            // Legacy format: radarRefs defines the set; radarOverrides carries optional edits.
+            // The client migration (migrateProjectRadar) starts from radarRefs and applies
+            // overrides on top – we must do the same here so refs-without-overrides are included.
+            entries = p.RadarRefs.Select(r =>
+            {
+                var norm     = r.Option.Trim().ToLowerInvariant();
+                var override_ = p.RadarOverrides.FirstOrDefault(o =>
+                    o.EntryId.Equals(r.EntryId, StringComparison.OrdinalIgnoreCase) &&
+                    o.Option.Trim().ToLowerInvariant() == norm);
+
+                return new RadarEntry
+                {
+                    EntryId      = r.EntryId,
+                    Option       = r.Option.Trim(),
+                    Category     = string.IsNullOrWhiteSpace(override_?.CategoryOverride)
+                                       ? string.Empty
+                                       : override_!.CategoryOverride,
+                    Status       = override_?.Status       ?? string.Empty,
+                    ShortComment = override_?.ShortComment ?? string.Empty,
+                    Description  = override_?.Comment      ?? string.Empty
+                };
+            }).ToList();
+        }
+
+        // Enrich entries that have no stored status or category by looking up
+        // the matching questionnaire answer – identical to the client's
+        // effectiveStatus = radarStatus || questionnaireStatus logic.
+        if (_workspace.Questionnaires.Count > 0 && entries.Any(e =>
+                string.IsNullOrWhiteSpace(e.Status) || string.IsNullOrWhiteSpace(e.Category)))
+        {
+            var answerLookup = BuildAnswerLookup(_workspace.Questionnaires);
+            entries = entries.Select(e =>
+            {
+                if (!string.IsNullOrWhiteSpace(e.Status) && !string.IsNullOrWhiteSpace(e.Category))
+                    return e;
+
+                var key = $"{e.EntryId}|{e.Option.Trim().ToLowerInvariant()}";
+                if (!answerLookup.TryGetValue(key, out var found))
+                    return e;
+
+                return e with
+                {
+                    Status   = string.IsNullOrWhiteSpace(e.Status)   ? found.Status   : e.Status,
+                    Category = string.IsNullOrWhiteSpace(e.Category) ? found.Category : e.Category
+                };
+            }).ToList();
+        }
+
+        return new TechRadarData(entries.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Detects and normalises two workspace file formats:
+    /// <list type="bullet">
+    ///   <item>Standard project export: <c>{ project, questionnaires }</c></item>
+    ///   <item>Full Electron autosave: <c>{ version, timestamp, workspace: { projects, questionnaires } }</c></item>
+    /// </list>
+    /// For the full format the first project is used and only its questionnaires are kept.
+    /// </summary>
+    private static WorkspaceExport? ParseWorkspaceExport(string json)
+    {
+        // Quick attempt at the standard project-export format
+        var standard = JsonSerializer.Deserialize<WorkspaceExport>(json, s_opts);
+        if (standard?.Project is not null)
+            return standard;
+
+        // Try the full Electron client format:
+        // { "version": 2, "workspace": { "projects": [...], "questionnaires": [...] } }
+        try
+        {
+            var root          = JsonNode.Parse(json);
+            var workspaceNode = root?["workspace"];
+            if (workspaceNode is null) return standard;
+
+            var projectsNode = workspaceNode["projects"]?.AsArray();
+            if (projectsNode is null || projectsNode.Count == 0) return standard;
+
+            // Use the first project in the file
+            var projectNode = projectsNode[0]!;
+
+            // Collect the questionnaire IDs that belong to this project
+            var questionnaireIds = (projectNode["questionnaireIds"]?.AsArray() ?? [])
+                .Select(n => n?.GetValue<string>() ?? string.Empty)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Filter the global questionnaire list to only this project's questionnaires
+            var allQuestionnaires = workspaceNode["questionnaires"]?.AsArray() ?? [];
+            var filteredQuestionnaires = new JsonArray();
+            foreach (var q in allQuestionnaires)
+            {
+                var qId = q?["id"]?.GetValue<string>() ?? string.Empty;
+                if (questionnaireIds.Count == 0 || questionnaireIds.Contains(qId))
+                    filteredQuestionnaires.Add(q?.DeepClone());
+            }
+
+            var normalised = new JsonObject
+            {
+                ["project"]        = projectNode.DeepClone(),
+                ["questionnaires"] = filteredQuestionnaires
+            };
+
+            return JsonSerializer.Deserialize<WorkspaceExport>(normalised.ToJsonString(), s_opts);
+        }
+        catch
+        {
+            return standard;
+        }
+    }
+
+    /// <summary>
+    /// Builds a lookup table from questionnaire answers:
+    /// key = <c>"{entryId}|{optionLowercase}"</c>,
+    /// value = (Status, CategoryTitle).
+    /// Used to enrich radar entries whose stored status / category is empty.
+    /// </summary>
+    private static Dictionary<string, (string Status, string Category)> BuildAnswerLookup(
+        IEnumerable<Questionnaire> questionnaires)
+    {
+        var lookup = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var q in questionnaires)
+        {
+            foreach (var cat in q.Categories)
+            {
+                if (cat.IsMetadata == true) continue;
+                foreach (var entry in cat.Entries ?? [])
+                {
+                    foreach (var answer in entry.Answers ?? [])
+                    {
+                        if (string.IsNullOrWhiteSpace(answer.Technology)) continue;
+                        var key = $"{entry.Id}|{answer.Technology.Trim().ToLowerInvariant()}";
+                        if (!lookup.ContainsKey(key))
+                            lookup[key] = (answer.Status ?? string.Empty, cat.Title ?? string.Empty);
+                    }
+                }
+            }
+        }
+
+        return lookup;
     }
 
     // ── Questionnaire lookup ──────────────────────────────────────────────────

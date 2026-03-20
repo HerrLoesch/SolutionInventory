@@ -338,6 +338,25 @@ public sealed class McpSessionManager
                         },
                         ["required"] = new JsonArray { "questionnaire_id" }
                     }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "get_json_schema",
+                    ["description"] = "Returns a JSON Schema (Draft-07) document describing a SolutionInventory data format. Use 'workspace' to get the schema for the complete workspace export file (project + questionnaires, including all category IDs, entry IDs, and valid enum values). Use 'questionnaire' to get the schema for a single standalone questionnaire document.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["type"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "The schema to retrieve: 'workspace' (full export format with project + questionnaires) or 'questionnaire' (single questionnaire document).",
+                                ["enum"]        = new JsonArray { "workspace", "questionnaire" }
+                            }
+                        },
+                        ["required"] = new JsonArray { "type" }
+                    }
                 }
             }
         });
@@ -357,6 +376,7 @@ public sealed class McpSessionManager
             "get_answers_for_category" => BuildAnswersForCategoryResponse(id, args, excludedIds),
             "get_tech_radar"           => BuildTechRadarResponse(id),
             "evaluate_responses"       => BuildEvaluateResponsesResponse(id, args),
+            "get_json_schema"          => BuildGetJsonSchemaResponse(id, args),
             _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -544,6 +564,13 @@ public sealed class McpSessionManager
         };
 
         return BuildTextToolResponse(id, json.ToJsonString());
+    }
+
+    private static string BuildGetJsonSchemaResponse(JsonNode id, JsonNode? args)
+    {
+        var type   = args?["type"]?.GetValue<string>() ?? "workspace";
+        var schema = type == "questionnaire" ? JsonSchemas.QuestionnaireSchema : JsonSchemas.WorkspaceSchema;
+        return BuildTextToolResponse(id, $"```json\n{schema}\n```");
     }
 
     private const string NotLoadedMessage =
