@@ -203,7 +203,25 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function loadFromData(data) {
     if (!data) return false
     const ok = applyStoredData(data)
-    if (ok) workspaceDirNeeded.value = false
+    if (ok) {
+      workspaceDirNeeded.value = false
+      // If no tabs were restored, auto-open the first available item so the user
+      // gets visual feedback that the workspace loaded successfully.
+      if (openProjectSummaryIds.value.length === 0 && openQuestionnaireIds.value.length === 0) {
+        const firstProject = workspace.value.projects?.[0]
+        if (firstProject) {
+          openProjectSummaryIds.value = [firstProject.id]
+          activeWorkspaceTabId.value = toProjectTabId(firstProject.id)
+        } else {
+          const firstQuestionnaire = workspace.value.questionnaires?.[0]
+          if (firstQuestionnaire) {
+            openQuestionnaireIds.value = [firstQuestionnaire.id]
+            activeQuestionnaireId.value = firstQuestionnaire.id
+            activeWorkspaceTabId.value = firstQuestionnaire.id
+          }
+        }
+      }
+    }
     return ok
   }
 
