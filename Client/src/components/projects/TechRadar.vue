@@ -119,7 +119,7 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.shortComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
                 </div>
               </div>
               <div class="legend-row-actions">
@@ -353,7 +353,7 @@
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.shortComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
                 </div>
               </div>
               <div class="legend-row-actions">
@@ -1043,64 +1043,59 @@ export default {
     // All radar-referenced blips (unfiltered), includes categoryTitle
     const allBlips = computed(() => {
       if (!project.value) return []
-      const refs = Array.isArray(project.value.radarRefs) ? project.value.radarRefs : []
-      if (!refs.length) return []
+      const entries = Array.isArray(project.value.radar) ? project.value.radar : []
+      if (!entries.length) return []
 
       const lookup = entryLookup.value
       const result = []
-      
-      for (const ref of refs) {
-        const norm = String(ref.option || '').trim().toLowerCase()
-        const entryData = lookup.get(ref.entryId)
+
+      for (const entry of entries) {
+        const norm = String(entry.option || '').trim().toLowerCase()
+        const entryData = lookup.get(entry.entryId)
         const candidates = entryData?.candidates || []
-        
-        // Prefer the questionnaire that was active when the blip was added
-        const preferredQId = String(ref.questionnaireId || '').trim()
+
+        // Find matching answer for type and questionnaire info
         let match = null
-        
-        if (preferredQId) {
-          for (const c of candidates) {
-            if (c.tech.toLowerCase() === norm && c.questionnaireId === preferredQId) {
-              match = c
-              break
-            }
+        for (const c of candidates) {
+          if (c.tech.toLowerCase() === norm) {
+            match = c
+            break
           }
         }
-        
-        if (!match) {
-          for (const c of candidates) {
-            if (c.tech.toLowerCase() === norm) {
-              match = c
-              break
-            }
-          }
-        }
-        
+
         const answer = match?.answer
-        const override = store.getRadarOverride(props.projectId, ref.entryId, ref.option)
-        const effectiveStatus = (override?.status || '').trim() || String(answer?.status || '').trim()
-        const effectiveCategory = (override?.categoryOverride || '').trim() || entryData?.categoryTitle || ''
-        
+        const questionnaireStatus = String(answer?.status || '').trim()
+        const questionnaireCategory = entryData?.categoryTitle || ''
+        const radarStatus = (entry.status || '').trim()
+        const radarCategory = (entry.category || '').trim()
+
+        const effectiveStatus = radarStatus || questionnaireStatus
+        const effectiveCategory = radarCategory || questionnaireCategory
+
+        // Flags for "has user override" indicator (pencil icon)
+        const overrideStatus = radarStatus && radarStatus !== questionnaireStatus ? radarStatus : ''
+        const overrideCategoryTitle = radarCategory && radarCategory !== questionnaireCategory ? radarCategory : ''
+
         result.push({
-          key: `${ref.entryId}||${ref.option}`,
-          entryId: ref.entryId,
-          option: String(ref.option || '').trim(),
-          name: String(ref.option || '').trim(),
+          key: `${entry.entryId}||${entry.option}`,
+          entryId: entry.entryId,
+          option: String(entry.option || '').trim(),
+          name: String(entry.option || '').trim(),
           status: effectiveStatus,
           answerType: String(answer?.answerType || '').trim(),
           comment: String(answer?.comments || '').trim(),
-          radarComment: String(override?.comment || '').trim(),
-          shortComment: String(override?.shortComment || '').trim(),
-          overrideStatus: String(override?.status || '').trim(),
-          overrideCategoryTitle: String(override?.categoryOverride || '').trim(),
-          naturalCategoryTitle: entryData?.categoryTitle || '',
+          radarComment: String(entry.description || '').trim(),
+          shortComment: String(entry.shortComment || '').trim(),
+          overrideStatus,
+          overrideCategoryTitle,
+          naturalCategoryTitle: questionnaireCategory,
           questionnaireName: match?.questionnaireName || '',
           categoryTitle: effectiveCategory,
           entryTitle: entryData?.entryTitle || '',
           ring: statusToRing(effectiveStatus)
         })
       }
-      
+
       return result
     })
 
@@ -1467,14 +1462,11 @@ export default {
 
     function saveEdit () {
       if (!blipToEdit.value) return
-      // Don't store a category override when it matches the natural category
-      const catOverride = (editForm.value.categoryOverride || '').trim()
-      const naturalCat = (blipToEdit.value.naturalCategoryTitle || '').trim()
       store.setRadarOverride(props.projectId, blipToEdit.value.entryId, blipToEdit.value.option, {
         status: editForm.value.status,
         shortComment: editForm.value.shortComment,
         comment: editForm.value.comment,
-        categoryOverride: catOverride === naturalCat ? '' : catOverride
+        categoryOverride: (editForm.value.categoryOverride || '').trim() || blipToEdit.value.naturalCategoryTitle || ''
       })
       editDialog.value = false
       blipToEdit.value = null

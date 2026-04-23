@@ -1,7 +1,7 @@
 # Solution Inventory
 
 <p align="center">
-  <img src="public/Logo-Large.png" alt="Solution Inventory" width="180" />
+  <img src="Client/public/Logo-Large.png" alt="Solution Inventory" width="180" />
 </p>
 
 Vue 3 + Vuetify application for documenting solution questionnaires across multiple projects. Available as both a Progressive Web App (PWA) and an Electron desktop application for **Windows** and **Linux**. The Electron app stores all data locally on the device (no cloud sync). The web version (hosted via GitHub Pages) stores all data exclusively in the browser's Local Storage (no server-side storage or sync). It uses a project tree for navigation, questionnaire tabs for editing, and a configuration editor in a dialog.

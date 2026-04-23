@@ -6,11 +6,13 @@
  */
 
 const http = require('http');
-const https = require('https');
 const readline = require('readline');
+const { spawn } = require('child_process');
+const path = require('path');
 
 const SERVER_URL = process.env.MCP_SERVER_URL || 'http://localhost:5100';
-let sessionId = null;
+const SERVER_DIR = path.join(__dirname, 'MCP', 'McpServer');
+let dotnetProcess = null;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // JSON-RPC Helper
@@ -32,17 +34,15 @@ function createError(id, code, message) {
 // HTTP Helpers
 // ──────────────────────────────────────────────────────────────────────────────
 
-function makeRequest(path, method = 'GET', body = null) {
+function makeRequest(urlPath, method = 'GET', body = null, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
-    const url = new URL(SERVER_URL + path);
+    const url = new URL(SERVER_URL + urlPath);
     const options = {
       hostname: url.hostname,
       port: url.port,
       path: url.pathname + url.search,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      method,
+      headers: { 'Content-Type': 'application/json' }
     };
 
     if (body) {
@@ -54,52 +54,68 @@ function makeRequest(path, method = 'GET', body = null) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          const parsed = data ? JSON.parse(data) : {};
-          resolve({ status: res.statusCode, data: parsed });
-        } catch (e) {
+          resolve({ status: res.statusCode, data: data ? JSON.parse(data) : {} });
+        } catch {
           resolve({ status: res.statusCode, data: { raw: data } });
         }
       });
     });
 
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
+    });
     req.on('error', reject);
     if (body) req.write(body);
     req.end();
   });
 }
 
+async function isServerRunning() {
+  try {
+    await makeRequest('/', 'GET', null, 2000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureServerRunning() {
+  if (await isServerRunning()) return;
+
+  dotnetProcess = spawn('dotnet', ['run'], {
+    cwd: SERVER_DIR,
+    stdio: 'ignore',
+    detached: false
+  });
+  dotnetProcess.on('error', err => console.error('Failed to start .NET server:', err.message));
+
+  // Poll until ready (max 30s)
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1000));
+    if (await isServerRunning()) return;
+  }
+  console.error('Timeout: .NET server did not become ready within 30s');
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // MCP Initialize
 // ──────────────────────────────────────────────────────────────────────────────
 
-async function handleInitialize(params, id) {
-  try {
-    sessionId = `session-${Date.now()}`;
-    
-    const result = {
-      protocolVersion: '2024-11-05',
-      capabilities: {
-        tools: {}
-      },
-      serverInfo: {
-        name: 'SolutionInventory',
-        version: '1.0.0'
-      }
-    };
-
-    sendJsonRpc(createResponse(id, result));
-  } catch (err) {
-    sendJsonRpc(createError(id, -32603, err.message));
-  }
+function handleInitialize(id) {
+  sendJsonRpc(createResponse(id, {
+    protocolVersion: '2024-11-05',
+    capabilities: { tools: {} },
+    serverInfo: { name: 'SolutionInventory', version: '1.0.0' }
+  }));
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // MCP Tools: list_tools
 // ──────────────────────────────────────────────────────────────────────────────
 
-async function handleListTools(params, id) {
-  try {
-    const tools = [
+function handleListTools(id) {
+  const tools = [
       {
         name: 'list_categories',
         description: 'Lists all categories in the workspace with their subcategory entries',
@@ -148,13 +164,39 @@ async function handleListTools(params, id) {
           properties: {},
           required: []
         }
+      },
+      {
+        name: 'evaluate_responses',
+        description: 'Evaluates response quality of a questionnaire. Returns consistency_score (0.0-1.0), completeness_% (0-100), and a warnings array with detected issues.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            questionnaire_id: {
+              type: 'string',
+              description: 'The unique identifier (ID or name) of the questionnaire to evaluate.'
+            }
+          },
+          required: ['questionnaire_id']
+        }
+      },
+      {
+        name: 'get_json_schema',
+        description: 'Returns a JSON Schema (Draft-07) document describing a SolutionInventory data format. Use "workspace" to get the schema for the complete workspace export file (project + questionnaires, including all valid category IDs, entry IDs, and enum values). Use "questionnaire" to get the schema for a single standalone questionnaire document.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'The schema to retrieve: "workspace" (full export with project + questionnaires) or "questionnaire" (single questionnaire document).',
+              enum: ['workspace', 'questionnaire']
+            }
+          },
+          required: ['type']
+        }
       }
     ];
 
-    sendJsonRpc(createResponse(id, { tools }));
-  } catch (err) {
-    sendJsonRpc(createError(id, -32603, err.message));
-  }
+  sendJsonRpc(createResponse(id, { tools }));
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -210,10 +252,10 @@ rl.on('line', async (line) => {
 
     switch (method) {
       case 'initialize':
-        await handleInitialize(params, id);
+        handleInitialize(id);
         break;
       case 'tools/list':
-        await handleListTools(params, id);
+        handleListTools(id);
         break;
       case 'tools/call':
         await handleCallTool(params, id);
@@ -229,7 +271,16 @@ rl.on('line', async (line) => {
   }
 });
 
+// Auto-start .NET server before accepting requests
+ensureServerRunning().catch(err => console.error('Server startup error:', err.message));
+
 rl.on('close', () => {
+  if (dotnetProcess) dotnetProcess.kill();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  if (dotnetProcess) dotnetProcess.kill();
   process.exit(0);
 });
 

@@ -210,10 +210,17 @@ export default {
               break
             case 'open-workspace': {
               const result = await window.electronAPI.openWorkspaceFile()
-              if (!result || result.error) break
+              if (!result) break // canceled
+              if (result.error) {
+                console.error('[open-workspace] Failed to read file:', result.error)
+                break
+              }
               // Set workspaceDir to the file's directory so future saves go there
               await window.electronAPI.setWorkspaceDir(result.dirPath)
-              store.loadFromData(result.data)
+              const loaded = store.loadFromData(result.data)
+              if (!loaded) {
+                console.error('[open-workspace] File format not recognized:', result.filePath)
+              }
               break
             }
             case 'save-workspace':

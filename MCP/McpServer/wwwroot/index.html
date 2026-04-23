@@ -331,7 +331,6 @@
           <input type="file" id="ws-file-input" accept=".json" style="display:none" />
           <div class="btn-row">
             <button class="btn btn-primary" id="ws-load-btn">Choose File…</button>
-            <button class="btn btn-ghost"    id="ws-example-btn">Load Example</button>
           </div>
           <div id="ws-feedback" class="feedback" style="margin-top:8px;"></div>
         </div>
@@ -393,7 +392,15 @@
             </div>
             <div class="tool-item">
               <code class="tool-name">get_tech_radar</code>
-              <span class="tool-desc">Returns the tech radar with adopt / trial / hold / retire classifications and comments.</span>
+              <span class="tool-desc">Returns the tech radar with technology classifications and comments, grouped by the statuses present in the data.</span>
+            </div>
+            <div class="tool-item">
+              <code class="tool-name">evaluate_responses</code>
+              <span class="tool-desc">Evaluates a questionnaire by <code style="font-family:var(--mono);color:var(--accent)">questionnaire_id</code>. Returns a <em>consistency score</em> (0.0–1.0), a <em>completeness %</em> (0–100), and a list of detected issues such as missing metadata, unanswered entries, or conflicting technology statuses.</span>
+            </div>
+            <div class="tool-item">
+              <code class="tool-name">get_json_schema</code>
+              <span class="tool-desc">Returns a JSON Schema (Draft-07) for a SolutionInventory data format. Pass <code style="font-family:var(--mono);color:var(--accent)">type</code> = <code style="font-family:var(--mono);color:var(--accent)">"workspace"</code> for the full export format (project + questionnaires, including all category/entry IDs and enum values) or <code style="font-family:var(--mono);color:var(--accent)">"questionnaire"</code> for a single standalone questionnaire document.</span>
             </div>
           </div>
         </div>
@@ -551,7 +558,6 @@
   // ── Workspace ─────────────────────────────────────────────────────────────
   const wsFileInput  = document.getElementById('ws-file-input');
   const wsLoadBtn    = document.getElementById('ws-load-btn');
-  const wsExampleBtn = document.getElementById('ws-example-btn');
   const wsFeedback   = document.getElementById('ws-feedback');
   const wsSummary    = document.getElementById('ws-summary');
   const wsStats      = document.getElementById('ws-stats');
@@ -639,7 +645,7 @@
   wsFileInput.addEventListener('change', async () => {
     const file = wsFileInput.files[0];
     if (!file) return;
-    wsLoadBtn.disabled = wsExampleBtn.disabled = true;
+    wsLoadBtn.disabled = true;
     try {
       const form = new FormData();
       form.append('file', file);
@@ -651,23 +657,7 @@
     } catch (e) {
       showFeedback('Upload failed: ' + e.message, true);
     } finally {
-      wsLoadBtn.disabled = wsExampleBtn.disabled = false;
-    }
-  });
-
-  // Load built-in example
-  wsExampleBtn.addEventListener('click', async () => {
-    wsLoadBtn.disabled = wsExampleBtn.disabled = true;
-    try {
-      const res  = await fetch('/api/workspace/load-example', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) { showFeedback(data.message, true); return; }
-      showFeedback(data.message, false);
-      await refreshSummary();
-    } catch (e) {
-      showFeedback('Request failed: ' + e.message, true);
-    } finally {
-      wsLoadBtn.disabled = wsExampleBtn.disabled = false;
+      wsLoadBtn.disabled = false;
     }
   });
 

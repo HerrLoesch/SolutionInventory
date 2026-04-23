@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json.Nodes;
 using McpServer.Data;
+using McpServer.Logic;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace McpServer.Services;
@@ -33,15 +34,17 @@ public sealed class McpSessionManager
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
-    private readonly ConfigService       _config;
-    private readonly LogBroadcaster      _log;
-    private readonly ProjectRepository   _repo;
+    private readonly ConfigService          _config;
+    private readonly LogBroadcaster         _log;
+    private readonly ProjectRepository      _repo;
+    private readonly QuestionnaireEvaluator _evaluator;
 
-    public McpSessionManager(ConfigService config, LogBroadcaster log, ProjectRepository repo)
+    public McpSessionManager(ConfigService config, LogBroadcaster log, ProjectRepository repo, QuestionnaireEvaluator evaluator)
     {
-        _config = config;
-        _log    = log;
-        _repo   = repo;
+        _config    = config;
+        _log       = log;
+        _repo      = repo;
+        _evaluator = evaluator;
     }
 
     // ── SSE endpoint  GET /sse ────────────────────────────────────────────────
@@ -310,7 +313,7 @@ public sealed class McpSessionManager
                 new JsonObject
                 {
                     ["name"]        = "get_tech_radar",
-                    ["description"] = "Returns the project-level tech radar: all technology overrides (with status 'adopt', 'trial', 'hold', or 'retire' and optional comments), the questionnaire references that contributed each item, and the radar category order.",
+                    ["description"] = "Returns the project-level tech radar: all radar entries (with option, category, status, shortComment and description), grouped by status ring, and the radar category order.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
@@ -335,6 +338,25 @@ public sealed class McpSessionManager
                         },
                         ["required"] = new JsonArray { "questionnaire_id" }
                     }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "get_json_schema",
+                    ["description"] = "Returns a JSON Schema (Draft-07) document describing a SolutionInventory data format. Use 'workspace' to get the schema for the complete workspace export file (project + questionnaires, including all category IDs, entry IDs, and valid enum values). Use 'questionnaire' to get the schema for a single standalone questionnaire document.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["type"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "The schema to retrieve: 'workspace' (full export format with project + questionnaires) or 'questionnaire' (single questionnaire document).",
+                                ["enum"]        = new JsonArray { "workspace", "questionnaire" }
+                            }
+                        },
+                        ["required"] = new JsonArray { "type" }
+                    }
                 }
             }
         });
@@ -354,6 +376,7 @@ public sealed class McpSessionManager
             "get_answers_for_category" => BuildAnswersForCategoryResponse(id, args, excludedIds),
             "get_tech_radar"           => BuildTechRadarResponse(id),
             "evaluate_responses"       => BuildEvaluateResponsesResponse(id, args),
+            "get_json_schema"          => BuildGetJsonSchemaResponse(id, args),
             _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -490,37 +513,24 @@ public sealed class McpSessionManager
         sb.AppendLine($"**Category order:** {string.Join(" › ", radar.CategoryOrder)}");
         sb.AppendLine();
 
-        // Group overrides by status ring for a radar-style overview
-        var rings = new[] { "adopt", "trial", "hold", "retire" };
-        foreach (var ring in rings)
+        foreach (var group in radar.Entries.GroupBy(e => e.Status, StringComparer.OrdinalIgnoreCase))
         {
-            var items = radar.Overrides
-                .Where(o => o.Status.Equals(ring, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (items.Count == 0) continue;
+            var ring  = group.Key;
+            var items = group.ToList();
 
             sb.AppendLine($"## {ring.ToUpper()}  ({items.Count})");
             foreach (var item in items)
             {
-                var cat = string.IsNullOrWhiteSpace(item.CategoryOverride) ? item.EntryId : item.CategoryOverride;
-                sb.Append($"  - **{item.Option}** [{cat}]");
+                sb.Append($"  - **{item.Option}** [{item.Category}]");
                 if (!string.IsNullOrWhiteSpace(item.ShortComment)) sb.Append($" — {item.ShortComment}");
                 sb.AppendLine();
-                if (!string.IsNullOrWhiteSpace(item.Comment))
+                if (!string.IsNullOrWhiteSpace(item.Description))
                 {
-                    foreach (var line in item.Comment.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    foreach (var line in item.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                         sb.AppendLine($"    > {line.Trim()}");
                 }
             }
             sb.AppendLine();
-        }
-
-        // Questionnaire references summary
-        sb.AppendLine($"## Questionnaire References  ({radar.Refs.Count} total)");
-        foreach (var byEntry in radar.Refs.GroupBy(r => r.EntryId))
-        {
-            sb.AppendLine($"  - `{byEntry.Key}`: {string.Join(", ", byEntry.Select(r => r.Option))}");
         }
 
         return BuildTextToolResponse(id, sb.ToString());
@@ -532,13 +542,15 @@ public sealed class McpSessionManager
         if (string.IsNullOrWhiteSpace(questionnaireId))
             return BuildError(id, -32602, "Parameter 'questionnaire_id' is required.");
 
-        var result = _repo.EvaluateResponses(questionnaireId);
-        if (result is null)
+        var questionnaire = _repo.FindQuestionnaire(questionnaireId);
+        if (questionnaire is null)
         {
             return BuildTextToolResponse(id, _repo.IsLoaded
                 ? $"No questionnaire found with ID or name '{questionnaireId}'."
                 : NotLoadedMessage);
         }
+
+        var result = _evaluator.Evaluate(questionnaire);
 
         var warningsArray = new JsonArray();
         foreach (var w in result.Warnings)
@@ -552,6 +564,13 @@ public sealed class McpSessionManager
         };
 
         return BuildTextToolResponse(id, json.ToJsonString());
+    }
+
+    private static string BuildGetJsonSchemaResponse(JsonNode id, JsonNode? args)
+    {
+        var type   = args?["type"]?.GetValue<string>() ?? "workspace";
+        var schema = type == "questionnaire" ? JsonSchemas.QuestionnaireSchema : JsonSchemas.WorkspaceSchema;
+        return BuildTextToolResponse(id, $"```json\n{schema}\n```");
     }
 
     private const string NotLoadedMessage =

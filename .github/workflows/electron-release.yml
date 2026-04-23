@@ -1,9 +1,17 @@
-name: Release on Merge to Main
+name: Manual Full Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: Semantic version bump type
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        required: true
+        default: minor
 
 permissions:
   contents: write
@@ -16,13 +24,27 @@ concurrency:
 
 jobs:
   # ------------------------------------------------------------------
-  # 1. Bump the minor version, commit it back to main and create a tag
+  # 0. Ensure this workflow is only run from main
+  # ------------------------------------------------------------------
+  validate-main:
+    name: Validate Main Branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ensure workflow ref is main
+        run: |
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            echo "This workflow can only run from main. Current ref: ${{ github.ref_name }}"
+            exit 1
+          fi
+
+  # ------------------------------------------------------------------
+  # 1. Bump the selected semantic version and create a tag
   # ------------------------------------------------------------------
   version:
     name: Bump Version
+    needs: validate-main
     runs-on: ubuntu-latest
-    # Prevent infinite loop: skip if the commit was created by this workflow
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     outputs:
       version: ${{ steps.bump.outputs.version }}
 
@@ -30,6 +52,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -49,10 +72,10 @@ jobs:
           git config user.email "ci@github-actions"
           git config user.name "GitHub Actions"
 
-      - name: Bump minor version and push
+      - name: Bump selected version and push
         id: bump
         run: |
-          npm version minor --no-git-tag-version
+          npm version ${{ inputs.release_type }} --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           git add package.json package-lock.json
@@ -153,9 +176,11 @@ jobs:
           tag_name: v${{ needs.version.outputs.version }}
           name: "Release v${{ needs.version.outputs.version }}"
           body: |
-            ?? **Release v${{ needs.version.outputs.version }}**
+            Release v${{ needs.version.outputs.version }}
 
-            Automatically built and released on merge to `main`.
+            Manually triggered full release.
+            Source branch: main
+            Release type: ${{ inputs.release_type }}
             Commit: ${{ github.sha }}
           prerelease: false
           files: artifacts/**/*

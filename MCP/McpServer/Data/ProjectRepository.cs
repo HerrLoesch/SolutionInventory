@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using McpServer.Models;
 
 namespace McpServer.Data;
@@ -14,23 +15,13 @@ public sealed class ProjectRepository
         PropertyNameCaseInsensitive = true
     };
 
-    // Candidate paths searched when loading the built-in example (relative to content root).
-    private static readonly string[] ExampleRelativePaths =
-    [
-        "Data/example_export.json",
-        "../../Client/tests/data/example_export.json",
-        "../../../Client/tests/data/example_export.json",
-    ];
-
-    private readonly IWebHostEnvironment _env;
     private readonly ILogger<ProjectRepository> _logger;
     private readonly SemaphoreSlim _sem = new(1, 1);
 
     private WorkspaceExport? _workspace;
 
-    public ProjectRepository(IWebHostEnvironment env, ILogger<ProjectRepository> logger)
+    public ProjectRepository(ILogger<ProjectRepository> logger)
     {
-        _env    = env;
         _logger = logger;
     }
 
@@ -52,8 +43,8 @@ public sealed class ProjectRepository
         await _sem.WaitAsync();
         try
         {
-            await using var stream = File.OpenRead(fullPath);
-            var ws = await JsonSerializer.DeserializeAsync<WorkspaceExport>(stream, s_opts);
+            var json = await File.ReadAllTextAsync(fullPath);
+            var ws = ParseWorkspaceExport(json);
             if (ws is null)
                 return (false, "Deserialization returned null.");
 
@@ -82,7 +73,7 @@ public sealed class ProjectRepository
         await _sem.WaitAsync();
         try
         {
-            var ws = JsonSerializer.Deserialize<WorkspaceExport>(json, s_opts);
+            var ws = ParseWorkspaceExport(json);
             if (ws is null)
                 return (false, "Deserialization returned null.");
 
@@ -100,21 +91,6 @@ public sealed class ProjectRepository
         {
             _sem.Release();
         }
-    }
-
-    /// <summary>Attempts to load the built-in example workspace from well-known locations.</summary>
-    public async Task<(bool Success, string Message)> LoadExampleAsync()
-    {
-        foreach (var rel in ExampleRelativePaths)
-        {
-            var full = Path.GetFullPath(Path.Combine(_env.ContentRootPath, rel));
-            if (File.Exists(full))
-                return await LoadFromFileAsync(full);
-        }
-
-        var tried = string.Join(", ", ExampleRelativePaths);
-        _logger.LogWarning("Built-in example workspace not found. Tried: {Paths}", tried);
-        return (false, $"Example file not found. Tried: {tried}");
     }
 
     // ── Query ─────────────────────────────────────────────────────────────────
@@ -257,167 +233,176 @@ public sealed class ProjectRepository
         return records.AsReadOnly();
     }
 
-    /// <summary>Returns the tech radar (overrides + category order) from the loaded project.</summary>
+    /// <summary>Returns the tech radar from the loaded project, migrating from legacy format if needed.
+    /// Radar entries with no stored status are enriched from the matching questionnaire answer.
+    /// </summary>
     public TechRadarData? GetTechRadar()
     {
         if (_workspace?.Project is null) return null;
         var p = _workspace.Project;
-        return new TechRadarData(
-            p.RadarOverrides.AsReadOnly(),
-            p.RadarRefs.AsReadOnly(),
-            p.RadarCategoryOrder.AsReadOnly());
+
+        List<RadarEntry> entries;
+
+        if (p.Radar.Count > 0)
+        {
+            // New unified format: use radar array directly
+            entries = p.Radar.ToList();
+        }
+        else
+        {
+            // Legacy format: radarRefs defines the set; radarOverrides carries optional edits.
+            // The client migration (migrateProjectRadar) starts from radarRefs and applies
+            // overrides on top – we must do the same here so refs-without-overrides are included.
+            entries = p.RadarRefs.Select(r =>
+            {
+                var norm     = r.Option.Trim().ToLowerInvariant();
+                var override_ = p.RadarOverrides.FirstOrDefault(o =>
+                    o.EntryId.Equals(r.EntryId, StringComparison.OrdinalIgnoreCase) &&
+                    o.Option.Trim().ToLowerInvariant() == norm);
+
+                return new RadarEntry
+                {
+                    EntryId      = r.EntryId,
+                    Option       = r.Option.Trim(),
+                    Category     = string.IsNullOrWhiteSpace(override_?.CategoryOverride)
+                                       ? string.Empty
+                                       : override_!.CategoryOverride,
+                    Status       = override_?.Status       ?? string.Empty,
+                    ShortComment = override_?.ShortComment ?? string.Empty,
+                    Description  = override_?.Comment      ?? string.Empty
+                };
+            }).ToList();
+        }
+
+        // Enrich entries that have no stored status or category by looking up
+        // the matching questionnaire answer – identical to the client's
+        // effectiveStatus = radarStatus || questionnaireStatus logic.
+        if (_workspace.Questionnaires.Count > 0 && entries.Any(e =>
+                string.IsNullOrWhiteSpace(e.Status) || string.IsNullOrWhiteSpace(e.Category)))
+        {
+            var answerLookup = BuildAnswerLookup(_workspace.Questionnaires);
+            entries = entries.Select(e =>
+            {
+                if (!string.IsNullOrWhiteSpace(e.Status) && !string.IsNullOrWhiteSpace(e.Category))
+                    return e;
+
+                var key = $"{e.EntryId}|{e.Option.Trim().ToLowerInvariant()}";
+                if (!answerLookup.TryGetValue(key, out var found))
+                    return e;
+
+                return e with
+                {
+                    Status   = string.IsNullOrWhiteSpace(e.Status)   ? found.Status   : e.Status,
+                    Category = string.IsNullOrWhiteSpace(e.Category) ? found.Category : e.Category
+                };
+            }).ToList();
+        }
+
+        return new TechRadarData(entries.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
     }
 
-    // ── Quality assessment ────────────────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Evaluates the response quality of a single questionnaire.
-    /// Returns a consistency score (0–1), a completeness percentage (0–100),
-    /// and a list of human-readable warnings describing detected issues.
-    /// Returns <see langword="null"/> when no workspace is loaded or the
-    /// questionnaire cannot be found.
+    /// Detects and normalises two workspace file formats:
+    /// <list type="bullet">
+    ///   <item>Standard project export: <c>{ project, questionnaires }</c></item>
+    ///   <item>Full Electron autosave: <c>{ version, timestamp, workspace: { projects, questionnaires } }</c></item>
+    /// </list>
+    /// For the full format the first project is used and only its questionnaires are kept.
     /// </summary>
-    public EvaluateResponsesResult? EvaluateResponses(string questionnaireId)
+    private static WorkspaceExport? ParseWorkspaceExport(string json)
+    {
+        // Quick attempt at the standard project-export format
+        var standard = JsonSerializer.Deserialize<WorkspaceExport>(json, s_opts);
+        if (standard?.Project is not null)
+            return standard;
+
+        // Try the full Electron client format:
+        // { "version": 2, "workspace": { "projects": [...], "questionnaires": [...] } }
+        try
+        {
+            var root          = JsonNode.Parse(json);
+            var workspaceNode = root?["workspace"];
+            if (workspaceNode is null) return standard;
+
+            var projectsNode = workspaceNode["projects"]?.AsArray();
+            if (projectsNode is null || projectsNode.Count == 0) return standard;
+
+            // Use the first project in the file
+            var projectNode = projectsNode[0]!;
+
+            // Collect the questionnaire IDs that belong to this project
+            var questionnaireIds = (projectNode["questionnaireIds"]?.AsArray() ?? [])
+                .Select(n => n?.GetValue<string>() ?? string.Empty)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Filter the global questionnaire list to only this project's questionnaires
+            var allQuestionnaires = workspaceNode["questionnaires"]?.AsArray() ?? [];
+            var filteredQuestionnaires = new JsonArray();
+            foreach (var q in allQuestionnaires)
+            {
+                var qId = q?["id"]?.GetValue<string>() ?? string.Empty;
+                if (questionnaireIds.Count == 0 || questionnaireIds.Contains(qId))
+                    filteredQuestionnaires.Add(q?.DeepClone());
+            }
+
+            var normalised = new JsonObject
+            {
+                ["project"]        = projectNode.DeepClone(),
+                ["questionnaires"] = filteredQuestionnaires
+            };
+
+            return JsonSerializer.Deserialize<WorkspaceExport>(normalised.ToJsonString(), s_opts);
+        }
+        catch
+        {
+            return standard;
+        }
+    }
+
+    /// <summary>
+    /// Builds a lookup table from questionnaire answers:
+    /// key = <c>"{entryId}|{optionLowercase}"</c>,
+    /// value = (Status, CategoryTitle).
+    /// Used to enrich radar entries whose stored status / category is empty.
+    /// </summary>
+    private static Dictionary<string, (string Status, string Category)> BuildAnswerLookup(
+        IEnumerable<Questionnaire> questionnaires)
+    {
+        var lookup = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var q in questionnaires)
+        {
+            foreach (var cat in q.Categories)
+            {
+                if (cat.IsMetadata == true) continue;
+                foreach (var entry in cat.Entries ?? [])
+                {
+                    foreach (var answer in entry.Answers ?? [])
+                    {
+                        if (string.IsNullOrWhiteSpace(answer.Technology)) continue;
+                        var key = $"{entry.Id}|{answer.Technology.Trim().ToLowerInvariant()}";
+                        if (!lookup.ContainsKey(key))
+                            lookup[key] = (answer.Status ?? string.Empty, cat.Title ?? string.Empty);
+                    }
+                }
+            }
+        }
+
+        return lookup;
+    }
+
+    // ── Questionnaire lookup ──────────────────────────────────────────────────
+
+    /// <summary>Finds a questionnaire by ID or name. Returns <see langword="null"/> when not found or no workspace is loaded.</summary>
+    public Questionnaire? FindQuestionnaire(string questionnaireId)
     {
         if (_workspace is null) return null;
-
-        var questionnaire = _workspace.Questionnaires.FirstOrDefault(q =>
+        return _workspace.Questionnaires.FirstOrDefault(q =>
             q.Id.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase) ||
             q.Name.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase));
-
-        if (questionnaire is null) return null;
-
-        var warnings = new List<string>();
-
-        // ── Completeness ──────────────────────────────────────────────────────
-
-        var metaCat = questionnaire.Categories.FirstOrDefault(c => c.IsMetadata == true);
-        var meta    = metaCat?.Metadata;
-
-        // Mandatory metadata fields
-        var mandatoryFields = new Dictionary<string, string?>
-        {
-            ["productName"]       = meta?.ProductName,
-            ["company"]           = meta?.Company,
-            ["department"]        = meta?.Department,
-            ["contactPerson"]     = meta?.ContactPerson,
-            ["executionType"]     = meta?.ExecutionType,
-            ["architecturalRole"] = meta?.ArchitecturalRole,
-        };
-
-        int filledMetadata = 0;
-        foreach (var (field, value) in mandatoryFields)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                warnings.Add($"Missing mandatory metadata field: '{field}'.");
-            else
-                filledMetadata++;
-        }
-
-        // Non-metadata entries
-        var nonMetaCategories = questionnaire.Categories
-            .Where(c => c.IsMetadata != true)
-            .ToList();
-
-        var allEntries = nonMetaCategories
-            .SelectMany(c => c.Entries ?? [])
-            .ToList();
-
-        int entriesWithAnswers = 0;
-        foreach (var cat in nonMetaCategories)
-        {
-            foreach (var entry in cat.Entries ?? [])
-            {
-                if (entry.Answers is { Count: > 0 })
-                    entriesWithAnswers++;
-                else
-                    warnings.Add(
-                        $"Entry '{entry.Aspect}' ('{entry.Id}') in category '{cat.Title}' has no answers.");
-            }
-        }
-
-        int totalCompletable = mandatoryFields.Count + allEntries.Count;
-        float completeness   = totalCompletable > 0
-            ? (float)(filledMetadata + entriesWithAnswers) / totalCompletable * 100f
-            : 100f;
-
-        // ── Consistency ───────────────────────────────────────────────────────
-
-        // Collect all statuses per technology name across the questionnaire.
-        var techStatusMap = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var cat in nonMetaCategories)
-        {
-            foreach (var entry in cat.Entries ?? [])
-            {
-                if (entry.Answers is null) continue;
-
-                // Within-entry: flag duplicate technology entries.
-                var duplicates = entry.Answers
-                    .GroupBy(a => a.Technology, StringComparer.OrdinalIgnoreCase)
-                    .Where(g => g.Count() > 1);
-
-                foreach (var group in duplicates)
-                {
-                    var statuses = group
-                        .Select(a => a.Status)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-
-                    warnings.Add(statuses.Count > 1
-                        ? $"Technology '{group.Key}' in entry '{entry.Aspect}' has conflicting statuses: {string.Join(", ", statuses)}."
-                        : $"Technology '{group.Key}' is listed {group.Count()} times in entry '{entry.Aspect}'.");
-                }
-
-                // Collect statuses for cross-entry consistency check.
-                foreach (var answer in entry.Answers)
-                {
-                    if (!techStatusMap.TryGetValue(answer.Technology, out var set))
-                    {
-                        set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        techStatusMap[answer.Technology] = set;
-                    }
-                    if (!string.IsNullOrWhiteSpace(answer.Status))
-                        set.Add(answer.Status);
-                }
-
-                // Flag Hold / Retire answers without an explanatory comment.
-                foreach (var answer in entry.Answers)
-                {
-                    bool isCritical =
-                        answer.Status?.Equals("Hold",   StringComparison.OrdinalIgnoreCase) == true ||
-                        answer.Status?.Equals("Retire", StringComparison.OrdinalIgnoreCase) == true;
-
-                    if (isCritical && string.IsNullOrWhiteSpace(answer.Comments))
-                        warnings.Add(
-                            $"Technology '{answer.Technology}' has status '{answer.Status}' in entry '{entry.Aspect}' without an explanatory comment.");
-                }
-            }
-        }
-
-        // Cross-entry consistency: same technology, different statuses.
-        int consistent = 0, inconsistent = 0;
-        foreach (var (tech, statuses) in techStatusMap)
-        {
-            if (statuses.Count > 1)
-            {
-                inconsistent++;
-                warnings.Add(
-                    $"Technology '{tech}' appears with inconsistent statuses across the questionnaire: {string.Join(", ", statuses)}.");
-            }
-            else
-            {
-                consistent++;
-            }
-        }
-
-        int total = consistent + inconsistent;
-        float consistencyScore = total > 0 ? (float)consistent / total : 1f;
-
-        return new EvaluateResponsesResult(
-            (float)Math.Round(consistencyScore, 2, MidpointRounding.AwayFromZero),
-            (float)Math.Round(completeness,     2, MidpointRounding.AwayFromZero),
-            warnings.AsReadOnly());
     }
 
     // ── Summary helper (used by the UI API) ───────────────────────────────────

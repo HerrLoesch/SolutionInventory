@@ -7,28 +7,7 @@
 
 ---
 
-## 2. Core Evaluation Functions
-
-### 2.1 Response Quality Assessment
-- [ ] **Create `evaluate_responses(questionnaire_id: str)` function**
-  - **Input**: Unique identifier for a questionnaire (`questionnaire_id` as string)
-  - **Output**: JSON object containing:
-    - `consistency_score` (float, 0.0–1.0): measures internal consistency of responses
-    - `completeness_%` (float, 0–100): percentage of completed mandatory fields
-    - `warnings` (array of strings): list of detected issues or anomalies
-
-### 2.2 Data Export
-- [ ] **Create `export_cleaned_data(questionnaire_id: str, output_format: str)` function**
-  - **Input**: 
-    - `questionnaire_id` (string): identifier of the questionnaire to export
-    - `output_format` (enum: `"json"` or `"csv"`): desired export file format
-  - **Output**: JSON object containing:
-    - `filepath` (string): absolute or relative path to the exported file
-    - `size_mb` (float): file size in megabytes
-
----
-
-## 3. Data Cleaning & Validation
+## 2. Data Cleaning & Validation
 
 - [ ] **Implement data cleaning function to detect naming inconsistencies**
   - Scan all field names, category labels, and identifiers for:
@@ -42,9 +21,17 @@
   - Validate all TechRadar entries against this whitelist
   - Flag or auto-correct deviations from approved status terminology
 
+- [ ] **Create `export_cleaned_data(questionnaire_id: str, output_format: str)` function**
+  - **Input**: 
+    - `questionnaire_id` (string): identifier of the questionnaire to export
+    - `output_format` (enum: `"json"` or `"csv"`): desired export file format
+  - **Output**: JSON object containing:
+    - `filepath` (string): absolute or relative path to the exported file
+    - `size_mb` (float): file size in megabytes
+
 ---
 
-## 4. Intelligent Analysis Features
+## 3. Intelligent Analysis Features
 
 - [ ] **Calculate consistency score for all responses**
   - Analyze cross-field logical consistency (e.g., contradictory answers)
@@ -57,7 +44,7 @@
 
 ---
 
-## 5. Documentation & AI Interpretability
+## 4. Documentation & AI Interpretability
 
 - [ ] **Revise all function descriptions for improved AI comprehension**
   - Use clear, structured docstrings with:
@@ -69,7 +56,7 @@
 
 ---
 
-## 6. Comparative Analysis
+## 5. Comparative Analysis
 
 - [ ] **Implement questionnaire comparison against reference baseline**
   - **Input**: Target questionnaire ID + reference questionnaire ID (or template)
@@ -81,7 +68,7 @@
 
 ---
 
-## 7. Reporting & Visualization
+## 6. Reporting & Visualization
 
 - [ ] **Generate HTML report with evaluation results and differences**
   - Include:

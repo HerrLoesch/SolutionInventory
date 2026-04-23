@@ -1,19 +1,26 @@
-name: CI – Dev Branch
+name: Dev CI and Manual Pre-release
 
 on:
   push:
     branches:
       - Dev
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Branch used for pre-release build/version bump
+        required: true
+        default: Dev
 
 permissions:
   contents: write
 
 jobs:
   # ------------------------------------------------------------------
-  # 1. Run all E2E tests
+  # CI on push to Dev: test and build only (no deployment)
   # ------------------------------------------------------------------
-  test:
-    name: E2E Tests
+  test-dev:
+    name: E2E Tests (Dev Push)
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
 
     steps:
@@ -59,15 +66,89 @@ jobs:
         run: npx cucumber-js
         working-directory: Client
 
+  build-web-dev:
+    name: Build Web App (Dev Push)
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: test-dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Client
+
+      - name: Build web application
+        run: npx vite build
+        working-directory: Client
+
+  build-electron-dev:
+    name: Build Electron (Dev Push - ${{ matrix.artifact_name }})
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: test-dev
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: linux-x64
+            electron_flags: --linux --x64
+          - os: windows-latest
+            artifact_name: windows-x64
+            electron_flags: --win --x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-xcb1 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 \
+            libxfixes3 libxi6 libgtk-3-0t64 libatk1.0-0t64 libcairo-gobject2 \
+            libgdk-pixbuf-2.0-0 libasound2t64 libgtk-4-1 libvulkan1 libopus0 \
+            libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
+            libgstreamer-plugins-bad1.0-0 libflite1 libwebp7 libharfbuzz-icu0 \
+            libwayland-server0 libmanette-0.2-0 libenchant-2-2 libgbm1 libdrm2 \
+            libhyphen0 libgles2 rpm fakeroot dpkg
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Client
+
+      - name: Build Vite + Electron app
+        run: npx vite build --mode electron && npx electron-builder ${{ matrix.electron_flags }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: Client
+
   # ------------------------------------------------------------------
-  # 2. Bump the pre-release version, commit it back to Dev and tag it
+  # 1. Bump the pre-release version, commit it back and tag it
   # ------------------------------------------------------------------
   version:
     name: Bump Pre-release Version
-    needs: test
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Prevent infinite loop when this workflow commits the version bump
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     outputs:
       version: ${{ steps.bump.outputs.version }}
 
@@ -75,6 +156,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.target_branch }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -103,15 +185,16 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: pre-release v${VERSION} [skip ci]"
           git tag "v${VERSION}"
-          git push origin Dev
+          git push origin "${{ inputs.target_branch }}"
           git push origin "v${VERSION}"
         working-directory: Client
 
   # ------------------------------------------------------------------
-  # 3. Build the Electron app for all platforms and publish artifacts
+  # 2. Build the Electron app for all platforms and publish artifacts
   # ------------------------------------------------------------------
   build-electron:
     name: Build Electron (${{ matrix.artifact_name }})
+    if: github.event_name == 'workflow_dispatch'
     needs: version
     runs-on: ${{ matrix.os }}
 
@@ -179,10 +262,11 @@ jobs:
           path: Client/release/*.exe
 
   # ------------------------------------------------------------------
-  # 4. Create a GitHub Pre-release with all Electron artifacts
+  # 3. Create a GitHub Pre-release with all Electron artifacts
   # ------------------------------------------------------------------
   create-prerelease:
     name: Create GitHub Pre-release
+    if: github.event_name == 'workflow_dispatch'
     needs: [version, build-electron]
     runs-on: ubuntu-latest
 
@@ -198,9 +282,10 @@ jobs:
           tag_name: v${{ needs.version.outputs.version }}
           name: "Pre-release v${{ needs.version.outputs.version }}"
           body: |
-            🚧 **Pre-release v${{ needs.version.outputs.version }}**
+            Pre-release v${{ needs.version.outputs.version }}
 
-            Automatically built from the `Dev` branch. Not intended for production use.
+            Manually triggered dev pre-release.
+            Source branch: ${{ inputs.target_branch }}
             Commit: ${{ github.sha }}
           prerelease: true
           files: artifacts/**/*
