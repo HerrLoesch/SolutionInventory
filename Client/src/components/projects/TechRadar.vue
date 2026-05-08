@@ -80,6 +80,11 @@
               @click="exportRadarJson"
             />
             <v-list-item
+              prepend-icon="mdi-web"
+              title="Export as Standalone HTML"
+              @click="exportRadarHtml"
+            />
+            <v-list-item
               prepend-icon="mdi-download"
               title="Download as PNG"
               :disabled="isDownloading"
@@ -636,6 +641,7 @@ import { computed, ref, watch } from 'vue'
 import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { MdEditor, MdPreview } from 'md-editor-v3'
+import { exportRadarHtml as _exportRadarHtml } from '../../utils/techRadarExport'
 import 'md-editor-v3/lib/style.css'
 
 // ── Radar geometry constants ─────────────────────────────────────────────────
@@ -1623,6 +1629,17 @@ export default {
       URL.revokeObjectURL(url)
     }
 
+    function exportRadarHtml () {
+      _exportRadarHtml({
+        title: project.value?.name || 'Tech Radar',
+        blips: positionedBlips.value,
+        rings: computedRings.value,
+        visibleRingIndices: visibleRingIndices.value,
+        effectiveQuadrantLabels: effectiveQuadrantLabels.value,
+        blipsByQuadrant: blipsByQuadrant.value
+      })
+    }
+
     async function downloadRadar () {
       if (!radarLayoutRef.value || isDownloading.value) return
       isDownloading.value = true
@@ -1732,6 +1749,7 @@ export default {
       isDownloading,
       downloadRadar,
       exportRadarJson,
+      exportRadarHtml,
       quadrantLabelForm,
       effectiveQuadrantLabels,
       autoQuadrantLabel,
