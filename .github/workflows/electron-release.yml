@@ -87,7 +87,7 @@ jobs:
           fi
           VERSION=$(node -p "require('./package.json').version")
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          git add package.json
+          git add package.json package-lock.json
           git diff --cached --quiet || git commit -m "chore: release v${VERSION} [skip ci]"
           git tag "v${VERSION}"
           git push origin main
@@ -177,8 +177,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            Client/release/*.dmg
-            Client/release/*.zip
+            Client/release/**/*.dmg
+            Client/release/**/*.zip
 
   # ------------------------------------------------------------------
   # 3. Create a GitHub Release with all Electron artifacts
