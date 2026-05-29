@@ -120,7 +120,15 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
 
   // Blips
   blips.forEach(blip => {
-    svgParts.push(`  <g class="blip" data-key="${esc(blip.key)}" style="cursor:pointer;">`)
+    const tipLines = [blip.name]
+    if (blip.statusLabel) tipLines.push(blip.statusLabel)
+    if (blip.categoryTitle) tipLines.push(blip.categoryTitle)
+    const c = (blip.shortComment || blip.comment || '').slice(0, 200)
+    if (c) tipLines.push(c)
+    const titleText = tipLines.map(l => esc(l)).join('\n')
+
+    svgParts.push(`  <g class="blip" style="cursor:pointer;">`)
+    svgParts.push(`    <title>${titleText}</title>`)
     svgParts.push(`    <circle class="blip-circle" cx="${blip.x.toFixed(1)}" cy="${blip.y.toFixed(1)}" r="${BLIP_R}" fill="${blip.ringColor}" stroke="white" stroke-width="1.2"/>`)
     svgParts.push(`    <text x="${blip.x.toFixed(1)}" y="${blip.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="white" font-family="sans-serif" font-size="10" font-weight="700" style="pointer-events:none;user-select:none;">${blip.index}</text>`)
     svgParts.push('  </g>')
@@ -140,9 +148,18 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     return groups.map(g => {
       const statusGroupsHtml = g.statusGroups.map(sg => {
         const rows = sg.blips.map(b => {
-          return '<div class="legend-row" data-key="' + esc(b.key) + '">' +
+          const tipParts = []
+          if (b.statusLabel) tipParts.push('<span class="tt-row">' + esc(b.statusLabel) + '</span>')
+          if (b.categoryTitle) tipParts.push('<span class="tt-row">' + esc(b.categoryTitle) + '</span>')
+          const c = (b.shortComment || b.comment || '').slice(0, 200)
+          if (c) tipParts.push('<span class="tt-comment">' + esc(c) + '</span>')
+          const tipHtml = tipParts.length
+            ? '<span class="legend-tip"><span class="tt-name">' + esc(b.name) + '</span>' + tipParts.join('') + '</span>'
+            : ''
+          return '<div class="legend-row">' +
             '<span class="legend-idx" style="background:' + b.ringColor + '">' + b.index + '</span>' +
             '<span class="legend-name">' + esc(b.name) + '</span>' +
+            tipHtml +
             '</div>'
         }).join('')
         return '<div class="status-header" style="color:' + sg.color + '">' + esc(sg.statusLabel) + '</div>' + rows
@@ -162,76 +179,6 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
   const legendLeftHtml = buildGroupsHtml(leftBlipGroups)
   const legendRightHtml = buildGroupsHtml(rightBlipGroups)
 
-  // ── Blip data for runtime tooltip ────────────────────────────────────
-  const blipDataJson = JSON.stringify(blips.map(b => ({
-    key: b.key,
-    name: b.name,
-    categoryTitle: b.categoryTitle || '',
-    statusLabel: b.statusLabel || '',
-    typeLabel: b.typeLabel || '',
-    questionnaireName: b.questionnaireName || '',
-    comment: (b.shortComment || b.comment || '').slice(0, 200),
-    ringColor: b.ringColor
-  })))
-
-  // ── Inline tooltip script (split </script> to avoid parser issues) ────
-  // Written as string concatenation so bundlers never see </script> literally.
-  const scriptOpen = '<' + 'script>'
-  const scriptClose = '<' + '/script>'
-  const inlineJs = [
-    '(function(){',
-    '  var DATA=' + blipDataJson + ';',
-    '  var MAP=new Map(DATA.map(function(b){return[b.key,b];}));',
-    '  var tt=document.getElementById(\'tt\');',
-    '  var cur=null;',
-    '  function esc(s){var t=String(s||\'\');t=t.replace(/&/g,\'&amp;\');t=t.split(\'<\').join(\'&lt;\');t=t.split(\'>\').join(\'&gt;\');return t;}',
-    '  function showTip(b,e){',
-    '    tt.innerHTML=\'<div class="tt-name">\'+esc(b.name)+\'</div>\'',
-    '      +\'<div class="tt-row">\'+esc(b.statusLabel)+(b.typeLabel?\' \u00b7 \'+esc(b.typeLabel):\'\')+\'</div>\'',
-    '      +(b.categoryTitle?\'<div class="tt-row">\'+esc(b.categoryTitle)+\'</div>\':\'\')',
-    '      +(b.questionnaireName?\'<div class="tt-row">\'+esc(b.questionnaireName)+\'</div>\':\'\')',
-    '      +(b.comment?\'<div class="tt-comment">\'+esc(b.comment)+\'</div>\':\'\')',
-    '    ;moveTip(e);tt.classList.add(\'on\');',
-    '  }',
-    '  function moveTip(e){',
-    '    var x=e.clientX+14,y=e.clientY-10;',
-    '    if(x+270>window.innerWidth)x=e.clientX-274;',
-    '    if(y+180>window.innerHeight)y=window.innerHeight-185;',
-    '    tt.style.left=x+\'px\';tt.style.top=y+\'px\';',
-    '  }',
-    '  function setHover(key){',
-    '    if(cur===key)return;cur=key;',
-    '    document.querySelectorAll(\'.blip\').forEach(function(el){',
-    '      var k=el.dataset.key;',
-    '      el.classList.toggle(\'hovered\',k===key);',
-    '      el.classList.toggle(\'dimmed\',key!=null&&k!==key);',
-    '    });',
-    '    document.querySelectorAll(\'.legend-row\').forEach(function(el){',
-    '      var k=el.dataset.key;',
-    '      el.classList.toggle(\'hovered\',k===key);',
-    '      el.classList.toggle(\'dimmed\',key!=null&&k!==key);',
-    '    });',
-    '  }',
-    '  function clearHover(){',
-    '    cur=null;',
-    '    document.querySelectorAll(\'.blip,.legend-row\').forEach(function(el){el.classList.remove(\'hovered\',\'dimmed\');});',
-    '    tt.classList.remove(\'on\');',
-    '  }',
-    '  document.querySelectorAll(\'#radar-svg .blip\').forEach(function(el){',
-    '    var key=el.dataset.key,b=MAP.get(key);',
-    '    el.addEventListener(\'mouseenter\',function(e){setHover(key);if(b)showTip(b,e);});',
-    '    el.addEventListener(\'mousemove\',function(e){if(b)moveTip(e);});',
-    '    el.addEventListener(\'mouseleave\',clearHover);',
-    '  });',
-    '  document.querySelectorAll(\'.legend-row\').forEach(function(el){',
-    '    var key=el.dataset.key,b=MAP.get(key);',
-    '    el.addEventListener(\'mouseenter\',function(e){setHover(key);if(b)showTip(b,e);});',
-    '    el.addEventListener(\'mousemove\',function(e){if(b)moveTip(e);});',
-    '    el.addEventListener(\'mouseleave\',clearHover);',
-    '  });',
-    '})();'
-  ].join('\n')
-
   // ── CSS ───────────────────────────────────────────────────────────────
   const cssRules = [
     '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}',
@@ -242,22 +189,23 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     '.radar-layout{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start;}',
     '@media(max-width:960px){.radar-layout{grid-template-columns:1fr;}}',
     '#radar-svg{width:100%;height:auto;max-width:100%;display:block;margin:0 auto;}',
-    '.blip{cursor:pointer;}.blip.dimmed{opacity:.12;}.blip.hovered .blip-circle{stroke-width:2.5;}',
+    '.blip{cursor:pointer;}.blip:hover .blip-circle{stroke-width:2.5;filter:brightness(1.15);}',
     '.ring-key{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:12px;}',
     '.rk-item{display:flex;align-items:center;gap:6px;font-size:12px;}',
     '.rk-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}',
     '.q-group{margin-bottom:16px;}',
     '.q-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(0,0,0,.45);padding:2px 6px;border-left:3px solid rgba(21,101,192,.5);margin-bottom:4px;}',
     '.status-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:4px 6px 2px;margin-top:2px;}',
-    '.legend-row{display:flex;align-items:flex-start;gap:10px;padding:5px 6px;border-radius:6px;cursor:pointer;margin-bottom:2px;transition:background .12s;}',
-    '.legend-row:hover,.legend-row.hovered{background:rgba(0,0,0,.06);}.legend-row.dimmed{opacity:.25;}',
+    '.legend-row{display:flex;align-items:flex-start;gap:10px;padding:5px 6px;border-radius:6px;cursor:default;margin-bottom:2px;position:relative;transition:background .12s;}',
+    '.legend-row:hover{background:rgba(0,0,0,.06);}',
     '.legend-idx{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}',
     '.legend-name{font-size:14px;font-weight:500;line-height:1.3;word-break:break-word;}',
-    '#tt{position:fixed;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:6px;padding:10px 12px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);pointer-events:none;opacity:0;transition:opacity .1s;min-width:180px;max-width:260px;z-index:9999;}',
-    '#tt.on{opacity:1;}',
-    '#tt .tt-name{font-weight:600;font-size:13px;margin-bottom:4px;}',
-    '#tt .tt-row{color:rgba(0,0,0,.55);margin-bottom:2px;}',
-    '#tt .tt-comment{color:rgba(0,0,0,.75);font-style:italic;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:6px;white-space:pre-wrap;word-break:break-word;}'
+    '.legend-tip{display:none;position:absolute;left:100%;top:0;margin-left:8px;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:6px;padding:10px 12px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);min-width:180px;max-width:260px;z-index:9999;white-space:normal;}',
+    '.legend-row:hover .legend-tip{display:block;}',
+    '.radar-legend{overflow:visible;}',
+    '.legend-tip .tt-name{display:block;font-weight:600;font-size:13px;margin-bottom:4px;}',
+    '.legend-tip .tt-row{display:block;color:rgba(0,0,0,.55);margin-bottom:2px;}',
+    '.legend-tip .tt-comment{display:block;color:rgba(0,0,0,.75);font-style:italic;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:6px;white-space:pre-wrap;word-break:break-word;}'
   ]
   const css = cssRules.join('\n')
 
@@ -289,10 +237,6 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     '      <div class="radar-legend">' + legendRightHtml + '</div>',
     '    </div>',
     '  </div>',
-    '  <div id="tt"></div>',
-    '  ' + scriptOpen,
-    inlineJs,
-    '  ' + scriptClose,
     '</body>',
     '</html>'
   ]
