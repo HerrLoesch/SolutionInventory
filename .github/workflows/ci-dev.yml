@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - Dev
+    paths-ignore:
+      - 'MCP/**'
+      - '**.md'
   workflow_dispatch:
     inputs:
       target_branch:
