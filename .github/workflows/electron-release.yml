@@ -232,10 +232,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout tagged release
+      - name: Checkout main branch
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/v${{ needs.version.outputs.version }}
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
