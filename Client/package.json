@@ -1,6 +1,6 @@
 {
   "name": "solution-inventory-pwa",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Solution Inventory - A questionnaire-based application for project assessment",
   "repository": {
     "type": "git",
@@ -72,3 +72,4 @@
     }
   }
 }
+
