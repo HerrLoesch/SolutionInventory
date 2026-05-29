@@ -118,12 +118,6 @@ jobs:
           - os: windows-latest
             artifact_name: windows-x64
             electron_flags: --win --x64
-          - os: macos-latest
-            artifact_name: macos-arm64
-            electron_flags: --mac --arm64
-          - os: macos-13
-            artifact_name: macos-x64
-            electron_flags: --mac --x64
 
     steps:
       - name: Checkout tagged release
@@ -177,15 +171,6 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: Client/release/*.exe
 
-      - name: Upload artifacts (macOS)
-        if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            Client/release/**/*.dmg
-            Client/release/**/*.zip
-
   # ------------------------------------------------------------------
   # 3. Create a GitHub Release with all Electron artifacts
   # ------------------------------------------------------------------
@@ -213,8 +198,6 @@ jobs:
             |---|---|
             | Windows x64 | NSIS Installer (`.exe`), Portable (`.exe`) |
             | Linux x64 | AppImage, Debian package (`.deb`) |
-            | macOS arm64 (Apple Silicon) | DMG, ZIP |
-            | macOS x64 (Intel) | DMG, ZIP |
           prerelease: false
           files: artifacts/**/*
         env:
