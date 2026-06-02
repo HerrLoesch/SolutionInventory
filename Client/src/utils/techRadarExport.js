@@ -1,6 +1,8 @@
 // Tech Radar standalone HTML export utility.
 // Plain JS module – no Vue SFC parser involved, so HTML tag strings are safe.
 
+import MarkdownIt from 'markdown-it'
+
 const SIZE = 720
 const CX = SIZE / 2
 const CY = SIZE / 2
@@ -21,6 +23,20 @@ const RING_META = [
   { label: 'Hold', color: '#9e9e9e' },
   { label: 'Retire', color: '#f44336' }
 ]
+
+const markdownRenderer = new MarkdownIt({
+  html: false,
+  linkify: true,
+  breaks: true
+})
+
+const defaultLinkOpen = markdownRenderer.renderer.rules.link_open || ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options))
+markdownRenderer.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  token.attrSet('target', '_blank')
+  token.attrSet('rel', 'noopener noreferrer')
+  return defaultLinkOpen(tokens, idx, options, env, self)
+}
 
 function arcPath (cx, cy, innerR, outerR, a1, a2) {
   const cos1 = Math.cos(a1), sin1 = Math.sin(a1)
@@ -48,6 +64,31 @@ function esc (s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+function normalizeLink (value) {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+
+  const candidate = /^[a-z][a-z\d+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`
+
+  try {
+    const parsed = new URL(candidate)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return ''
+    return parsed.href
+  } catch {
+    return ''
+  }
+}
+
+function getCommentMarkdown (blip) {
+  return String(blip.radarComment || blip.shortComment || blip.comment || '').trim()
+}
+
+function renderMarkdownComment (value) {
+  const source = String(value || '').trim()
+  if (!source) return ''
+  return markdownRenderer.render(source)
 }
 
 /**
@@ -123,15 +164,23 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     const tipLines = [blip.name]
     if (blip.statusLabel) tipLines.push(blip.statusLabel)
     if (blip.categoryTitle) tipLines.push(blip.categoryTitle)
-    const c = (blip.shortComment || blip.comment || '').slice(0, 200)
+    const c = getCommentMarkdown(blip).slice(0, 200)
     if (c) tipLines.push(c)
+    const linkHref = normalizeLink(blip.infoUrl)
+    if (linkHref) tipLines.push(linkHref)
     const titleText = tipLines.map(l => esc(l)).join('\n')
 
-    svgParts.push(`  <g class="blip" style="cursor:pointer;">`)
+    if (linkHref) {
+      svgParts.push(`  <a class="blip-link" href="${esc(linkHref)}" target="_blank" rel="noopener noreferrer">`)
+    }
+    svgParts.push(`  <g class="blip${linkHref ? ' blip--linked' : ''}" style="cursor:${linkHref ? 'pointer' : 'default'};">`)
     svgParts.push(`    <title>${titleText}</title>`)
     svgParts.push(`    <circle class="blip-circle" cx="${blip.x.toFixed(1)}" cy="${blip.y.toFixed(1)}" r="${BLIP_R}" fill="${blip.ringColor}" stroke="white" stroke-width="1.2"/>`)
     svgParts.push(`    <text x="${blip.x.toFixed(1)}" y="${blip.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="white" font-family="sans-serif" font-size="10" font-weight="700" style="pointer-events:none;user-select:none;">${blip.index}</text>`)
     svgParts.push('  </g>')
+    if (linkHref) {
+      svgParts.push('  </a>')
+    }
   })
   svgParts.push('</svg>')
   const svgHtml = svgParts.join('\n')
@@ -148,17 +197,22 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     return groups.map(g => {
       const statusGroupsHtml = g.statusGroups.map(sg => {
         const rows = sg.blips.map(b => {
+          const linkHref = normalizeLink(b.infoUrl)
+          const infoLinkHtml = linkHref
+            ? '<a class="legend-inline-link" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer" title="Open further information">↗</a>'
+            : ''
           const tipParts = []
           if (b.statusLabel) tipParts.push('<span class="tt-row">' + esc(b.statusLabel) + '</span>')
           if (b.categoryTitle) tipParts.push('<span class="tt-row">' + esc(b.categoryTitle) + '</span>')
-          const c = (b.shortComment || b.comment || '').slice(0, 200)
-          if (c) tipParts.push('<span class="tt-comment">' + esc(c) + '</span>')
+          const commentHtml = renderMarkdownComment(getCommentMarkdown(b))
+          if (commentHtml) tipParts.push('<div class="tt-markdown">' + commentHtml + '</div>')
+          if (linkHref) tipParts.push('<span class="tt-link"><a href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer">Open further information</a></span>')
           const tipHtml = tipParts.length
             ? '<span class="legend-tip"><span class="tt-name">' + esc(b.name) + '</span>' + tipParts.join('') + '</span>'
             : ''
           return '<div class="legend-row">' +
             '<span class="legend-idx" style="background:' + b.ringColor + '">' + b.index + '</span>' +
-            '<span class="legend-name">' + esc(b.name) + '</span>' +
+            '<span class="legend-name-wrap"><span class="legend-name">' + esc(b.name) + '</span>' + infoLinkHtml + '</span>' +
             tipHtml +
             '</div>'
         }).join('')
@@ -199,13 +253,29 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     '.legend-row{display:flex;align-items:flex-start;gap:10px;padding:5px 6px;border-radius:6px;cursor:default;margin-bottom:2px;position:relative;transition:background .12s;}',
     '.legend-row:hover{background:rgba(0,0,0,.06);}',
     '.legend-idx{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}',
+    '.legend-name-wrap{display:flex;align-items:center;gap:6px;min-width:0;}',
     '.legend-name{font-size:14px;font-weight:500;line-height:1.3;word-break:break-word;}',
+    '.legend-inline-link{font-size:12px;color:#1565c0;text-decoration:none;flex-shrink:0;}',
+    '.legend-inline-link:hover{text-decoration:underline;}',
     '.legend-tip{display:none;position:absolute;left:100%;top:0;margin-left:8px;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:6px;padding:10px 12px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);min-width:180px;max-width:260px;z-index:9999;white-space:normal;}',
     '.legend-row:hover .legend-tip{display:block;}',
     '.radar-legend{overflow:visible;}',
     '.legend-tip .tt-name{display:block;font-weight:600;font-size:13px;margin-bottom:4px;}',
     '.legend-tip .tt-row{display:block;color:rgba(0,0,0,.55);margin-bottom:2px;}',
-    '.legend-tip .tt-comment{display:block;color:rgba(0,0,0,.75);font-style:italic;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:6px;white-space:pre-wrap;word-break:break-word;}'
+    '.legend-tip .tt-markdown{display:block;color:rgba(0,0,0,.82);margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);word-break:break-word;}',
+    '.legend-tip .tt-markdown > :first-child{margin-top:0;}',
+    '.legend-tip .tt-markdown > :last-child{margin-bottom:0;}',
+    '.legend-tip .tt-markdown p,.legend-tip .tt-markdown ul,.legend-tip .tt-markdown ol,.legend-tip .tt-markdown pre,.legend-tip .tt-markdown blockquote{margin:0 0 8px;}',
+    '.legend-tip .tt-markdown ul,.legend-tip .tt-markdown ol{padding-left:18px;}',
+    '.legend-tip .tt-markdown code{font-family:Consolas,"Courier New",monospace;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:4px;}',
+    '.legend-tip .tt-markdown pre{background:rgba(0,0,0,.06);padding:8px;border-radius:6px;overflow:auto;}',
+    '.legend-tip .tt-markdown pre code{background:transparent;padding:0;}',
+    '.legend-tip .tt-markdown blockquote{border-left:3px solid rgba(21,101,192,.35);padding-left:8px;color:rgba(0,0,0,.64);}',
+    '.legend-tip .tt-markdown a{color:#1565c0;text-decoration:none;}',
+    '.legend-tip .tt-markdown a:hover{text-decoration:underline;}',
+    '.legend-tip .tt-link{display:block;margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);}',
+    '.legend-tip .tt-link a{color:#1565c0;text-decoration:none;}',
+    '.legend-tip .tt-link a:hover{text-decoration:underline;}'
   ]
   const css = cssRules.join('\n')
 

@@ -434,6 +434,12 @@
                 <div class="detail-label">Questionnaire</div>
                 <div class="text-body-2">{{ detailBlip.questionnaireName || '—' }}</div>
               </div>
+              <div v-if="detailBlip.infoUrl" class="detail-field">
+                <div class="detail-label">Further information</div>
+                <a :href="detailBlip.infoUrl" target="_blank" rel="noopener noreferrer" class="detail-link">
+                  {{ detailBlip.infoUrl }}
+                </a>
+              </div>
             </div>
 
             <!-- Short comment (override or questionnaire comment as default) -->
@@ -453,7 +459,7 @@
               </v-sheet>
             </template>
 
-            <div v-if="!detailBlip.comment && !detailBlip.radarComment && !detailBlip.shortComment" class="text-caption text-medium-emphasis">
+            <div v-if="!detailBlip.comment && !detailBlip.radarComment && !detailBlip.shortComment && !detailBlip.infoUrl" class="text-caption text-medium-emphasis">
               No comments available.
             </div>
           </v-card-text>
@@ -528,6 +534,17 @@
               :hint="blipToEdit?.comment ? `Default (from questionnaire): ${blipToEdit.comment}` : ''"
               persistent-hint
               placeholder="Leave empty to use the questionnaire comment…"
+              class="mt-3"
+            />
+            <v-text-field
+              v-model="editForm.infoUrl"
+              label="Further information URL"
+              density="compact"
+              variant="outlined"
+              clearable
+              placeholder="https://example.com/details"
+              hint="Used in the standalone HTML export and opened in a new tab."
+              persistent-hint
               class="mt-3"
             />
             <div class="mt-4 mb-1">
@@ -761,6 +778,21 @@ function typeLabelOf (type) {
   return String(type || '').trim() || 'Other'
 }
 
+function normalizeInfoUrl (value) {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+
+  const candidate = /^[a-z][a-z\d+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`
+
+  try {
+    const parsed = new URL(candidate)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return ''
+    return parsed.href
+  } catch {
+    return ''
+  }
+}
+
 export default {
   name: 'TechRadar',
   components: { MdEditor, MdPreview },
@@ -782,7 +814,7 @@ export default {
     const blipToRemove = ref(null)
     const editDialog = ref(false)
     const blipToEdit = ref(null)
-    const editForm = ref({ status: '', comment: '', categoryOverride: '' })
+    const editForm = ref({ status: '', shortComment: '', comment: '', categoryOverride: '', infoUrl: '' })
     const detailDialog = ref(false)
     const detailBlip = ref(null)
     const quadrantConfigDialog = ref(false)
@@ -1092,6 +1124,7 @@ export default {
           comment: String(answer?.comments || '').trim(),
           radarComment: String(entry.description || '').trim(),
           shortComment: String(entry.shortComment || '').trim(),
+          infoUrl: String(entry.link || '').trim(),
           overrideStatus,
           overrideCategoryTitle,
           naturalCategoryTitle: questionnaireCategory,
@@ -1461,7 +1494,8 @@ export default {
         status: (blip.overrideStatus || blip.status || '').toLowerCase(),
         shortComment: blip.shortComment || '',
         comment: blip.radarComment || '',
-        categoryOverride: blip.overrideCategoryTitle || blip.naturalCategoryTitle || ''
+        categoryOverride: blip.overrideCategoryTitle || blip.naturalCategoryTitle || '',
+        infoUrl: blip.infoUrl || ''
       }
       editDialog.value = true
     }
@@ -1472,7 +1506,8 @@ export default {
         status: editForm.value.status,
         shortComment: editForm.value.shortComment,
         comment: editForm.value.comment,
-        categoryOverride: (editForm.value.categoryOverride || '').trim() || blipToEdit.value.naturalCategoryTitle || ''
+        categoryOverride: (editForm.value.categoryOverride || '').trim() || blipToEdit.value.naturalCategoryTitle || '',
+        link: normalizeInfoUrl(editForm.value.infoUrl)
       })
       editDialog.value = false
       blipToEdit.value = null
@@ -2089,6 +2124,15 @@ export default {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(var(--v-theme-on-surface), 0.5);
+
+.detail-link {
+  color: rgb(var(--v-theme-primary));
+  word-break: break-word;
+}
+
+.detail-link:hover {
+  text-decoration: underline;
+}
   margin-bottom: 4px;
 }
 
