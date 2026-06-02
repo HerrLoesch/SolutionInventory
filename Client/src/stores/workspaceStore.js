@@ -118,7 +118,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         category: String(override?.categoryOverride || '').trim(),
         status: String(override?.status || '').trim(),
         shortComment: String(override?.shortComment || '').trim(),
-        description: String(override?.comment || '').trim()
+        description: String(override?.comment || '').trim(),
+        link: String(override?.link || '').trim()
       }
     })
     delete project.radarRefs
@@ -747,7 +748,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         category: categoryTitle,
         status: answerStatus,
         shortComment: answerComments,
-        description: ''
+        description: '',
+        link: ''
       })
     }
   }
@@ -770,7 +772,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     ) || null
   }
 
-  function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '' }) {
+  function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '', link = '' }) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
     if (!Array.isArray(project.radar)) project.radar = []
@@ -785,7 +787,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         status: String(status || ''),
         shortComment: String(shortComment || ''),
         description: String(comment || ''),
-        category: String(categoryOverride || existing.category || '')
+        category: String(categoryOverride || existing.category || ''),
+        link: String(link || '')
       })
     }
   }

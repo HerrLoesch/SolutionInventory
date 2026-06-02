@@ -564,6 +564,7 @@ export default {
             }
           })
           const radarData = {
+            radar: Array.isArray(data?.project?.radar) ? data.project.radar : [],
             radarRefs: Array.isArray(data?.project?.radarRefs) ? data.project.radarRefs : [],
             radarOverrides: Array.isArray(data?.project?.radarOverrides) ? data.project.radarOverrides : [],
             radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : []
