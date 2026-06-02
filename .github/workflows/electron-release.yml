@@ -16,6 +16,9 @@ on:
           - major
         required: false
         default: patch
+  push:
+    tags:
+      - 'v[0-9]*'
 
 permissions:
   contents: write
@@ -23,31 +26,15 @@ permissions:
   id-token: write
 
 concurrency:
-  group: release-${{ github.run_id }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   # ------------------------------------------------------------------
-  # 0. Ensure this workflow is only run from main
-  # ------------------------------------------------------------------
-  validate-main:
-    name: Validate Main Branch
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Ensure workflow ref is main
-        run: |
-          if [ "${{ github.ref_name }}" != "main" ]; then
-            echo "This workflow can only run from main. Current ref: ${{ github.ref_name }}"
-            exit 1
-          fi
-
-  # ------------------------------------------------------------------
-  # 1. Bump the selected semantic version and create a tag
+  # 1. Determine / bump version and push tag
   # ------------------------------------------------------------------
   version:
-    name: Bump Version
-    needs: validate-main
+    name: Determine Version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version }}
@@ -67,17 +54,27 @@ jobs:
           cache: npm
           cache-dependency-path: Client/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (skip scripts to avoid Playwright download)
+        run: npm ci --ignore-scripts
         working-directory: Client
 
       - name: Configure Git identity
+        if: github.event_name == 'workflow_dispatch'
         run: |
           git config user.email "ci@github-actions"
           git config user.name "GitHub Actions"
 
-      - name: Bump or set version and push
-        id: bump
+      - name: Determine version from tag (tag push)
+        if: github.event_name == 'push'
+        id: from-tag
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Bump or set version and push tag (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        id: from-dispatch
         run: |
           CUSTOM="${{ inputs.version }}"
           if [ -n "$CUSTOM" ]; then
@@ -89,13 +86,22 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           git add package.json package-lock.json
           git diff --cached --quiet || git commit -m "chore: release v${VERSION} [skip ci]"
-          git tag "v${VERSION}"
-          git push origin main
-          git push origin "v${VERSION}"
+          git tag "v${VERSION}" || true
+          git push origin main || true
+          git push origin "v${VERSION}" || true
         working-directory: Client
 
+      - name: Set combined version output
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${{ steps.from-tag.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.from-dispatch.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
   # ------------------------------------------------------------------
-  # 2. Build the Electron app (parallel matrix: Linux + Windows)
+  # 2. Build the Electron app (parallel matrix)
   # ------------------------------------------------------------------
   build-electron:
     name: Build Electron (${{ matrix.artifact_name }})
@@ -112,12 +118,6 @@ jobs:
           - os: windows-latest
             artifact_name: windows-x64
             electron_flags: --win --x64
-          - os: macos-latest
-            artifact_name: macos-arm64
-            electron_flags: --mac --arm64
-          - os: macos-13
-            artifact_name: macos-x64
-            electron_flags: --mac --x64
 
     steps:
       - name: Checkout tagged release
@@ -145,8 +145,8 @@ jobs:
             libwayland-server0 libmanette-0.2-0 libenchant-2-2 libgbm1 libdrm2 \
             libhyphen0 libgles2 rpm fakeroot dpkg
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (skip scripts to avoid Playwright download)
+        run: npm ci --ignore-scripts
         working-directory: Client
 
       - name: Build Vite + Electron app
@@ -171,15 +171,6 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: Client/release/*.exe
 
-      - name: Upload artifacts (macOS)
-        if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            Client/release/**/*.dmg
-            Client/release/**/*.zip
-
   # ------------------------------------------------------------------
   # 3. Create a GitHub Release with all Electron artifacts
   # ------------------------------------------------------------------
@@ -202,24 +193,18 @@ jobs:
           body: |
             Release v${{ needs.version.outputs.version }}
 
-            Manually triggered full release.
-            Source branch: main
-            Commit: ${{ github.sha }}
-
             **Included binaries:**
             | Platform | Format |
             |---|---|
             | Windows x64 | NSIS Installer (`.exe`), Portable (`.exe`) |
             | Linux x64 | AppImage, Debian package (`.deb`) |
-            | macOS arm64 (Apple Silicon) | DMG, ZIP |
-            | macOS x64 (Intel) | DMG, ZIP |
           prerelease: false
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ------------------------------------------------------------------
-  # 4. Build the web app and deploy to GitHub Pages
+  # 4. Build web app and deploy to GitHub Pages
   # ------------------------------------------------------------------
   deploy-pages:
     name: Deploy GitHub Pages
@@ -230,10 +215,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout tagged release
+      - name: Checkout main branch
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/v${{ needs.version.outputs.version }}
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -242,8 +227,8 @@ jobs:
           cache: npm
           cache-dependency-path: Client/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (skip scripts to avoid Playwright download)
+        run: npm ci --ignore-scripts
         working-directory: Client
 
       - name: Build web application
