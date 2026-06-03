@@ -19,6 +19,19 @@
             hide-details
             label="Show group toggle"
           />
+          <template v-if="options.showGroupToggle">
+            <div class="text-caption text-medium-emphasis" style="margin-top:2px;">Default view</div>
+            <v-btn-toggle
+              v-model="options.defaultGrouping"
+              mandatory
+              density="compact"
+              color="primary"
+              style="width:100%"
+            >
+              <v-btn value="status" size="small" style="flex:1;font-size:11px;">By Status</v-btn>
+              <v-btn value="category" size="small" style="flex:1;font-size:11px;">By Category</v-btn>
+            </v-btn-toggle>
+          </template>
           <v-switch
             v-model="options.showSearch"
             color="primary"
@@ -199,7 +212,8 @@ export default {
       includedStatuses:  RING_META.map(r => r.label.toLowerCase()),
       gridColumns:       3,
       showGroupToggle:   true,
-      showSearch:        false
+      showSearch:        false,
+      defaultGrouping:   'status'
     })
 
     // Re-initialise category groups every time the dialog opens
@@ -216,6 +230,7 @@ export default {
       options.value.gridColumns       = 3
       options.value.showGroupToggle   = true
       options.value.showSearch        = false
+      options.value.defaultGrouping   = 'status'
     })
 
     // ── Drag & drop for category groups ────────────────────────────────────

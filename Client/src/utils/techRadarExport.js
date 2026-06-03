@@ -335,9 +335,9 @@ function _blipCard (b, badgeColor, subLabel) {
         '<div class="blip-card-name">' + esc(b.name) + '</div>' +
         '<div class="blip-card-cat">' + esc(subLabel || '') + '</div>' +
       '</div>' +
-      (linkHref ? '<a class="blip-card-ext" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer" title="Further information">\u2197</a>' : '') +
     '</div>' +
     (commentHtml ? '<div class="blip-card-comment">' + commentHtml + '</div>' : '') +
+    (linkHref ? '<a class="blip-card-link-btn" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer">Further information \u2197</a>' : '') +
     '</div>'
 }
 
@@ -421,7 +421,8 @@ export function generateCustomRadarHtml (params, options) {
     includedStatuses = [],
     gridColumns = 3,
     showGroupToggle = true,
-    showSearch = false
+    showSearch = false,
+    defaultGrouping = 'status'
   } = options
 
   // Build category → group-label map from whichever format is provided
@@ -489,8 +490,8 @@ export function generateCustomRadarHtml (params, options) {
     '.blip-card-meta{flex:1;min-width:0;}',
     '.blip-card-name{font-size:14px;font-weight:600;word-break:break-word;}',
     '.blip-card-cat{font-size:11px;color:rgba(0,0,0,.45);margin-top:2px;}',
-    '.blip-card-ext{font-size:14px;color:#1565c0;text-decoration:none;flex-shrink:0;margin-top:2px;}',
-    '.blip-card-ext:hover{text-decoration:underline;}',
+    '.blip-card-link-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:12px;font-weight:600;color:#1565c0;text-decoration:none;border:1px solid rgba(21,101,192,.4);border-radius:4px;align-self:flex-start;margin-top:4px;}',
+    '.blip-card-link-btn:hover{background:rgba(21,101,192,.08);border-color:#1565c0;}',
     '.blip-card-comment{font-size:13px;color:rgba(0,0,0,.7);border-top:1px solid rgba(0,0,0,.06);padding-top:8px;}',
     '.blip-card-comment>:first-child{margin-top:0;}.blip-card-comment>:last-child{margin-bottom:0;}',
     '.blip-card-comment p,.blip-card-comment ul,.blip-card-comment ol{margin:0 0 6px;}',
@@ -512,8 +513,8 @@ export function generateCustomRadarHtml (params, options) {
     '<body>',
     '  <div class="page">',
     ...(showGroupToggle ? [
-      '    <input type="radio" name="grp" id="grp-status" checked>',
-      '    <input type="radio" name="grp" id="grp-category">',
+      '    <input type="radio" name="grp" id="grp-status"' + (defaultGrouping !== 'category' ? ' checked' : '') + '>',
+      '    <input type="radio" name="grp" id="grp-category"' + (defaultGrouping === 'category' ? ' checked' : '') + '>',
     ] : []),
     ...((showGroupToggle || showSearch) ? [
       '    <div class="toolbar">',
