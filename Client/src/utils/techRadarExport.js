@@ -321,3 +321,247 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
   link.click()
   URL.revokeObjectURL(url)
 }
+
+// ── Custom HTML export ────────────────────────────────────────────────────────
+
+/** Build one blip card (shared by both grouping modes). */
+function _blipCard (b, badgeColor, subLabel) {
+  const commentHtml = renderMarkdownComment(getCommentMarkdown(b))
+  const linkHref = normalizeLink(b.infoUrl)
+  return '<div class="blip-card">' +
+    '<div class="blip-card-header">' +
+      '<span class="blip-badge" style="background:' + badgeColor + '">' + b.index + '</span>' +
+      '<div class="blip-card-meta">' +
+        '<div class="blip-card-name">' + esc(b.name) + '</div>' +
+        '<div class="blip-card-cat">' + esc(subLabel || '') + '</div>' +
+      '</div>' +
+      (linkHref ? '<a class="blip-card-ext" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer" title="Further information">\u2197</a>' : '') +
+    '</div>' +
+    (commentHtml ? '<div class="blip-card-comment">' + commentHtml + '</div>' : '') +
+    '</div>'
+}
+
+/**
+ * Build the CSS-grid blip-card layout used in the custom export.
+ * @param {Array}  blips        Filtered & re-indexed blips (each has .groupLabel)
+ * @param {number} gridColumns  1–6
+ * @param {string} groupBy      'status' | 'category'
+ * @param {object} statusLabels Map: lowercase ring label → display name
+ * @returns {{ html: string }}
+ */
+function _buildGridContent (blips, gridColumns, groupBy, statusLabels) {
+  const cols = Math.max(1, Math.min(6, parseInt(gridColumns) || 3))
+  const sl = statusLabels || {}
+
+  function slug (s) {
+    return 'grp-' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  }
+
+  let sectionsHtml = ''
+
+  if (groupBy === 'category') {
+    const order = [...new Set(blips.map(b => b.groupLabel || b.categoryTitle))]
+    sectionsHtml = order.map(groupLabel => {
+      const id = slug(groupLabel)
+      const cards = blips
+        .filter(b => (b.groupLabel || b.categoryTitle) === groupLabel)
+        .map(b => {
+          const meta = RING_META[b.ring] || { color: '#9e9e9e', label: '' }
+          const statusDisplay = sl[meta.label.toLowerCase()] || meta.label
+          return _blipCard(b, meta.color, statusDisplay)
+        }).join('')
+      return '<section class="ring-section" id="' + id + '">' +
+        '<div class="ring-section-header" style="border-color:#1565c0;color:#1565c0">' + esc(groupLabel) + '</div>' +
+        '<div class="blip-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' + cards + '</div>' +
+        '</section>'
+    }).join('')
+  } else {
+    const byRing = [0, 1, 2, 3, 4].map(ri => ({
+      meta: RING_META[ri],
+      blips: blips.filter(b => b.ring === ri)
+    })).filter(r => r.blips.length > 0)
+
+    sectionsHtml = byRing.map(({ meta, blips: ringBlips }) => {
+      const id = slug(meta.label)
+      const headerLabel = sl[meta.label.toLowerCase()] || meta.label
+      const cards = ringBlips.map(b => _blipCard(b, meta.color, b.groupLabel || b.categoryTitle || '')).join('')
+      return '<section class="ring-section" id="' + id + '">' +
+        '<div class="ring-section-header" style="border-color:' + meta.color + ';color:' + meta.color + '">' + esc(headerLabel) + '</div>' +
+        '<div class="blip-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' + cards + '</div>' +
+        '</section>'
+    }).join('')
+  }
+
+  return { html: sectionsHtml }
+}
+
+/**
+ * Generate a custom-configured HTML string for the Tech Radar (list view, no SVG).
+ * Always renders both groupings (by status + by category) with a pure-CSS toggle.
+ * Returns the HTML string without triggering a download.
+ *
+ * @param {object}   params
+ * @param {string}   params.title
+ * @param {Array}    params.blips               positionedBlips (ring, ringColor, index, …)
+ * @param {object}   options
+ * @param {Array}    [options.categoryGroups]    [{categories:string[], label:string, included:boolean}] — new format
+ * @param {string[]} [options.includedCategories] Category titles to include — legacy fallback
+ * @param {object}   [options.statusLabels]      { adopt:'Adopt', … } — display names for status headers
+ * @param {string[]} options.includedStatuses    Lowercase ring labels to include
+ * @param {number}   options.gridColumns         Grid columns (1–6)
+ * @param {boolean}  options.showGroupToggle     Include the By Status / By Category toggle
+ * @param {boolean}  options.showSearch          Include a search input (requires JS in export)
+ */
+export function generateCustomRadarHtml (params, options) {
+  const { title, blips } = params
+  const {
+    categoryGroups,
+    includedCategories = [],
+    statusLabels = {},
+    includedStatuses = [],
+    gridColumns = 3,
+    showGroupToggle = true,
+    showSearch = false
+  } = options
+
+  // Build category → group-label map from whichever format is provided
+  const catToGroupLabel = {}
+  if (categoryGroups && categoryGroups.length > 0) {
+    for (const g of categoryGroups.filter(g => g.included !== false)) {
+      for (const cat of g.categories) catToGroupLabel[cat] = g.label
+    }
+  } else {
+    for (const cat of includedCategories) catToGroupLabel[cat] = cat
+  }
+
+  const statusSet = new Set(includedStatuses.map(s => s.toLowerCase()))
+
+  // ── Filter blips & annotate with groupLabel + sequential index ──────────────
+  let counter = 0
+  const filteredBlips = blips.filter(b => {
+    const sk = (RING_META[b.ring]?.label || '').toLowerCase()
+    return (b.categoryTitle in catToGroupLabel) && statusSet.has(sk)
+  }).map(b => ({ ...b, index: ++counter, groupLabel: catToGroupLabel[b.categoryTitle] }))
+
+  // ── Both groupings ────────────────────────────────────────────────────────
+  const { html: statusHtml } = _buildGridContent(filteredBlips, gridColumns, 'status', statusLabels)
+  const { html: categoryHtml } = showGroupToggle
+    ? _buildGridContent(filteredBlips, gridColumns, 'category', statusLabels)
+    : { html: '' }
+
+  // ── CSS ──────────────────────────────────────────────────────────────────
+  const css = [
+    '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}',
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;color:#1a1a1a;}',
+    '.page{max-width:1400px;margin:0 auto;padding:24px 16px;}',
+    // ── hidden radio controls ──
+    ...(showGroupToggle ? [
+      '#grp-status,#grp-category{position:absolute;opacity:0;pointer-events:none;}',
+    ] : []),
+    // ── toolbar (toggle) ──
+    ...(showGroupToggle || showSearch ? [
+      '.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:24px;}',
+    ] : []),
+    ...(showSearch ? [
+      '.search-input{flex:1;padding:9px 16px;font-size:14px;border:1px solid rgba(0,0,0,.2);border-radius:24px;outline:none;background:#fff;font-family:inherit;}',
+      '.search-input:focus{border-color:#1565c0;box-shadow:0 0 0 3px rgba(21,101,192,.12);}',
+      '.blip-card.sh{display:none;}',
+      '.ring-section.sh{display:none;}',
+    ] : []),
+    ...(showGroupToggle ? [
+      '.view-toggle{display:flex;flex-shrink:0;border:1px solid rgba(0,0,0,.18);border-radius:20px;overflow:hidden;}',
+      '.view-toggle label{padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;color:rgba(0,0,0,.55);white-space:nowrap;user-select:none;}',
+      '.view-toggle label:hover{background:rgba(0,0,0,.04);}',
+      '#grp-status:checked ~ .toolbar .view-toggle label[for="grp-status"]{background:#1565c0;color:#fff;}',
+      '#grp-category:checked ~ .toolbar .view-toggle label[for="grp-category"]{background:#1565c0;color:#fff;}',
+      // ── view visibility ──
+      '.view-status{display:block;}',
+      '.view-category{display:none;}',
+      '#grp-category:checked ~ .view-status{display:none;}',
+      '#grp-category:checked ~ .view-category{display:block;}',
+    ] : []),
+    '.ring-section{margin-bottom:40px;}',
+    '.ring-section-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;border-left:4px solid;padding:4px 10px;margin-bottom:12px;}',
+    '.blip-grid{display:grid;gap:12px;}',
+    '.blip-card{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;}',
+    '.blip-card-header{display:flex;align-items:flex-start;gap:10px;}',
+    '.blip-badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:13px;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;padding:0 6px;}',
+    '.blip-card-meta{flex:1;min-width:0;}',
+    '.blip-card-name{font-size:14px;font-weight:600;word-break:break-word;}',
+    '.blip-card-cat{font-size:11px;color:rgba(0,0,0,.45);margin-top:2px;}',
+    '.blip-card-ext{font-size:14px;color:#1565c0;text-decoration:none;flex-shrink:0;margin-top:2px;}',
+    '.blip-card-ext:hover{text-decoration:underline;}',
+    '.blip-card-comment{font-size:13px;color:rgba(0,0,0,.7);border-top:1px solid rgba(0,0,0,.06);padding-top:8px;}',
+    '.blip-card-comment>:first-child{margin-top:0;}.blip-card-comment>:last-child{margin-bottom:0;}',
+    '.blip-card-comment p,.blip-card-comment ul,.blip-card-comment ol{margin:0 0 6px;}',
+    '.blip-card-comment ul,.blip-card-comment ol{padding-left:18px;}',
+    '.blip-card-comment code{font-family:Consolas,"Courier New",monospace;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px;font-size:12px;}',
+    '.blip-card-comment a{color:#1565c0;text-decoration:none;}.blip-card-comment a:hover{text-decoration:underline;}',
+  ].join('\n')
+
+  // ── Assemble document ────────────────────────────────────────────────────
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '  <meta charset="utf-8"/>',
+    '  <meta name="viewport" content="width=device-width,initial-scale=1"/>',
+    '  <title>' + esc(title) + ' \u2013 Tech Radar</title>',
+    '  <style>' + css + '</style>',
+    '</head>',
+    '<body>',
+    '  <div class="page">',
+    ...(showGroupToggle ? [
+      '    <input type="radio" name="grp" id="grp-status" checked>',
+      '    <input type="radio" name="grp" id="grp-category">',
+    ] : []),
+    ...((showGroupToggle || showSearch) ? [
+      '    <div class="toolbar">',
+      ...(showSearch ? ['      <input id="si" class="search-input" type="search" placeholder="Search\u2026" autocomplete="off">'] : []),
+      ...(showGroupToggle ? [
+        '      <div class="view-toggle">',
+        '        <label for="grp-status">By Status</label>',
+        '        <label for="grp-category">By Category</label>',
+        '      </div>',
+      ] : []),
+      '    </div>',
+    ] : []),
+    ...(showGroupToggle ? [
+      '    <div class="view-status">' + statusHtml + '</div>',
+      '    <div class="view-category">' + categoryHtml + '</div>',
+    ] : [
+      '    ' + statusHtml,
+    ]),
+    '  </div>',
+    ...(showSearch ? [
+      '  <script>',
+      '  document.getElementById("si").addEventListener("input",function(){',
+      '    var q=this.value.toLowerCase().trim();',
+      '    document.querySelectorAll(".blip-card").forEach(function(c){',
+      '      c.classList.toggle("sh",q.length>0&&!c.textContent.toLowerCase().includes(q));',
+      '    });',
+      '    document.querySelectorAll(".ring-section").forEach(function(s){',
+      '      s.classList.toggle("sh",q.length>0&&s.querySelectorAll(".blip-card:not(.sh)").length===0);',
+      '    });',
+      '  });',
+      '  <\/script>',
+    ] : []),
+    '</body>',
+    '</html>',
+  ].join('\n')
+}
+
+/**
+ * Generate a custom HTML Tech Radar page and trigger a browser download.
+ */
+export function downloadCustomRadarHtml (params, options) {
+  const html = generateCustomRadarHtml(params, options)
+  const safeSlug = String(params.title || 'export').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.download = 'tech-radar-custom-' + safeSlug + '.html'
+  link.href = url
+  link.click()
+  URL.revokeObjectURL(url)
+}

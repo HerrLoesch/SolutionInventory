@@ -85,6 +85,11 @@
               @click="exportRadarHtml"
             />
             <v-list-item
+              prepend-icon="mdi-tune"
+              title="Export as Custom HTML"
+              @click="openCustomExportDialog"
+            />
+            <v-list-item
               prepend-icon="mdi-download"
               title="Download as PNG"
               :disabled="isDownloading"
@@ -649,6 +654,14 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
+
+      <!-- Custom HTML Export Dialog -->
+      <CustomHtmlExportDialog
+        v-model="customExportDialog"
+        :positioned-blips="positionedBlips"
+        :available-categories="availableCategories"
+        :title="project?.name || 'Tech Radar'"
+      />
     </div>
   </div>
 </template>
@@ -659,6 +672,7 @@ import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { exportRadarHtml as _exportRadarHtml } from '../../utils/techRadarExport'
+import CustomHtmlExportDialog from './CustomHtmlExportDialog.vue'
 import 'md-editor-v3/lib/style.css'
 
 // ── Radar geometry constants ─────────────────────────────────────────────────
@@ -795,7 +809,7 @@ function normalizeInfoUrl (value) {
 
 export default {
   name: 'TechRadar',
-  components: { MdEditor, MdPreview },
+  components: { MdEditor, MdPreview, CustomHtmlExportDialog },
   props: {
     projectId: {
       type: String,
@@ -815,6 +829,8 @@ export default {
     const editDialog = ref(false)
     const blipToEdit = ref(null)
     const editForm = ref({ status: '', shortComment: '', comment: '', categoryOverride: '', infoUrl: '' })
+
+    const customExportDialog = ref(false)
     const detailDialog = ref(false)
     const detailBlip = ref(null)
     const quadrantConfigDialog = ref(false)
@@ -1675,6 +1691,10 @@ export default {
       })
     }
 
+    function openCustomExportDialog () {
+      customExportDialog.value = true
+    }
+
     async function downloadRadar () {
       if (!radarLayoutRef.value || isDownloading.value) return
       isDownloading.value = true
@@ -1785,6 +1805,8 @@ export default {
       downloadRadar,
       exportRadarJson,
       exportRadarHtml,
+      customExportDialog,
+      openCustomExportDialog,
       quadrantLabelForm,
       effectiveQuadrantLabels,
       autoQuadrantLabel,
