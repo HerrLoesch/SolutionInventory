@@ -325,19 +325,36 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
 // ── Custom HTML export ────────────────────────────────────────────────────────
 
 /** Build one blip card (shared by both grouping modes). */
-function _blipCard (b, badgeColor, subLabel) {
+function _blipCard (b, badgeColor, subLabel, displayOptions) {
+  const { showBindingLevel = true, showBlipIndex = true, labels = {}, statusColors = {} } = displayOptions || {}
+  const RING_LABELS_LC = RING_META.map(r => r.label.toLowerCase())
+  const ringKey = RING_LABELS_LC[b.ring] || ''
+  const resolvedColor = statusColors[ringKey] || badgeColor
+  const recommendationText = labels.recommendation || 'Recommendation'
+  const mandatoryText = labels.mandatory || 'Mandatory'
+  const furtherInfoText = labels.furtherInfo || 'Further information'
   const commentHtml = renderMarkdownComment(getCommentMarkdown(b))
   const linkHref = normalizeLink(b.infoUrl)
+  const isMandatory = showBindingLevel && b.mandatory
+  const badgeContent = showBlipIndex ? b.index : ''
+  const badgeStyle = 'background:' + resolvedColor + (isMandatory ? ';border-radius:3px;' : '')
+  const bindingHtml = showBindingLevel
+    ? '<span class="blip-binding' + (isMandatory ? ' blip-binding--mandatory' : '') + '">' +
+      (isMandatory ? esc(mandatoryText) : esc(recommendationText)) + '</span>'
+    : ''
   return '<div class="blip-card">' +
     '<div class="blip-card-header">' +
-      '<span class="blip-badge" style="background:' + badgeColor + '">' + b.index + '</span>' +
+      '<span class="blip-badge" style="' + badgeStyle + '">' + badgeContent + '</span>' +
       '<div class="blip-card-meta">' +
-        '<div class="blip-card-name">' + esc(b.name) + '</div>' +
+        '<div class="blip-card-title-row">' +
+          '<div class="blip-card-name">' + esc(b.name) + '</div>' +
+          bindingHtml +
+        '</div>' +
         '<div class="blip-card-cat">' + esc(subLabel || '') + '</div>' +
       '</div>' +
     '</div>' +
     (commentHtml ? '<div class="blip-card-comment">' + commentHtml + '</div>' : '') +
-    (linkHref ? '<a class="blip-card-link-btn" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer">Further information \u2197</a>' : '') +
+    (linkHref ? '<a class="blip-card-link-btn" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer">' + esc(furtherInfoText) + ' \u2197</a>' : '') +
     '</div>'
 }
 
@@ -349,9 +366,10 @@ function _blipCard (b, badgeColor, subLabel) {
  * @param {object} statusLabels Map: lowercase ring label → display name
  * @returns {{ html: string }}
  */
-function _buildGridContent (blips, gridColumns, groupBy, statusLabels) {
+function _buildGridContent (blips, gridColumns, groupBy, statusLabels, displayOptions) {
   const cols = Math.max(1, Math.min(6, parseInt(gridColumns) || 3))
   const sl = statusLabels || {}
+  const sc = (displayOptions && displayOptions.statusColors) || {}
 
   function slug (s) {
     return 'grp-' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -366,11 +384,13 @@ function _buildGridContent (blips, gridColumns, groupBy, statusLabels) {
       const cards = blips
         .filter(b => (b.groupLabel || b.categoryTitle) === groupLabel)
         .slice()
-        .sort((a, b) => a.ring !== b.ring ? a.ring - b.ring : (a.name || '').localeCompare(b.name || ''))
+        .sort((a, b) => a.ring !== b.ring ? a.ring - b.ring : a.mandatory !== b.mandatory ? (a.mandatory ? -1 : 1) : (a.name || '').localeCompare(b.name || ''))
         .map(b => {
           const meta = RING_META[b.ring] || { color: '#9e9e9e', label: '' }
-          const statusDisplay = sl[meta.label.toLowerCase()] || meta.label
-          return _blipCard(b, meta.color, statusDisplay)
+          const ringKey = meta.label.toLowerCase()
+          const color = sc[ringKey] || meta.color
+          const statusDisplay = sl[ringKey] || meta.label
+          return _blipCard(b, color, statusDisplay, displayOptions)
         }).join('')
       return '<section class="ring-section" id="' + id + '">' +
         '<div class="ring-section-header" style="border-color:#1565c0;color:#1565c0">' + esc(groupLabel) + '</div>' +
@@ -385,10 +405,15 @@ function _buildGridContent (blips, gridColumns, groupBy, statusLabels) {
 
     sectionsHtml = byRing.map(({ meta, blips: ringBlips }) => {
       const id = slug(meta.label)
-      const headerLabel = sl[meta.label.toLowerCase()] || meta.label
-      const cards = ringBlips.map(b => _blipCard(b, meta.color, b.groupLabel || b.categoryTitle || '')).join('')
+      const ringKey = meta.label.toLowerCase()
+      const color = sc[ringKey] || meta.color
+      const headerLabel = sl[ringKey] || meta.label
+      const cards = ringBlips
+        .slice()
+        .sort((a, b) => a.mandatory !== b.mandatory ? (a.mandatory ? -1 : 1) : (a.name || '').localeCompare(b.name || ''))
+        .map(b => _blipCard(b, color, b.groupLabel || b.categoryTitle || '', displayOptions)).join('')
       return '<section class="ring-section" id="' + id + '">' +
-        '<div class="ring-section-header" style="border-color:' + meta.color + ';color:' + meta.color + '">' + esc(headerLabel) + '</div>' +
+        '<div class="ring-section-header" style="border-color:' + color + ';color:' + color + '">' + esc(headerLabel) + '</div>' +
         '<div class="blip-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' + cards + '</div>' +
         '</section>'
     }).join('')
@@ -425,7 +450,11 @@ export function generateCustomRadarHtml (params, options) {
     showGroupToggle = true,
     showSearch = false,
     defaultGrouping = 'status',
-    groupToggleLabels = {}
+    groupToggleLabels = {},
+    showBindingLevel = true,
+    showBlipIndex = true,
+    labels = {},
+    statusColors = {}
   } = options
 
   // Build category → group-label map from whichever format is provided
@@ -448,8 +477,9 @@ export function generateCustomRadarHtml (params, options) {
   }).map(b => ({ ...b, index: ++counter, groupLabel: catToGroupLabel[b.categoryTitle] }))
 
   // ── Both groupings ────────────────────────────────────────────────────────
-  const { html: statusHtml } = _buildGridContent(filteredBlips, gridColumns, 'status', statusLabels)
-  const { html: categoryHtml } = _buildGridContent(filteredBlips, gridColumns, 'category', statusLabels)
+  const displayOptions = { showBindingLevel, showBlipIndex, labels, statusColors }
+  const { html: statusHtml } = _buildGridContent(filteredBlips, gridColumns, 'status', statusLabels, displayOptions)
+  const { html: categoryHtml } = _buildGridContent(filteredBlips, gridColumns, 'category', statusLabels, displayOptions)
 
   // ── CSS ──────────────────────────────────────────────────────────────────
   const css = [
@@ -489,10 +519,13 @@ export function generateCustomRadarHtml (params, options) {
     '.blip-card-header{display:flex;align-items:flex-start;gap:10px;}',
     '.blip-badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:13px;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;padding:0 6px;}',
     '.blip-card-meta{flex:1;min-width:0;}',
-    '.blip-card-name{font-size:14px;font-weight:600;word-break:break-word;}',
+    '.blip-card-title-row{display:flex;align-items:baseline;gap:8px;}',
+    '.blip-card-name{font-size:14px;font-weight:600;word-break:break-word;flex:1;min-width:0;}',
     '.blip-card-cat{font-size:11px;color:rgba(0,0,0,.45);margin-top:2px;}',
     '.blip-card-link-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:12px;font-weight:600;color:#1565c0;text-decoration:none;border:1px solid rgba(21,101,192,.4);border-radius:4px;align-self:flex-start;margin-top:4px;}',
     '.blip-card-link-btn:hover{background:rgba(21,101,192,.08);border-color:#1565c0;}',
+    '.blip-binding{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgba(0,0,0,.38);white-space:nowrap;flex-shrink:0;}',
+    '.blip-binding--mandatory{color:#c62828;}',
     '.blip-card-comment{font-size:13px;color:rgba(0,0,0,.7);border-top:1px solid rgba(0,0,0,.06);padding-top:8px;}',
     '.blip-card-comment>:first-child{margin-top:0;}.blip-card-comment>:last-child{margin-bottom:0;}',
     '.blip-card-comment p,.blip-card-comment ul,.blip-card-comment ol{margin:0 0 6px;}',

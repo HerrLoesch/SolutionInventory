@@ -125,7 +125,7 @@
               @mouseleave="hoveredBlip = null"
               @click="openDetail(blip)"
             >
-              <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
+              <span class="legend-index" :style="{ background: blip.ringColor }" :class="{ 'legend-index--mandatory': blip.mandatory }">{{ blip.index }}</span>
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
@@ -230,7 +230,20 @@
               opacity="0.35"
               class="blip-glow"
             />
+            <!-- Diamond outline for mandatory blips -->
+            <polygon
+              v-if="blip.mandatory"
+              :points="`${blip.x},${blip.y - BLIP_R - 4} ${blip.x + BLIP_R + 4},${blip.y} ${blip.x},${blip.y + BLIP_R + 4} ${blip.x - BLIP_R - 4},${blip.y}`"
+              :fill="blip.ringColor"
+              stroke="white"
+              stroke-width="1.2"
+              class="blip-circle"
+              @mouseenter="hoveredBlip = blip"
+              @mouseleave="hoveredBlip = null"
+              @click="openDetail(blip)"
+            />
             <circle
+              v-else
               :cx="blip.x"
               :cy="blip.y"
               :r="BLIP_R"
@@ -248,6 +261,7 @@
               text-anchor="middle"
               dominant-baseline="central"
               class="blip-label"
+              style="pointer-events:none;"
             >{{ blip.index }}</text>
           </g>
 
@@ -359,7 +373,7 @@
               @mouseleave="hoveredBlip = null"
               @click="openDetail(blip)"
             >
-              <span class="legend-index" :style="{ background: blip.ringColor }">{{ blip.index }}</span>
+              <span class="legend-index" :style="{ background: blip.ringColor }" :class="{ 'legend-index--mandatory': blip.mandatory }">{{ blip.index }}</span>
               <div class="legend-info">
                 <div class="text-body-2 font-weight-medium legend-name">
                   {{ blip.name }}
@@ -430,6 +444,17 @@
                 <div v-if="detailBlip.overrideCategoryTitle" class="text-caption text-medium-emphasis">
                   <v-icon size="10">mdi-pencil-circle</v-icon> Radar override (default: {{ detailBlip.naturalCategoryTitle }})
                 </div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Binding level</div>
+                <v-chip
+                  size="small"
+                  :color="detailBlip.mandatory ? 'error' : 'primary'"
+                  variant="tonal"
+                  :prepend-icon="detailBlip.mandatory ? 'mdi-shield-check-outline' : 'mdi-thumb-up-outline'"
+                >
+                  {{ detailBlip.mandatory ? 'Mandatory' : 'Recommendation' }}
+                </v-chip>
               </div>
               <div class="detail-field">
                 <div class="detail-label">Sub-category</div>
@@ -552,6 +577,17 @@
               persistent-hint
               class="mt-3"
             />
+            <div class="mt-4 mb-1 text-caption text-medium-emphasis">Binding level</div>
+            <v-btn-toggle
+              v-model="editForm.mandatory"
+              mandatory
+              density="compact"
+              color="primary"
+              variant="outlined"
+            >
+              <v-btn :value="false" size="small" prepend-icon="mdi-thumb-up-outline">Recommendation</v-btn>
+              <v-btn :value="true" size="small" prepend-icon="mdi-shield-check-outline">Mandatory</v-btn>
+            </v-btn-toggle>
             <div class="mt-4 mb-1">
               <div class="edit-comment-label">Detailed comment (Markdown)</div>
             </div>
@@ -828,7 +864,7 @@ export default {
     const blipToRemove = ref(null)
     const editDialog = ref(false)
     const blipToEdit = ref(null)
-    const editForm = ref({ status: '', shortComment: '', comment: '', categoryOverride: '', infoUrl: '' })
+    const editForm = ref({ status: '', shortComment: '', comment: '', categoryOverride: '', infoUrl: '', mandatory: false })
 
     const customExportDialog = ref(false)
     const detailDialog = ref(false)
@@ -1141,6 +1177,7 @@ export default {
           radarComment: String(entry.description || '').trim(),
           shortComment: String(entry.shortComment || '').trim(),
           infoUrl: String(entry.link || '').trim(),
+          mandatory: entry.mandatory === true,
           overrideStatus,
           overrideCategoryTitle,
           naturalCategoryTitle: questionnaireCategory,
@@ -1376,6 +1413,8 @@ export default {
         
         if (qOrderA !== qOrderB) return qOrderA - qOrderB
         if (a.ring !== b.ring) return a.ring - b.ring
+        // mandatory blips first within each ring
+        if (a.mandatory !== b.mandatory) return a.mandatory ? -1 : 1
         return a.name.localeCompare(b.name)
       })
       
@@ -1511,7 +1550,8 @@ export default {
         shortComment: blip.shortComment || '',
         comment: blip.radarComment || '',
         categoryOverride: blip.overrideCategoryTitle || blip.naturalCategoryTitle || '',
-        infoUrl: blip.infoUrl || ''
+        infoUrl: blip.infoUrl || '',
+        mandatory: blip.mandatory || false
       }
       editDialog.value = true
     }
@@ -1523,7 +1563,8 @@ export default {
         shortComment: editForm.value.shortComment,
         comment: editForm.value.comment,
         categoryOverride: (editForm.value.categoryOverride || '').trim() || blipToEdit.value.naturalCategoryTitle || '',
-        link: normalizeInfoUrl(editForm.value.infoUrl)
+        link: normalizeInfoUrl(editForm.value.infoUrl),
+        mandatory: editForm.value.mandatory
       })
       editDialog.value = false
       blipToEdit.value = null
@@ -1982,6 +2023,10 @@ export default {
   font-weight: 700;
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+.legend-index--mandatory {
+  border-radius: 3px;
 }
 
 .legend-info {

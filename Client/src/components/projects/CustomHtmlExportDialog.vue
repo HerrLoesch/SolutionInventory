@@ -1,5 +1,5 @@
 <template>
-  <v-dialog v-model="dialogOpen" max-width="1200">
+  <v-dialog v-model="dialogOpen" max-width="1400">
     <v-card style="height:88vh;display:flex;flex-direction:column;overflow:hidden;">
       <v-card-title class="text-body-1 font-weight-bold pt-4 px-4 flex-shrink-0">
         <v-icon start size="18">mdi-tune</v-icon>
@@ -8,7 +8,7 @@
       <v-divider />
       <div style="display:flex;flex:1;overflow:hidden;">
 
-        <!-- ── Settings panel ─────────────────────────────────────────── -->
+        <!-- ── Left: Layout + Labels ──────────────────────────────────── -->
         <div style="width:280px;flex-shrink:0;overflow-y:auto;padding:16px;border-right:1px solid rgba(0,0,0,.12);display:flex;flex-direction:column;gap:6px;">
 
           <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis">Layout</div>
@@ -58,6 +58,20 @@
             hide-details
             label="Show search"
           />
+          <v-switch
+            v-model="options.showBindingLevel"
+            color="primary"
+            density="compact"
+            hide-details
+            label="Show binding level"
+          />
+          <v-switch
+            v-model="options.showBlipIndex"
+            color="primary"
+            density="compact"
+            hide-details
+            label="Show blip numbers"
+          />
           <v-select
             v-model="options.gridColumns"
             label="Grid columns"
@@ -74,6 +88,52 @@
           />
 
           <v-divider class="my-1" />
+
+          <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis">Labels</div>
+          <template v-if="options.showBindingLevel">
+            <v-text-field
+              v-model="options.labels.recommendation"
+              density="compact"
+              variant="outlined"
+              hide-details
+              label="Recommendation text"
+            />
+            <v-text-field
+              v-model="options.labels.mandatory"
+              density="compact"
+              variant="outlined"
+              hide-details
+              label="Mandatory text"
+            />
+          </template>
+          <v-text-field
+            v-model="options.labels.furtherInfo"
+            density="compact"
+            variant="outlined"
+            hide-details
+            label="Further information button"
+          />
+
+        </div>
+
+        <!-- ── Live preview ───────────────────────────────────────────── -->
+        <div style="flex:1;position:relative;background:#f5f5f5;">
+          <iframe
+            v-if="dialogOpen"
+            :srcdoc="previewHtml"
+            style="width:100%;height:100%;border:none;"
+            sandbox="allow-same-origin allow-scripts"
+          />
+          <div
+            v-if="filteredCount === 0"
+            style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.4);font-size:14px;pointer-events:none;"
+          >
+            No blips match the current filter
+          </div>
+        </div>
+
+        <!-- ── Right: Status + Categories ────────────────────────────── -->
+        <div style="width:220px;flex-shrink:0;overflow-y:auto;padding:16px;border-left:1px solid rgba(0,0,0,.12);display:flex;flex-direction:column;gap:6px;">
 
           <div class="d-flex align-center" style="gap:4px;">
             <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis flex-grow-1">Status</div>
@@ -100,7 +160,16 @@
               style="flex:1;min-width:0;"
             />
             <span
-              :style="{ width:'10px', height:'10px', borderRadius:'50%', background:ring.color, flexShrink:0, display:'inline-block' }"
+              :style="{ width:'14px', height:'14px', borderRadius:'50%', background:options.statusColors[ring.label.toLowerCase()], flexShrink:0, display:'inline-block', cursor:'pointer' }"
+              :title="'Change color for ' + ring.label"
+              @click="openColorPicker(ring.label.toLowerCase())"
+            />
+            <input
+              :ref="el => { if (el) colorInputs[ring.label.toLowerCase()] = el }"
+              type="color"
+              :value="options.statusColors[ring.label.toLowerCase()]"
+              style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;"
+              @input="e => options.statusColors[ring.label.toLowerCase()] = e.target.value"
             />
           </div>
 
@@ -157,22 +226,6 @@
           </div>
 
         </div>
-
-        <!-- ── Live preview ───────────────────────────────────────────── -->
-        <div style="flex:1;position:relative;background:#f5f5f5;">
-          <iframe
-            v-if="dialogOpen"
-            :srcdoc="previewHtml"
-            style="width:100%;height:100%;border:none;"
-            sandbox="allow-same-origin allow-scripts"
-          />
-          <div
-            v-if="filteredCount === 0"
-            style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.4);font-size:14px;pointer-events:none;"
-          >
-            No blips match the current filter
-          </div>
-        </div>
       </div>
 
       <v-divider />
@@ -205,6 +258,10 @@ function defaultStatusLabels () {
   return Object.fromEntries(RING_META.map(r => [r.label.toLowerCase(), r.label]))
 }
 
+function defaultStatusColors () {
+  return Object.fromEntries(RING_META.map(r => [r.label.toLowerCase(), r.color]))
+}
+
 export default {
   name: 'CustomHtmlExportDialog',
 
@@ -228,12 +285,16 @@ export default {
     const options = ref({
       categoryGroups:    [],
       statusLabels:      defaultStatusLabels(),
+      statusColors:      defaultStatusColors(),
       includedStatuses:  RING_META.map(r => r.label.toLowerCase()),
       gridColumns:       3,
       showGroupToggle:   true,
       showSearch:        false,
       defaultGrouping:   'status',
-      groupToggleLabels: { status: 'By Status', category: 'By Category' }
+      groupToggleLabels: { status: 'By Status', category: 'By Category' },
+      showBindingLevel:  true,
+      showBlipIndex:     true,
+      labels: { recommendation: 'Recommendation', mandatory: 'Mandatory', furtherInfo: 'Further information' }
     })
 
     // Re-initialise category groups every time the dialog opens
@@ -246,17 +307,28 @@ export default {
         included: true
       }))
       options.value.statusLabels      = defaultStatusLabels()
+      options.value.statusColors      = defaultStatusColors()
       options.value.includedStatuses  = RING_META.map(r => r.label.toLowerCase())
       options.value.gridColumns       = 3
       options.value.showGroupToggle   = true
       options.value.showSearch        = false
       options.value.defaultGrouping   = 'status'
       options.value.groupToggleLabels = { status: 'By Status', category: 'By Category' }
+      options.value.showBindingLevel  = true
+      options.value.showBlipIndex     = true
+      options.value.labels = { recommendation: 'Recommendation', mandatory: 'Mandatory', furtherInfo: 'Further information' }
     })
 
     // ── Drag & drop for category groups ────────────────────────────────────
     const catDragKey  = ref(null)
     const catDragOver = ref(null)
+
+    // ── Color picker ────────────────────────────────────────────────────────
+    const colorInputs = {}
+    function openColorPicker (key) {
+      const el = colorInputs[key]
+      if (el) el.click()
+    }
 
     function mergeGroups (targetKey) {
       if (!catDragKey.value || catDragKey.value === targetKey) {
@@ -316,6 +388,8 @@ export default {
       options,
       catDragKey,
       catDragOver,
+      colorInputs,
+      openColorPicker,
       filteredCount,
       previewHtml,
       mergeGroups,

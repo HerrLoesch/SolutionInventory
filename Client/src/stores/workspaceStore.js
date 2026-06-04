@@ -772,7 +772,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     ) || null
   }
 
-  function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '', link = '' }) {
+  function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '', link = '', mandatory = false }) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
     if (!Array.isArray(project.radar)) project.radar = []
@@ -788,7 +788,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         shortComment: String(shortComment || ''),
         description: String(comment || ''),
         category: String(categoryOverride || existing.category || ''),
-        link: String(link || '')
+        link: String(link || ''),
+        mandatory: mandatory === true
       })
     }
   }
