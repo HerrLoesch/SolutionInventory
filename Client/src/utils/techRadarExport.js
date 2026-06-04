@@ -365,6 +365,8 @@ function _buildGridContent (blips, gridColumns, groupBy, statusLabels) {
       const id = slug(groupLabel)
       const cards = blips
         .filter(b => (b.groupLabel || b.categoryTitle) === groupLabel)
+        .slice()
+        .sort((a, b) => a.ring !== b.ring ? a.ring - b.ring : (a.name || '').localeCompare(b.name || ''))
         .map(b => {
           const meta = RING_META[b.ring] || { color: '#9e9e9e', label: '' }
           const statusDisplay = sl[meta.label.toLowerCase()] || meta.label
