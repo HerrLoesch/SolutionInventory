@@ -19,18 +19,37 @@
             hide-details
             label="Show group toggle"
           />
+          <div class="text-caption text-medium-emphasis" style="margin-top:2px;">Default view</div>
+          <v-btn-toggle
+            v-model="options.defaultGrouping"
+            mandatory
+            density="compact"
+            color="primary"
+            style="width:100%"
+          >
+            <v-btn value="status" size="small" style="flex:1;font-size:11px;">By Status</v-btn>
+            <v-btn value="category" size="small" style="flex:1;font-size:11px;">By Category</v-btn>
+          </v-btn-toggle>
           <template v-if="options.showGroupToggle">
-            <div class="text-caption text-medium-emphasis" style="margin-top:2px;">Default view</div>
-            <v-btn-toggle
-              v-model="options.defaultGrouping"
-              mandatory
-              density="compact"
-              color="primary"
-              style="width:100%"
-            >
-              <v-btn value="status" size="small" style="flex:1;font-size:11px;">By Status</v-btn>
-              <v-btn value="category" size="small" style="flex:1;font-size:11px;">By Category</v-btn>
-            </v-btn-toggle>
+            <div class="text-caption text-medium-emphasis" style="margin-top:2px;">Toggle button labels</div>
+            <div style="display:flex;gap:6px;">
+              <v-text-field
+                v-model="options.groupToggleLabels.status"
+                density="compact"
+                variant="outlined"
+                hide-details
+                label="Status label"
+                style="flex:1;min-width:0;"
+              />
+              <v-text-field
+                v-model="options.groupToggleLabels.category"
+                density="compact"
+                variant="outlined"
+                hide-details
+                label="Category label"
+                style="flex:1;min-width:0;"
+              />
+            </div>
           </template>
           <v-switch
             v-model="options.showSearch"
@@ -213,7 +232,8 @@ export default {
       gridColumns:       3,
       showGroupToggle:   true,
       showSearch:        false,
-      defaultGrouping:   'status'
+      defaultGrouping:   'status',
+      groupToggleLabels: { status: 'By Status', category: 'By Category' }
     })
 
     // Re-initialise category groups every time the dialog opens
@@ -231,6 +251,7 @@ export default {
       options.value.showGroupToggle   = true
       options.value.showSearch        = false
       options.value.defaultGrouping   = 'status'
+      options.value.groupToggleLabels = { status: 'By Status', category: 'By Category' }
     })
 
     // ── Drag & drop for category groups ────────────────────────────────────

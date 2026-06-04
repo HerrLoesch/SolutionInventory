@@ -422,7 +422,8 @@ export function generateCustomRadarHtml (params, options) {
     gridColumns = 3,
     showGroupToggle = true,
     showSearch = false,
-    defaultGrouping = 'status'
+    defaultGrouping = 'status',
+    groupToggleLabels = {}
   } = options
 
   // Build category → group-label map from whichever format is provided
@@ -446,9 +447,7 @@ export function generateCustomRadarHtml (params, options) {
 
   // ── Both groupings ────────────────────────────────────────────────────────
   const { html: statusHtml } = _buildGridContent(filteredBlips, gridColumns, 'status', statusLabels)
-  const { html: categoryHtml } = showGroupToggle
-    ? _buildGridContent(filteredBlips, gridColumns, 'category', statusLabels)
-    : { html: '' }
+  const { html: categoryHtml } = _buildGridContent(filteredBlips, gridColumns, 'category', statusLabels)
 
   // ── CSS ──────────────────────────────────────────────────────────────────
   const css = [
@@ -521,8 +520,8 @@ export function generateCustomRadarHtml (params, options) {
       ...(showSearch ? ['      <input id="si" class="search-input" type="search" placeholder="Search\u2026" autocomplete="off">'] : []),
       ...(showGroupToggle ? [
         '      <div class="view-toggle">',
-        '        <label for="grp-status">By Status</label>',
-        '        <label for="grp-category">By Category</label>',
+        '        <label for="grp-status">' + esc(groupToggleLabels.status || 'By Status') + '</label>',
+        '        <label for="grp-category">' + esc(groupToggleLabels.category || 'By Category') + '</label>',
         '      </div>',
       ] : []),
       '    </div>',
@@ -531,7 +530,7 @@ export function generateCustomRadarHtml (params, options) {
       '    <div class="view-status">' + statusHtml + '</div>',
       '    <div class="view-category">' + categoryHtml + '</div>',
     ] : [
-      '    ' + statusHtml,
+      '    ' + (defaultGrouping === 'category' ? categoryHtml : statusHtml),
     ]),
     '  </div>',
     ...(showSearch ? [
