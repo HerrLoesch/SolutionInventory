@@ -66,6 +66,107 @@ describe('project dialog flow', () => {
     wrapper.vm.createProject()
     expect(store.workspace.projects).toHaveLength(0)
   })
+
+  it('opening the dialog preselects the first catalog in the library', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    wrapper.vm.openProjectDialog()
+    expect(wrapper.vm.newProjectCatalogId).toBe(catalogId)
+    expect(wrapper.vm.newProjectCatalogSummary).toContain('categories')
+  })
+
+  it('creates the project with the selected defaultCatalogId and instantiates a first questionnaire', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    wrapper.vm.openProjectDialog()
+    wrapper.vm.newProjectName = 'Payments'
+    wrapper.vm.createProject()
+
+    const project = store.workspace.projects.find((p) => p.name === 'Payments')
+    expect(project.defaultCatalogId).toBe(catalogId)
+    expect(project.questionnaireIds).toHaveLength(1)
+
+    const questionnaire = store.getQuestionnaireById(project.questionnaireIds[0])
+    expect(questionnaire.catalogId).toBe(catalogId)
+    // Named after the catalog, not the project — see createProject() in TreeNav.vue.
+    expect(questionnaire.name).toBe('Backend Assessment')
+  })
+
+  it('skips creating a first questionnaire when the checkbox is unchecked', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    store.addCatalog('Backend Assessment')
+    wrapper.vm.openProjectDialog()
+    wrapper.vm.newProjectName = 'Payments'
+    wrapper.vm.newProjectCreateQuestionnaire = false
+    wrapper.vm.createProject()
+
+    const project = store.workspace.projects.find((p) => p.name === 'Payments')
+    expect(project.questionnaireIds).toHaveLength(0)
+  })
+})
+
+describe('catalog library', () => {
+  it('creates a catalog with the trimmed name and closes the dialog', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    wrapper.vm.openCatalogDialog()
+    wrapper.vm.newCatalogName = '  Frontend Assessment  '
+    wrapper.vm.createCatalog()
+    expect(store.workspace.catalogs.map((c) => c.name)).toEqual(['Frontend Assessment'])
+    expect(wrapper.vm.catalogDialogOpen).toBe(false)
+  })
+
+  it('ignores blank catalog names', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    wrapper.vm.newCatalogName = '   '
+    wrapper.vm.createCatalog()
+    expect(store.workspace.catalogs || []).toHaveLength(0)
+  })
+
+  it('renames a catalog via the rename dialog', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Old name')
+    wrapper.vm.openRenameCatalogDialog(store.getCatalogById(catalogId))
+    wrapper.vm.renameCatalogName = 'New name'
+    wrapper.vm.confirmRenameCatalog()
+    expect(store.getCatalogById(catalogId).name).toBe('New name')
+    expect(wrapper.vm.renameCatalogDialogOpen).toBe(false)
+  })
+
+  it('duplicates a catalog', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Original')
+    wrapper.vm.duplicateCatalogAction(catalogId)
+    expect(store.workspace.catalogs.map((c) => c.name)).toEqual(['Original', 'Original (Copy)'])
+  })
+
+  it('deletes an unreferenced catalog directly', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Unused')
+    wrapper.vm.deleteCatalogAction(catalogId)
+    expect(store.getCatalogById(catalogId)).toBeNull()
+    expect(wrapper.vm.deleteCatalogBlockedDialogOpen).toBe(false)
+  })
+
+  it('shows the blocked dialog with referencing project names instead of deleting', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('In use')
+    store.addProject('Payments', catalogId)
+
+    wrapper.vm.deleteCatalogAction(catalogId)
+
+    expect(store.getCatalogById(catalogId)).not.toBeNull()
+    expect(wrapper.vm.deleteCatalogBlockedDialogOpen).toBe(true)
+    expect(wrapper.vm.deleteCatalogBlockedProjects).toEqual(['Payments'])
+  })
 })
 
 describe('rename flow', () => {

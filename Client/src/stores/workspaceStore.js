@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { getCategoriesData } from '../services/categoriesService'
-import { buildStandardCatalogFromSeed, instantiateCatalog } from '../services/catalogService'
+import {
+  buildStandardCatalogFromSeed,
+  instantiateCatalog,
+  createBlankCatalog,
+  duplicateCatalogTemplate
+} from '../services/catalogService'
 import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
 import { migrateProjectRadar, buildWorkspaceFromLegacyCategoriesFormat, migrateWorkspaceToV2 } from './migrations'
@@ -459,9 +464,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     questionnaire.categories = normalizeCategories(categories || [])
   }
 
-  function addProject(name) {
+  function addProject(name, defaultCatalogId = '') {
     const project = {
-      ...createProject(name, []),
+      ...createProject(name, [], defaultCatalogId),
       expanded: true
     }
     workspace.value.projects.push(project)
@@ -500,6 +505,61 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function getCatalogById(catalogId) {
     return (workspace.value.catalogs || []).find((catalog) => catalog.id === catalogId) || null
+  }
+
+  function addCatalog(name) {
+    const catalog = createBlankCatalog(name, getCategoriesData())
+    workspace.value.catalogs = [...(workspace.value.catalogs || []), catalog]
+    return catalog.id
+  }
+
+  function renameCatalog(catalogId, name) {
+    const catalog = getCatalogById(catalogId)
+    if (!catalog) return
+    const nextName = String(name || '').trim()
+    if (!nextName) return
+    catalog.name = nextName
+  }
+
+  function duplicateCatalog(catalogId) {
+    const source = getCatalogById(catalogId)
+    if (!source) return
+    const copy = duplicateCatalogTemplate(source, `${source.name} (Copy)`)
+    workspace.value.catalogs = [...(workspace.value.catalogs || []), copy]
+    return copy.id
+  }
+
+  function getCatalogReferencingProjects(catalogId) {
+    return workspace.value.projects.filter((project) => project.defaultCatalogId === catalogId)
+  }
+
+  /**
+   * Deletes a catalog unless a project still references it as its
+   * defaultCatalogId (§4.1). Returns which projects block the deletion so
+   * the UI can show them, rather than a bare boolean.
+   */
+  function deleteCatalog(catalogId) {
+    const referencingProjects = getCatalogReferencingProjects(catalogId)
+    if (referencingProjects.length > 0) {
+      return { ok: false, referencingProjects: referencingProjects.map((project) => project.name) }
+    }
+    workspace.value.catalogs = (workspace.value.catalogs || []).filter((catalog) => catalog.id !== catalogId)
+    return { ok: true }
+  }
+
+  function exportCatalog(catalogId) {
+    const catalog = getCatalogById(catalogId)
+    if (!catalog) return
+    const data = JSON.stringify(catalog, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${sanitizeFilename(catalog.name || 'catalog')}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
   }
 
   // Falls back through: the project's chosen default catalog → the first
@@ -1081,6 +1141,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     assignQuestionnaireToProject,
     getQuestionnaireById,
     getCatalogById,
+    addCatalog,
+    renameCatalog,
+    duplicateCatalog,
+    deleteCatalog,
+    exportCatalog,
     getProjectQuestionnaires,
     deleteQuestionnaire,
     renameQuestionnaire,

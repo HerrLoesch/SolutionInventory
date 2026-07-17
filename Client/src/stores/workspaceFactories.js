@@ -14,11 +14,12 @@ export function createWorkspace(projects = [], questionnaires = []) {
   }
 }
 
-export function createProject(name, questionnaireIds = []) {
+export function createProject(name, questionnaireIds = [], defaultCatalogId = '') {
   return {
     id: createId('project'),
     name: name || 'New project',
-    questionnaireIds: Array.isArray(questionnaireIds) ? questionnaireIds : []
+    questionnaireIds: Array.isArray(questionnaireIds) ? questionnaireIds : [],
+    defaultCatalogId: defaultCatalogId || ''
   }
 }
 

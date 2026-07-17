@@ -17,6 +17,14 @@
   (Golden-Master-Fixtures, Migrations- und Round-Trip-Tests, CI-Härtung).
 - §5.5 Umsetzungsphasen: Phase 0 ist jetzt das „Sicherheitsnetz" (Tests zuerst, dann Datenmodell).
 - §5.6 Akzeptanzkriterien um Kompatibilitätskriterien ergänzt.
+- **2026-07-17 (Nachtrag):** Phase 0 und Phase 1 umgesetzt (Sicherheitsnetz, Katalog-Datenmodell,
+  siehe Statusvermerke in §5.5). Neue Phase „Standardkatalog-Konsistenzprüfung" eingefügt
+  (inhaltliche Prüfung des mitgelieferten Katalogs, überwiegend Domänenwissen statt Code) —
+  ursprünglich als Phase 2 direkt nach dem Fundament vorgesehen, auf Wunsch aber als
+  **letzte** Phase (jetzt Phase 6) einsortiert: Die Prüfung profitiert davon, dass der
+  Katalog-Editor (Phase 3) bereits existiert, wenn Befunde behoben werden müssen — dafür ist
+  der Standardkatalog schon ab Phase 2 (Bibliothek) für echte Projekte nutzbar, bevor er
+  inhaltlich durchgeprüft ist. Phase „Katalogauswahl & Bibliothek" (jetzt Phase 2) umgesetzt.
 
 ---
 
@@ -542,10 +550,27 @@ Standardkatalog aufgerufen (§6.4).
    als Aufrufer wäre das ungenutzter Code. `getCatalogById` existiert bereits (von
    `addQuestionnaire` benötigt).
 
-**Phase 2 — Katalogauswahl & Bibliothek**
-9. `defaultCatalogId` in Projekt (Datenfeld existiert bereits, s. Schritt 6); „+ Projekt"-Dialog
-   mit Katalogauswahl (§4.2) und Katalog-CRUD im Store fehlen noch.
-10. `CatalogLibrary` in `TreeNav` (§4.1): Liste, Anlegen, Duplizieren, Umbenennen, Löschen, Export.
+**Phase 2 — Katalogauswahl & Bibliothek — ✅ abgeschlossen (2026-07-17)**
+9. ✅ `createProject`/`addProject` um `defaultCatalogId` erweitert; „+ Projekt"-Dialog
+   (`TreeNav.vue`) zeigt Katalogauswahl (`v-select`) mit Kategorien-/Fragen-Zusammenfassung
+   (`summarizeCatalog`, §4.2) und eine standardmäßig aktivierte Checkbox „Create first
+   questionnaire from catalog" — erzeugt bei Bestätigung sofort einen Fragebogen via
+   `instantiateCatalog`, benannt nach dem Katalog (nicht nach dem Projekt, um doppelt
+   aussehende Baum-/Tab-Einträge zu vermeiden — per E2E-Lauf gefunden und korrigiert).
+   Katalog-CRUD im Store ergänzt: `addCatalog`, `renameCatalog`, `duplicateCatalog`,
+   `deleteCatalog` (blockiert mit Projektliste, falls referenziert), `exportCatalog`;
+   `updateCatalog` bleibt zurückgestellt, bis der Editor (Phase 3) es braucht.
+10. ✅ `CatalogLibrary`-Bereich in `TreeNav.vue` (§4.1, oberhalb der Projekte): Liste mit
+    Kategorien-/Fragen-Zusammenfassung je Katalog, Kontextmenü (Duplizieren, Export,
+    Umbenennen, Löschen), „+ Katalog"-Button. „Öffnen (Editor)" bewusst ausgelassen, da der
+    Katalog-Editor erst Phase 3 baut.
+
+    **Beim Testen gefunden und behoben:** Der neue Bibliotheksbereich fügte einen zweiten
+    `.tree-actions`-Block *vor* dem Projekte-Bereich ein; zwei E2E-Step-Definitionen
+    verließen sich auf `.tree-actions button` als erstes Element für den
+    „New project"-Button und trafen nach der Änderung den neuen „New catalog"-Button.
+    Behoben durch `aria-label`s auf beiden Buttons und `getByRole('button', { name })`
+    in den Steps statt positionsbasierter Selektoren.
 
 **Phase 3 — Editor als eigener Arbeitsbereich**
 11. `CatalogEditor` + `EditorTree`, Modal in `Workspace.vue` entfernen, Katalog-Editor-Tab (P1/P11).
@@ -568,15 +593,60 @@ Standardkatalog aufgerufen (§6.4).
 **Neue Abhängigkeit:** `vuedraggable@next` (Vue-3-Wrapper um Sortable.js) für Phase 5;
 optional, da Auf/Ab-Buttons als Fallback existieren.
 
+**Phase 6 — Standardkatalog-Konsistenzprüfung (letzte Phase)**
+
+Inhaltliche Qualitätssicherung des mitgelieferten Standardkatalogs, bewusst als letzte
+Phase eingeplant. **Überwiegend fachliche Review-Arbeit, kein Software-Feature** —
+Domänenwissen über die abgefragten Themen ist hier wichtiger als Code. Grund für den
+Zeitpunkt: Bis hierhin steht der vollständige Katalog-Editor (Phase 3/4) zur Verfügung,
+sodass Befunde direkt über die UI korrigiert werden können (`AppliesToEditor`,
+`ExamplesEditor`, Live-`ValidationPanel`) statt per Hand in `categoriesService.js`. Die
+Trennung von Practice- und Tool-Vorschlägen (Bugfix vom 2026-07-17, `getSuggestions()` in
+`Questionnaire.vue`) macht eine saubere `example.label`/`example.tools`-Zuordnung
+außerdem nicht mehr nur kosmetisch, sondern direkt UI-wirksam.
+
+*Kompromiss dieser Reihenfolge:* Der Standardkatalog ist bereits ab Phase 2 über die
+Bibliothek für echte Projekte wählbar, bevor er hier inhaltlich geprüft wird. Wer das
+vermeiden will, kann Schritt 22 (automatisiertes Screening) vorziehen und schon während
+früherer Phasen gelegentlich laufen lassen — die inhaltliche Prüfung (Schritt 23) bleibt
+davon unberührt am Ende.
+
+22. **Automatisiertes Screening als Ausgangspunkt.**
+    `validateCatalog(buildStandardCatalogFromSeed(getCategoriesData()))` liefert bereits
+    strukturelle Warnungen (leere Kategorien, `appliesTo` mit unbekannten Feldern/Werten,
+    s. §3.2/§6.4). Diese Warnungen für den kompletten Standardkatalog als Bericht auflisten
+    (kleines Skript oder Test) — liefert eine Kandidatenliste, ersetzt aber nicht die
+    inhaltliche Prüfung in Schritt 23.
+23. **Inhaltliche Prüfung je Kategorie/Entry (Domänenwissen erforderlich):**
+    - *Kategorisierung:* Passt die Zuordnung der Entries zu ihrer Kategorie? Gibt es
+      inhaltliche Dopplungen zwischen Kategorien oder fehlende Aspekte?
+    - *Practice-/Tool-Beispiele:* Ist `example.label` tatsächlich eine Methodik/ein Pattern
+      (nicht versehentlich ein konkretes Produkt) und sind die zugehörigen `example.tools[]`
+      tatsächlich konkrete Tools dazu?
+    - *appliesTo-Sichtbarkeit:* Ergibt die Ein-/Ausblendung von Entries nach `executionType`/
+      `architecturalRole` fachlich Sinn? Stichprobenartig für mehrere Applikationstyp-/
+      Rollen-Kombinationen durchspielen (z. B. sollte „Headless Service / API" UI-lastige
+      Fragen wie „Client OS" nicht zeigen).
+24. **Befunde über den Katalog-Editor beheben** (steht seit Phase 3/4 zur Verfügung); danach
+    erneut gegen `validateCatalog` sowie `catalogService.spec.js`/`catalogValidation.spec.js`
+    prüfen. Bei strukturellen Änderungen (IDs, Kategoriezuschnitt) die `version` des
+    Standardkatalogs erhöhen, damit bereits instanziierte Fragebögen über `catalogVersion`
+    erkennbar veraltet sind (s. offener Punkt 2, §7).
+
 **Gate zwischen den Phasen:** Eine Phase gilt erst als abgeschlossen, wenn alle
 Kompatibilitätstests (§6.2) und die bestehenden Unit-/E2E-Suiten grün sind.
 
 ### 5.6 Akzeptanzkriterien (Auszug)
 
+Inhaltliche Qualität (Phase 6):
+
+- [ ] Jede Kategorie/jeder Entry des Standardkatalogs wurde inhaltlich geprüft: Kategorisierung, Practice-/Tool-Zuordnung der Beispiele (`example.label` vs. `example.tools[]`) und `appliesTo`-Sichtbarkeit je Applikationstyp/Rolle sind fachlich stimmig.
+- [ ] Gefundene Befunde sind behoben; der Standardkatalog ist danach weiterhin frei von `validateCatalog`-Fehlern (Fixture-Test bleibt grün).
+
 Funktional:
 
-- [ ] Mehrere Kataloge lassen sich in der Bibliothek anlegen, umbenennen, duplizieren, löschen; ein referenzierter Katalog kann nicht gelöscht werden.
-- [ ] Beim Anlegen eines Projekts wird ein Default-Katalog gewählt; der erste Fragebogen wird daraus instanziiert und im Projekt gespeichert.
+- [x] Mehrere Kataloge lassen sich in der Bibliothek anlegen, umbenennen, duplizieren, löschen; ein referenzierter Katalog kann nicht gelöscht werden. *(Phase 2, 2026-07-17)*
+- [x] Beim Anlegen eines Projekts wird ein Default-Katalog gewählt; der erste Fragebogen wird daraus instanziiert und im Projekt gespeichert. *(Phase 2, 2026-07-17)*
 - [ ] Ein Katalog wird beim Speichern und beim Import gegen `catalog.schema.json` validiert; Fehler blockieren das Speichern.
 - [ ] Schließen des Editors mit ungespeicherten Änderungen zeigt immer den Speichern/Verwerfen-Dialog.
 - [ ] Kein `window.alert` / `window.confirm` mehr im Client-Code.

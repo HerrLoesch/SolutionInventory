@@ -14,9 +14,13 @@ Given('I open the application', async function () {
 // ---------------------------------------------------------------------------
 
 Given('a project {string} exists', async function (name) {
-  await this.page.locator('.tree-actions button').first().click()
+  await this.page.getByRole('button', { name: 'New project' }).click()
   await expect(this.page.getByLabel('Project name')).toBeVisible()
   await this.page.getByLabel('Project name').fill(name)
+  // Keep this precondition a plain, empty project regardless of the "create
+  // first questionnaire from catalog" default — scenarios that need a
+  // questionnaire add one explicitly via the step below.
+  await this.page.getByLabel('Create first questionnaire from catalog').uncheck()
   await this.page.getByRole('button', { name: 'Create' }).click()
   await expect(this.page.getByText(name)).toBeVisible()
 })
@@ -37,7 +41,7 @@ Given('a questionnaire {string} exists in project {string}', async function (que
 // ---------------------------------------------------------------------------
 
 When('I click the "New project" button', async function () {
-  await this.page.locator('.tree-actions button').first().click()
+  await this.page.getByRole('button', { name: 'New project' }).click()
 })
 
 When('I fill in the project name {string}', async function (name) {

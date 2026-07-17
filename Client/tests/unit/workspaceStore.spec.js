@@ -173,6 +173,73 @@ describe('workspace/project/questionnaire CRUD', () => {
   })
 })
 
+describe('catalog CRUD', () => {
+  it('addCatalog creates a catalog with a metadata-only category and a generated id', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    const catalog = store.getCatalogById(catalogId)
+    expect(catalog.name).toBe('Backend Assessment')
+    expect(catalog.version).toBe(1)
+    expect(catalog.categories).toHaveLength(1)
+    expect(catalog.categories[0].isMetadata).toBe(true)
+  })
+
+  it('addProject stores the chosen defaultCatalogId', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    const projectId = store.addProject('Payments', catalogId)
+    const project = store.workspace.projects.find((p) => p.id === projectId)
+    expect(project.defaultCatalogId).toBe(catalogId)
+  })
+
+  it('renameCatalog renames, ignoring blank names', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Old name')
+    store.renameCatalog(catalogId, '  New name  ')
+    expect(store.getCatalogById(catalogId).name).toBe('New name')
+    store.renameCatalog(catalogId, '   ')
+    expect(store.getCatalogById(catalogId).name).toBe('New name')
+  })
+
+  it('duplicateCatalog creates an independent copy with a new id and reset version', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Original')
+    const original = store.getCatalogById(catalogId)
+    original.version = 3
+
+    const copyId = store.duplicateCatalog(catalogId)
+    const copy = store.getCatalogById(copyId)
+
+    expect(copyId).not.toBe(catalogId)
+    expect(copy.name).toBe('Original (Copy)')
+    expect(copy.version).toBe(1)
+
+    // Structure must be an independent deep copy, not a shared reference.
+    copy.categories[0].title = 'Mutated'
+    expect(original.categories[0].title).not.toBe('Mutated')
+  })
+
+  it('deleteCatalog removes an unreferenced catalog', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Unused')
+    const result = store.deleteCatalog(catalogId)
+    expect(result).toEqual({ ok: true })
+    expect(store.getCatalogById(catalogId)).toBeNull()
+  })
+
+  it('deleteCatalog refuses to delete a catalog referenced by a project as its defaultCatalogId', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('In use')
+    store.addProject('Payments', catalogId)
+
+    const result = store.deleteCatalog(catalogId)
+
+    expect(result.ok).toBe(false)
+    expect(result.referencingProjects).toEqual(['Payments'])
+    expect(store.getCatalogById(catalogId)).not.toBeNull()
+  })
+})
+
 describe('moveQuestionnaire / reorderQuestionnaire / assignment', () => {
   it('moves a questionnaire between projects', () => {
     const store = useWorkspaceStore()

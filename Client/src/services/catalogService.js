@@ -2,7 +2,7 @@
 // A Catalog is a reusable template (structure only, no answers); a
 // Questionnaire is an instance of a Catalog with answers filled in.
 
-import { createQuestionnaire } from '../stores/workspaceFactories'
+import { createId, createQuestionnaire } from '../stores/workspaceFactories'
 import { normalizeCategories } from '../stores/normalizeCategories'
 
 const STANDARD_CATALOG_ID = 'catalog-standard'
@@ -53,4 +53,49 @@ export function instantiateCatalog(catalog, name) {
   questionnaire.catalogId = catalog.id
   questionnaire.catalogVersion = catalog.version
   return questionnaire
+}
+
+/**
+ * Builds a new, empty-but-valid catalog for the library (§4.1): just the
+ * metadata category, cloned from the standard catalog so the
+ * executionType/architecturalRole vocabulary used by `appliesTo` elsewhere
+ * stays consistent across catalogs.
+ */
+export function createBlankCatalog(name, categoriesData) {
+  const standard = buildStandardCatalogFromSeed(categoriesData)
+  const metadataCategory = standard.categories.find((category) => category.isMetadata)
+  return {
+    id: createId('catalog'),
+    name: name || 'New catalog',
+    description: '',
+    version: 1,
+    schemaVersion: standard.schemaVersion,
+    statusOptions: JSON.parse(JSON.stringify(standard.statusOptions)),
+    applicabilityOptions: [...standard.applicabilityOptions],
+    categories: metadataCategory ? [JSON.parse(JSON.stringify(metadataCategory))] : []
+  }
+}
+
+/**
+ * Deep-clones a catalog under a new id/name, reset to version 1 (a
+ * duplicate is a new, independent template — not a new version of the source).
+ */
+export function duplicateCatalogTemplate(catalog, name) {
+  return {
+    ...JSON.parse(JSON.stringify(catalog)),
+    id: createId('catalog'),
+    name,
+    version: 1
+  }
+}
+
+/**
+ * Counts categories/entries for a compact catalog summary (§4.2 project dialog,
+ * §4.1 library list): "6 categories · 34 questions".
+ */
+export function summarizeCatalog(catalog) {
+  const categories = Array.isArray(catalog?.categories) ? catalog.categories : []
+  const questionCategories = categories.filter((c) => !c.isMetadata)
+  const entryCount = questionCategories.reduce((sum, c) => sum + (Array.isArray(c.entries) ? c.entries.length : 0), 0)
+  return { categoryCount: questionCategories.length, entryCount }
 }
