@@ -90,6 +90,51 @@ export function duplicateCatalogTemplate(catalog, name) {
 }
 
 /**
+ * Expands one example into its typed form(s). An already-typed example
+ * ({ type: 'practice' | 'tool', label, description }) passes through
+ * unchanged. A legacy example ({ label, description, tools[] }, no `type`)
+ * becomes one 'practice' example plus one 'tool' example per entry in
+ * `tools[]` — see docs/spec-fragenkataloge.md §3.1. Pure — never mutates
+ * its input, so it's safe to use on data at rest (Questionnaire instances,
+ * which are never bulk-migrated, only read tolerantly).
+ */
+export function expandExampleToTyped(example) {
+  if (!example || typeof example !== 'object') return []
+  if (example.type === 'practice' || example.type === 'tool') return [example]
+
+  const expanded = []
+  if (String(example.label || '').trim()) {
+    expanded.push({ type: 'practice', label: example.label, description: example.description || '' })
+  }
+  ;(Array.isArray(example.tools) ? example.tools : []).forEach((tool) => {
+    if (tool) expanded.push({ type: 'tool', label: tool, description: '' })
+  })
+  return expanded
+}
+
+export function expandExamplesToTyped(examples) {
+  return (Array.isArray(examples) ? examples : []).flatMap(expandExampleToTyped)
+}
+
+/**
+ * Normalizes every entry's `examples[]` in a categories tree to the typed
+ * form, in place. Only ever applied to a catalog **draft** the moment it's
+ * opened in the editor (workspaceStore.js openCatalogEditor, before the
+ * dirty-watch attaches) — never to data at rest, and never to Questionnaire
+ * instances (those stay read-only and rely on expandExamplesToTyped instead).
+ * A catalog only converges to the new shape once a user actually saves it.
+ */
+export function migrateCategoriesExamplesToTyped(categories) {
+  ;(categories || []).forEach((category) => {
+    ;(category.entries || []).forEach((entry) => {
+      if (Array.isArray(entry.examples)) {
+        entry.examples = expandExamplesToTyped(entry.examples)
+      }
+    })
+  })
+}
+
+/**
  * Counts categories/entries for a compact catalog summary (§4.2 project dialog,
  * §4.1 library list): "6 categories · 34 questions".
  */

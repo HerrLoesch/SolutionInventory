@@ -17,14 +17,7 @@
 
       <v-divider class="my-4"></v-divider>
 
-      <div v-if="model.isMetadata">
-        <v-alert type="info" density="compact" variant="tonal">
-          Metadata fields are configured via <code>metadataOptions</code> ({{
-            Object.keys(model.metadataOptions || {}).join(', ') || 'none yet'
-          }}). An editor for these options arrives in a later phase — edit <code>metadataOptions</code> via JSON export
-          for now.
-        </v-alert>
-      </div>
+      <MetadataOptionsForm v-if="model.isMetadata" :category="model" />
       <div v-else>
         <div class="d-flex justify-space-between align-center mb-2">
           <span class="text-subtitle-2">Entries ({{ entries.length }})</span>
@@ -36,6 +29,8 @@
           </v-list-item>
         </v-list>
         <v-alert v-else type="info" density="compact" variant="tonal">No entries yet.</v-alert>
+
+        <AppliesToEditor :target="model" :metadata-options="metadataOptions" />
       </div>
     </v-card-text>
   </v-card>
@@ -44,11 +39,17 @@
 <script setup>
 import { computed } from 'vue'
 import { useConfirm } from '../../composables/useConfirm'
+import MetadataOptionsForm from './MetadataOptionsForm.vue'
+import AppliesToEditor from './AppliesToEditor.vue'
 
 const props = defineProps({
   category: {
     type: Object,
     required: true
+  },
+  metadataOptions: {
+    type: Object,
+    default: () => ({})
   }
 })
 

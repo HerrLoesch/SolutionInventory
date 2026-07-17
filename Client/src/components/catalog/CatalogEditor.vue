@@ -51,14 +51,22 @@
         <CategoryForm
           v-if="selectedCategory && !selectedEntry"
           :category="selectedCategory"
+          :metadata-options="metadataOptions"
           @regenerate-id="onRegenerateCategoryId"
           @add-entry="onAddEntry(selectedCategory.id)"
           @select-entry="(entryId) => (selectedEntryId = entryId)"
         />
-        <EntryForm v-else-if="selectedEntry" :entry="selectedEntry" @regenerate-id="onRegenerateEntryId" />
+        <EntryForm
+          v-else-if="selectedEntry"
+          :entry="selectedEntry"
+          :metadata-options="metadataOptions"
+          @regenerate-id="onRegenerateEntryId"
+        />
         <div v-else class="editor-empty text-medium-emphasis">Select a category or entry to edit.</div>
       </v-col>
     </v-row>
+
+    <ValidationPanel :errors="liveValidation.errors" :warnings="liveValidation.warnings" />
 
     <v-dialog v-model="jsonDialogOpen" max-width="900">
       <v-card>
@@ -125,6 +133,7 @@ import { useUndoSnackbar } from '../../composables/useUndoSnackbar'
 import EditorTree from './EditorTree.vue'
 import CategoryForm from './CategoryForm.vue'
 import EntryForm from './EntryForm.vue'
+import ValidationPanel from './ValidationPanel.vue'
 
 const props = defineProps({
   catalogId: {
@@ -149,6 +158,15 @@ const selectedCategory = computed(
 const selectedEntry = computed(
   () => selectedCategory.value?.entries?.find((entry) => entry.id === selectedEntryId.value) || null
 )
+
+const metadataOptions = computed(() => {
+  const metaCategory = draft.value?.categories.find((category) => category.isMetadata)
+  return metaCategory?.metadataOptions || {}
+})
+
+// Recomputed on every draft change — this is what makes the ValidationPanel
+// "live" (§4.5) rather than only checked on demand via the menu.
+const liveValidation = computed(() => (draft.value ? validateCatalog(draft.value) : { errors: [], warnings: [] }))
 
 const jsonDialogOpen = ref(false)
 const validationDialogOpen = ref(false)
@@ -307,6 +325,8 @@ function onValidationReport() {
 defineExpose({
   draft,
   dirty,
+  metadataOptions,
+  liveValidation,
   selectedCategoryId,
   selectedEntryId,
   selectedCategory,

@@ -255,6 +255,31 @@ describe('catalog editor drafts', () => {
     expect(store.isCatalogDraftDirty(catalogId)).toBe(false)
   })
 
+  it('openCatalogEditor normalizes legacy examples in the draft without marking it dirty', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Legacy Examples Catalog')
+    const catalog = store.getCatalogById(catalogId)
+    catalog.categories.push({
+      id: 'legacy-cat',
+      title: 'Legacy',
+      entries: [{ id: 'e1', aspect: 'A', examples: [{ label: 'HTTP', description: 'x', tools: ['REST APIs'] }] }]
+    })
+
+    store.openCatalogEditor(catalogId)
+
+    const draft = store.getCatalogDraft(catalogId)
+    expect(draft.categories.find((c) => c.id === 'legacy-cat').entries[0].examples).toEqual([
+      { type: 'practice', label: 'HTTP', description: 'x' },
+      { type: 'tool', label: 'REST APIs', description: '' }
+    ])
+    // The stored catalog itself is untouched — normalization only affects
+    // the session-only draft, and only an explicit Save persists it.
+    expect(catalog.categories.find((c) => c.id === 'legacy-cat').entries[0].examples).toEqual([
+      { label: 'HTTP', description: 'x', tools: ['REST APIs'] }
+    ])
+    expect(store.isCatalogDraftDirty(catalogId)).toBe(false)
+  })
+
   it('re-opening an already-open catalog keeps the existing draft (does not discard edits)', () => {
     const store = useWorkspaceStore()
     const catalogId = store.addCatalog('Backend Assessment')

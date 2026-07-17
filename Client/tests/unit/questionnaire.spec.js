@@ -50,4 +50,48 @@ describe('getSuggestions — Practice/Tool-aware example suggestions', () => {
     const suggestions = wrapper.vm.getSuggestions(entry, '')
     expect(suggestions).toEqual(['Angular', 'Native Desktop', 'Qt', 'React', 'Vue.js', 'WPF', 'Web SPA Framework'])
   })
+
+  it('supports standalone typed examples — a Tool example with no parent Practice', () => {
+    const entry = {
+      id: 'e2',
+      aspect: 'Testing',
+      examples: [
+        { type: 'practice', label: 'TDD', description: '' },
+        { type: 'practice', label: 'BDD', description: '' },
+        { type: 'tool', label: 'Jest', description: '' },
+        { type: 'tool', label: 'Playwright', description: '' }
+      ],
+      answers: [{ technology: '', status: '', comments: '', answerType: '' }],
+      applicability: 'applicable'
+    }
+    const categories = [
+      { id: 'meta', title: 'Metadata', isMetadata: true, metadata: {} },
+      { id: 'cat-1', title: 'QA', entries: [entry] }
+    ]
+    const { wrapper } = mountWithStore(Questionnaire, { props: { categories, questionnaireId: 'q1' } })
+
+    expect(wrapper.vm.getSuggestions(entry, 'Practice')).toEqual(['BDD', 'TDD'])
+    expect(wrapper.vm.getSuggestions(entry, 'Tool')).toEqual(['Jest', 'Playwright'])
+  })
+
+  it('handles a mix of legacy and typed examples on the same entry', () => {
+    const entry = {
+      id: 'e3',
+      aspect: 'Mixed',
+      examples: [
+        { label: 'Legacy Practice', description: '', tools: ['Legacy Tool'] },
+        { type: 'tool', label: 'New Tool', description: '' }
+      ],
+      answers: [{ technology: '', status: '', comments: '', answerType: '' }],
+      applicability: 'applicable'
+    }
+    const categories = [
+      { id: 'meta', title: 'Metadata', isMetadata: true, metadata: {} },
+      { id: 'cat-1', title: 'Mixed', entries: [entry] }
+    ]
+    const { wrapper } = mountWithStore(Questionnaire, { props: { categories, questionnaireId: 'q1' } })
+
+    expect(wrapper.vm.getSuggestions(entry, 'Practice')).toEqual(['Legacy Practice'])
+    expect(wrapper.vm.getSuggestions(entry, 'Tool')).toEqual(['Legacy Tool', 'New Tool'])
+  })
 })

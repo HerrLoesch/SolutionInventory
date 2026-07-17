@@ -5,7 +5,8 @@ import {
   buildStandardCatalogFromSeed,
   instantiateCatalog,
   createBlankCatalog,
-  duplicateCatalogTemplate
+  duplicateCatalogTemplate,
+  migrateCategoriesExamplesToTyped
 } from '../services/catalogService'
 import { validateCatalog } from '../schema/catalogValidation'
 import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
@@ -764,7 +765,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openCatalogEditorIds.value.push(catalogId)
     }
     if (!catalogDrafts[catalogId]) {
-      catalogDrafts[catalogId] = { draft: JSON.parse(JSON.stringify(catalog)), dirty: false }
+      const draft = JSON.parse(JSON.stringify(catalog))
+      // Normalize legacy examples ({label, tools[]}) to the typed
+      // {type: 'practice'|'tool', label, description} shape before the
+      // dirty-watch below attaches, so opening an unmigrated catalog for
+      // viewing never marks it dirty on its own — only an explicit Save
+      // persists the normalized shape (see catalogService.js).
+      migrateCategoriesExamplesToTyped(draft.categories)
+      catalogDrafts[catalogId] = { draft, dirty: false }
       // flush: 'sync' matters here — save/discard replace `.draft` wholesale
       // and then clear `.dirty` in the same synchronous call. With the
       // default (batched) flush timing this watcher would fire *after* that

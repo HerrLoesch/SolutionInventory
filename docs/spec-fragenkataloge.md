@@ -195,7 +195,10 @@ Catalog                ← NEU
    └─ entries[]
       ├─ id, aspect, description?, appliesTo?
       ├─ defaultApplicability?
-      └─ examples[]  { label, description, tools[] }
+      └─ examples[]  { type: 'practice' | 'tool', label, description }
+         ← Praxis und Tool sind unabhängige, gleichrangige Beispiele in
+           derselben flachen Liste (Nachtrag 2026-07-17, s. §3.1a) — kein
+           Tool muss mehr einer bestimmten Practice zugeordnet werden.
 
 Project
 ├─ id, name
@@ -221,6 +224,48 @@ muss mit `undefined` umgehen können: Ein Fragebogen ohne `catalogId` ist eine g
 „Legacy-Instanz" und verhält sich exakt wie heute (Anzeigen, Ausfüllen, Radar, Vergleich,
 Export). Es gibt keinen Zwang, Altbestand einem Katalog zuzuordnen.
 
+### 3.1a Nachtrag zu Phase 4: Practice- und Tool-Beispiele entkoppelt (2026-07-17)
+
+**Problem:** Der in Phase 4 gebaute `ExamplesEditor` bildete `example.tools[]` weiterhin als
+verschachtelte Liste *unter* einem Practice-Beispiel ab (Erbe des ursprünglichen Datenmodells,
+§1.3 P7). Ein eigenständiges Tool-Beispiel ganz ohne zugehörige Practice ließ sich damit nicht
+anlegen — man musste eine künstliche Practice erfinden, nur um ein Tool unterzubringen (z. B.
+„Testing Tools" als Fake-Practice, um Jest/Playwright/Postman als deren `tools[]` zu listen).
+
+**Lösung:** `example` bekommt ein `type`-Feld (`'practice' | 'tool'`). Ein Entry hat weiterhin
+nur **eine** flache `examples[]`-Liste, aber Practice- und Tool-Beispiele sind vollständig
+unabhängig voneinander editierbar — kein erzwungenes Pairing mehr. `ExamplesEditor.vue` hat
+zwei Buttons („Add practice" / „Add tool") statt der bisherigen verschachtelten Tools-Chips.
+
+**Kompatibilitätsstrategie — bewusst *keine* Massenmigration:** Anders als bei
+`STORAGE_VERSION`-Sprüngen (§3.3) wird hier **nichts an bestehenden Daten umgeschrieben**.
+Begründung: Ein Rewrite beim Laden hätte den Export/Import-Rundlauf-Test (`tests/data/
+golden_sample_project.json`, exaktes Byte-Match) gebrochen und wäre unnötig riskant für ein
+rein additives Editor-Feature gewesen. Stattdessen:
+
+- **Lesend** (`getSuggestions()` in `Questionnaire.vue`, `EntryExamples.vue`): Beide Formen
+  werden toleriert über `expandExamplesToTyped()` (`catalogService.js`) — ein untypisiertes
+  Legacy-Beispiel `{label, description, tools[]}` wird zur Laufzeit (nicht persistiert) in ein
+  Practice-Beispiel plus je ein Tool-Beispiel pro `tools[]`-Eintrag expandiert. Bestehende
+  Fragebögen/Kataloge funktionieren unverändert, für immer, ganz ohne Migration.
+- **Editierend** (`CatalogEditor.vue`/`ExamplesEditor.vue`): Beim Öffnen eines Katalog-Entwurfs
+  (`workspaceStore.js openCatalogEditor`) wird der Entwurf **einmalig, vor dem Dirty-Watch**,
+  über `migrateCategoriesExamplesToTyped()` normalisiert — der Editor zeigt also immer die
+  typisierte Form, aber rein lesendes Öffnen markiert den Tab nie fälschlich als „unsaved" (der
+  Watch hängt erst danach ein). Der gespeicherte Katalog ändert sich nur, wenn der Nutzer
+  tatsächlich „Save" klickt — exakt dasselbe Draft/Dirty-Modell wie jede andere Bearbeitung.
+  Ein Katalog konvergiert damit graduell zur neuen Form, sobald er im Editor bearbeitet wird;
+  nie durch einen erzwungenen Hintergrundprozess.
+- **Schema/Validator** (`catalog.schema.json`, `catalogValidation.js`): `type` ist optional —
+  ein fehlendes `type` ist kein Fehler (Altbestand bleibt gültig), nur ein falscher Wert
+  (`type` gesetzt, aber weder `'practice'` noch `'tool'`) wird als Fehler gemeldet.
+
+**Warum das robuster ist als eine `STORAGE_VERSION`-Migration:** Nichts an Daten in
+localStorage/Electron-Dateien wird jemals außerhalb einer expliziten Nutzeraktion (Katalog
+speichern) umgeschrieben — die im Auftrag genannte Härte-Anforderung („bestehende Projekte …
+müssen nach den Anpassungen immer noch funktionieren") ist damit strukturell erfüllt, nicht nur
+getestet.
+
 ### 3.2 Katalog-Schema
 
 Ein verbindliches Schema (`catalog.schema.json`, JSON Schema Draft 2020-12) beschreibt die
@@ -232,7 +277,8 @@ gültige Katalogstruktur und dient als Prüf- und Dokumentationsgrundlage. Verbi
 - **Kategorie:** `id`, `title` erforderlich; `id` eindeutig im Katalog, Muster
   `^[a-z0-9-]+$`. Nicht-Metadaten-Kategorien haben `entries`.
 - **Entry:** `id`, `aspect` erforderlich; `id` eindeutig **innerhalb der Kategorie**.
-- **Example:** `label` erforderlich; `tools` optionales String-Array.
+- **Example:** `label` erforderlich; `type` optional (`'practice' | 'tool'` wenn gesetzt, s.
+  §3.1a). Legacy-Form mit `tools` (optionales String-Array) statt `type` bleibt gültig.
 - **appliesTo:** Objekt `{ <metadataFeld>: string | string[] }`; die Feldnamen müssen zu
   Feldern der Metadaten-Kategorie passen, die Werte zu deren `metadataOptions`.
 
@@ -440,11 +486,11 @@ Client/src/components/catalog/
 ├─ CatalogEditor.vue           ✅ Container: Kopfzeile, Dirty-State, Save/Undo, Layout
 ├─ EditorTree.vue              ✅ Strukturbaum: Suche, Kontextmenüs, Auf/Ab (Drag & Drop folgt Phase 5)
 ├─ CategoryForm.vue            ✅ Kategorie-Stammdaten + Entry-Kurzliste
-├─ EntryForm.vue               ✅ Aspekt, ID, Beispiele (label+desc) — description/tools/appliesTo: Phase 4
-├─ ExamplesEditor.vue          ⬜ Phase 4 (Tools-Chips) — bis dahin inline in EntryForm.vue
-├─ AppliesToEditor.vue         ⬜ Phase 4
-├─ MetadataOptionsForm.vue     ⬜ Phase 4 — bis dahin schreibgeschützte Übersicht in CategoryForm.vue
-└─ ValidationPanel.vue         ⬜ Phase 4 (Live-Panel) — bis dahin On-Demand-Bericht im Editor-Menü
+├─ EntryForm.vue               ✅ Aspekt, ID, Description, Beispiele (via ExamplesEditor), appliesTo
+├─ ExamplesEditor.vue          ✅ flache Liste, je Zeile Type (Practice/Tool)/Label/Description
+├─ AppliesToEditor.vue         ✅ Kategorie + Entry (gleiche Komponente, Prop `target`)
+├─ MetadataOptionsForm.vue     ✅ editierbare metadataOptions-Optionen der Metadaten-Kategorie
+└─ ValidationPanel.vue         ✅ Live-Panel (löst den On-Demand-Bericht aus Phase 3 ab)
 
 Client/src/composables/
 ├─ useConfirm.js               ✅ Promise-basiert, Singleton-State
@@ -619,11 +665,42 @@ Standardkatalog aufgerufen (§6.4).
       automatisches Aufklappen der Kategorie der aktuellen Auswahl (`EditorTree.vue`).
     - Sidebar-Navigation (s. Punkt 12) umging den Dirty-Guard komplett.
 
-**Phase 4 — Vollständigkeit des Datenmodells**
-15. `EntryForm` mit `description`; `ExamplesEditor` mit `tools`-Chips (P7).
-16. `AppliesToEditor` für Kategorie + Entry (P7).
-17. `MetadataOptionsForm` für die Metadaten-Kategorie (P7).
-18. `ValidationPanel` mit Live-Befunden (P8).
+**Phase 4 — Vollständigkeit des Datenmodells — ✅ abgeschlossen (2026-07-17)**
+15. ✅ `EntryForm.vue` um `description`-Textarea erweitert; Beispiel-Bearbeitung an
+    `ExamplesEditor.vue` ausgelagert (Label/Description/Reorder per Auf-/Ab-Buttons) (P7).
+    **Ursprünglich** (2026-07-17, erste Fassung dieser Phase) mit `tools`-Chips nested unter
+    jedem Beispiel gebaut — noch am selben Tag durch den Nachtrag in §3.1a ersetzt (flache
+    Liste mit `type: 'practice' | 'tool'` statt Verschachtelung), nachdem der Nutzer auf die
+    fehlende Unabhängigkeit von Tool- und Practice-Beispielen hinwies.
+16. ✅ `AppliesToEditor.vue` — einklappbarer `appliesTo`-Editor für Kategorie **und** Entry
+    (gleiche Komponente, Prop `target`). Bedingungen als Feld/Werte-Paare, Feldauswahl
+    beschränkt auf noch unbenutzte `metadataOptions`-Felder, Klartext-Vorschau
+    („Visible when Execution Type = Web Application or Desktop Application"). Löschen der
+    letzten Bedingung eines Feldes entfernt den `appliesTo`-Schlüssel vollständig statt ein
+    leeres Objekt zu hinterlassen (P7).
+17. ✅ `MetadataOptionsForm.vue` — editiert `category.metadataOptions[field]` (Label +
+    Description je Option) für die Metadaten-Kategorie; Hinweis-Alert, dass neue Feld-Keys
+    ohne Wirkung bleiben, da das Ausfüllformular weiterhin fest auf `executionType`/
+    `architecturalRole` liest (bewusste Scope-Entscheidung, keine generische Feld-Engine) (P7).
+18. ✅ `ValidationPanel.vue` — Live-Panel unten im Editor (`validateCatalog(draft)` als
+    Computed in `CatalogEditor.vue`), löst den bisherigen On-Demand-Bericht aus dem
+    Sekundärmenü aus Phase 3 ab. Zeigt Fehler-/Warnungszahl in der Kopfzeile, aufklappbar zur
+    Fundliste mit vollem Pfad (z. B. `categories[architecture].entries[arch-hlp].examples[4].label
+    Example label is required`).
+
+    16 neue Unit-Tests (`tests/unit/catalogSubEditors.spec.js`) für `AppliesToEditor`,
+    `ExamplesEditor`, `MetadataOptionsForm` über deren `defineExpose`-Oberfläche (Store-los,
+    da alle drei Komponenten nur auf ihre Props mutieren und keine Pinia-Abhängigkeit haben).
+    Gesamte Unit-Suite danach 218/218 grün, `npm run lint` sauber, volle E2E-Suite
+    (9 Szenarien/65 Schritte) grün, Produktions-Build (`vite build`) erfolgreich.
+
+    **Beim manuellen Browser-Test gefunden und behoben** (1 Bug, von den Unit-/E2E-Tests
+    nicht erkannt, da diese nur auf die exponierte Logik zugreifen, nicht auf das gerenderte
+    Vuetify-Markup): Das Feld-Dropdown im `AppliesToEditor` zeigte den rohen `metadataOptions`-
+    Schlüssel (z. B. `executionType`) statt des an anderer Stelle in derselben Komponente
+    verwendeten prettifizierten Labels („Execution Type") — `fieldChoices()` lieferte reine
+    Strings statt `{title, value}`-Objekten für `v-select`. Behoben durch `item-title`/
+    `item-value`-Props und Umbau von `fieldChoices()` auf Objekt-Rückgabe.
 
 **Phase 5 — Komfort**
 19. Drag & Drop via `vuedraggable` (Baum + Beispiele), Entries zwischen Kategorien verschieben (P5).
@@ -643,8 +720,13 @@ Zeitpunkt: Bis hierhin steht der vollständige Katalog-Editor (Phase 3/4) zur Ve
 sodass Befunde direkt über die UI korrigiert werden können (`AppliesToEditor`,
 `ExamplesEditor`, Live-`ValidationPanel`) statt per Hand in `categoriesService.js`. Die
 Trennung von Practice- und Tool-Vorschlägen (Bugfix vom 2026-07-17, `getSuggestions()` in
-`Questionnaire.vue`) macht eine saubere `example.label`/`example.tools`-Zuordnung
-außerdem nicht mehr nur kosmetisch, sondern direkt UI-wirksam.
+`Questionnaire.vue`, seither verstärkt durch die Entkopplung in §3.1a: `example.type`
+statt verschachteltem `example.tools[]`) macht eine saubere Zuordnung von Beispielen zu
+Practice oder Tool außerdem nicht mehr nur kosmetisch, sondern direkt UI-wirksam — der
+mitgelieferte Standardkatalog nutzt bislang noch durchgängig die (weiterhin gültige)
+Legacy-Form; ob einzelne Tools inhaltlich besser als eigenständige `type: 'tool'`-Beispiele
+statt unter einer Practice geführt werden sollten, ist Teil der inhaltlichen Prüfung in
+Schritt 23.
 
 *Kompromiss dieser Reihenfolge:* Der Standardkatalog ist bereits ab Phase 2 über die
 Bibliothek für echte Projekte wählbar, bevor er hier inhaltlich geprüft wird. Wer das
@@ -661,9 +743,12 @@ davon unberührt am Ende.
 23. **Inhaltliche Prüfung je Kategorie/Entry (Domänenwissen erforderlich):**
     - *Kategorisierung:* Passt die Zuordnung der Entries zu ihrer Kategorie? Gibt es
       inhaltliche Dopplungen zwischen Kategorien oder fehlende Aspekte?
-    - *Practice-/Tool-Beispiele:* Ist `example.label` tatsächlich eine Methodik/ein Pattern
-      (nicht versehentlich ein konkretes Produkt) und sind die zugehörigen `example.tools[]`
-      tatsächlich konkrete Tools dazu?
+    - *Practice-/Tool-Beispiele:* Ist ein Practice-Beispiel tatsächlich eine Methodik/ein
+      Pattern (nicht versehentlich ein konkretes Produkt) und sind zugehörige Tool-Beispiele
+      tatsächlich konkrete Tools? Da beide seit §3.1a unabhängige, gleichrangige Beispiele
+      sind, kann hier auch entschieden werden, ein bislang unter einer Practice verschachteltes
+      Tool als eigenständiges `type: 'tool'`-Beispiel zu führen (z. B. wenn es nicht klar einer
+      einzelnen Practice zuzuordnen ist).
     - *appliesTo-Sichtbarkeit:* Ergibt die Ein-/Ausblendung von Entries nach `executionType`/
       `architecturalRole` fachlich Sinn? Stichprobenartig für mehrere Applikationstyp-/
       Rollen-Kombinationen durchspielen (z. B. sollte „Headless Service / API" UI-lastige
@@ -692,7 +777,9 @@ Funktional:
 - [x] Schließen **und** Verlassen des Editors (Tableiste **und** Seitenbaum) mit ungespeicherten Änderungen zeigt immer den Speichern/Verwerfen-Dialog. *(Phase 3, 2026-07-17)*
 - [x] Kein `window.alert` / `window.confirm` mehr im Client-Code. *(Phase 3, 2026-07-17)*
 - [x] Umbenennen einer Kategorie/eines Entries ändert dessen ID nicht mehr automatisch; ID-Änderung nur noch über expliziten „New ID"-Button. *(Phase 3, 2026-07-17)*
-- [ ] `entry.description`, `example.tools`, `appliesTo` und `metadataOptions` sind ohne JSON-Export editierbar. *(Phase 4)*
+- [x] `entry.description`, `example.tools`, `appliesTo` und `metadataOptions` sind ohne JSON-Export editierbar. *(Phase 4, 2026-07-17)*
+- [x] Ein Tool-Beispiel lässt sich ohne zugehöriges Practice-Beispiel anlegen (unabhängige,
+  gleichrangige Beispiele). *(Nachtrag zu Phase 4, §3.1a, 2026-07-17)*
 - [ ] Ein Katalog mit 10 Kategorien à 20 Entries ist ohne Volltext-Scrolling navigierbar (Baum + Suche). *(Baum+Suche vorhanden, aber nicht mit dieser Datenmenge stichprobenartig geprüft.)*
 - [x] Löschen einer Kategorie ist 5 Sekunden per Undo rücknehmbar. *(Phase 3, 2026-07-17 — auch für Entries.)*
 

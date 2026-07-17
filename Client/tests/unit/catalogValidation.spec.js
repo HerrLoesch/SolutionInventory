@@ -172,6 +172,60 @@ describe('validateCatalog — entry rules', () => {
     const { errors } = validateCatalog(catalog)
     expect(errors.some((e) => /Example label is required/.test(e.message))).toBe(true)
   })
+
+  it('accepts a typed example (type: "practice" | "tool") with no errors', () => {
+    const catalog = baseCatalog({
+      categories: [
+        { id: 'meta', title: 'Metadata', isMetadata: true },
+        {
+          id: 'architecture',
+          title: 'Architecture',
+          entries: [
+            {
+              id: 'e1',
+              aspect: 'A',
+              examples: [
+                { type: 'practice', label: 'TDD', description: '' },
+                { type: 'tool', label: 'Jest', description: '' }
+              ]
+            }
+          ]
+        }
+      ]
+    })
+    const { errors } = validateCatalog(catalog)
+    expect(errors).toEqual([])
+  })
+
+  it('still accepts an untyped legacy example (label + nested tools[]) with no errors', () => {
+    const catalog = baseCatalog({
+      categories: [
+        { id: 'meta', title: 'Metadata', isMetadata: true },
+        {
+          id: 'architecture',
+          title: 'Architecture',
+          entries: [{ id: 'e1', aspect: 'A', examples: [{ label: 'HTTP', description: '', tools: ['REST'] }] }]
+        }
+      ]
+    })
+    const { errors } = validateCatalog(catalog)
+    expect(errors).toEqual([])
+  })
+
+  it('reports an example with an invalid type value', () => {
+    const catalog = baseCatalog({
+      categories: [
+        { id: 'meta', title: 'Metadata', isMetadata: true },
+        {
+          id: 'architecture',
+          title: 'Architecture',
+          entries: [{ id: 'e1', aspect: 'A', examples: [{ type: 'bogus', label: 'X' }] }]
+        }
+      ]
+    })
+    const { errors } = validateCatalog(catalog)
+    expect(errors.some((e) => /type must be "practice" or "tool"/.test(e.message))).toBe(true)
+  })
 })
 
 describe('validateCatalog — appliesTo (warnings only)', () => {

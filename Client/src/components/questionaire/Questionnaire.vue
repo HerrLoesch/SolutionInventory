@@ -373,6 +373,7 @@
 <script>
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { expandExamplesToTyped } from '../../services/catalogService'
 import EntryExamples from './EntryExamples.vue'
 
 export default {
@@ -656,27 +657,20 @@ export default {
     }
 
     function getSuggestions(entry, answerType) {
-      if (!entry.examples || !Array.isArray(entry.examples)) {
-        return []
-      }
-
+      // expandExamplesToTyped tolerantly reads both the typed
+      // { type: 'practice' | 'tool', label } shape and legacy
+      // { label, tools[] } examples (never mutates entry.examples) — see
+      // catalogService.js and docs/spec-fragenkataloge.md §3.1.
+      // No answerType chosen yet (fresh answer row) shows both kinds
+      // combined, narrowing down once the user picks Tool or Practice.
+      const includePractice = answerType !== 'Tool'
+      const includeTool = answerType !== 'Practice'
       const suggestions = []
-      const includeLabels = answerType !== 'Tool'
-      const includeTools = answerType !== 'Practice'
 
-      entry.examples.forEach((example) => {
-        // Practice suggestions: the example's own label (a methodology/pattern/approach).
-        if (includeLabels && example.label && !suggestions.includes(example.label)) {
+      expandExamplesToTyped(entry.examples).forEach((example) => {
+        const wanted = (example.type === 'practice' && includePractice) || (example.type === 'tool' && includeTool)
+        if (wanted && example.label && !suggestions.includes(example.label)) {
           suggestions.push(example.label)
-        }
-
-        // Tool suggestions: concrete tools/libraries implementing that example.
-        if (includeTools && Array.isArray(example.tools)) {
-          example.tools.forEach((tool) => {
-            if (tool && !suggestions.includes(tool)) {
-              suggestions.push(tool)
-            }
-          })
         }
       })
 

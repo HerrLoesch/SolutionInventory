@@ -15,6 +15,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { expandExamplesToTyped } from '../../services/catalogService'
 
 const props = defineProps({
   examples: {
@@ -32,32 +33,14 @@ const items = computed(() => {
   if (!props.examples) return []
 
   if (Array.isArray(props.examples)) {
-    return props.examples
+    // expandExamplesToTyped tolerantly reads both the typed
+    // { type, label, description } shape and legacy { label, tools[] }
+    // examples, flattening each into its own displayed item — see
+    // catalogService.js and docs/spec-fragenkataloge.md §3.1.
+    return expandExamplesToTyped(props.examples)
       .map((example) => {
-        if (typeof example === 'string') {
-          const label = example.trim()
-          return label ? { label, description: '' } : null
-        }
-        if (example && typeof example === 'object') {
-          const label = String(example.label || '').trim()
-          if (!label) return null
-
-          let description = example.description || ''
-
-          // Append tools in parentheses if tools array exists and has items
-          if (Array.isArray(example.tools) && example.tools.length > 0) {
-            const toolsText = example.tools.join(', ')
-            description = description.trim()
-            // Remove trailing period if present before adding tools
-            if (description.endsWith('.')) {
-              description = description.slice(0, -1)
-            }
-            description = `${description} (${toolsText}).`
-          }
-
-          return { label, description }
-        }
-        return null
+        const label = String(example.label || '').trim()
+        return label ? { label, description: example.description || '' } : null
       })
       .filter(Boolean)
   }

@@ -3,7 +3,10 @@ import { getCategoriesData } from '../../src/services/categoriesService'
 import {
   stripAnswersFromCategories,
   buildStandardCatalogFromSeed,
-  instantiateCatalog
+  instantiateCatalog,
+  expandExampleToTyped,
+  expandExamplesToTyped,
+  migrateCategoriesExamplesToTyped
 } from '../../src/services/catalogService'
 
 describe('stripAnswersFromCategories', () => {
@@ -98,5 +101,86 @@ describe('instantiateCatalog', () => {
 
     const secondEntry = second.categories.find((c) => !c.isMetadata).entries[0]
     expect(secondEntry.answers[0].technology).toBe('')
+  })
+})
+
+describe('expandExampleToTyped', () => {
+  it('passes an already-typed example through unchanged', () => {
+    const example = { type: 'tool', label: 'Jest', description: 'Test runner' }
+    expect(expandExampleToTyped(example)).toEqual([example])
+  })
+
+  it('expands a legacy example into one practice example plus one tool example per entry in tools[]', () => {
+    const legacy = { label: 'HTTP / RESTful', description: 'Sync request-response.', tools: ['REST APIs', 'OpenAPI'] }
+    expect(expandExampleToTyped(legacy)).toEqual([
+      { type: 'practice', label: 'HTTP / RESTful', description: 'Sync request-response.' },
+      { type: 'tool', label: 'REST APIs', description: '' },
+      { type: 'tool', label: 'OpenAPI', description: '' }
+    ])
+  })
+
+  it('expands a legacy example with an empty/missing tools[] into just the practice example', () => {
+    expect(expandExampleToTyped({ label: 'Layered', description: 'x', tools: [] })).toEqual([
+      { type: 'practice', label: 'Layered', description: 'x' }
+    ])
+    expect(expandExampleToTyped({ label: 'Layered' })).toEqual([
+      { type: 'practice', label: 'Layered', description: '' }
+    ])
+  })
+
+  it('drops blank tool entries from a legacy tools[] array', () => {
+    expect(expandExampleToTyped({ label: 'X', tools: ['A', '', null, 'B'] })).toEqual([
+      { type: 'practice', label: 'X', description: '' },
+      { type: 'tool', label: 'A', description: '' },
+      { type: 'tool', label: 'B', description: '' }
+    ])
+  })
+})
+
+describe('expandExamplesToTyped', () => {
+  it('flattens a mixed array of legacy and typed examples', () => {
+    const examples = [
+      { label: 'TDD', description: '', tools: ['Jest'] },
+      { type: 'tool', label: 'Playwright', description: '' }
+    ]
+    expect(expandExamplesToTyped(examples)).toEqual([
+      { type: 'practice', label: 'TDD', description: '' },
+      { type: 'tool', label: 'Jest', description: '' },
+      { type: 'tool', label: 'Playwright', description: '' }
+    ])
+  })
+
+  it('returns an empty array for non-array input', () => {
+    expect(expandExamplesToTyped(undefined)).toEqual([])
+    expect(expandExamplesToTyped(null)).toEqual([])
+  })
+})
+
+describe('migrateCategoriesExamplesToTyped', () => {
+  it('replaces every entry examples[] in place with the typed, expanded form', () => {
+    const categories = [
+      {
+        id: 'cat-1',
+        title: 'Cat',
+        entries: [
+          { id: 'e1', aspect: 'A', examples: [{ label: 'X', description: '', tools: ['Tool A'] }] },
+          { id: 'e2', aspect: 'B', examples: [{ type: 'practice', label: 'Already typed', description: '' }] }
+        ]
+      }
+    ]
+
+    migrateCategoriesExamplesToTyped(categories)
+
+    expect(categories[0].entries[0].examples).toEqual([
+      { type: 'practice', label: 'X', description: '' },
+      { type: 'tool', label: 'Tool A', description: '' }
+    ])
+    expect(categories[0].entries[1].examples).toEqual([{ type: 'practice', label: 'Already typed', description: '' }])
+  })
+
+  it('is a no-op for entries without an examples array', () => {
+    const categories = [{ id: 'c', title: 'C', entries: [{ id: 'e', aspect: 'A' }] }]
+    expect(() => migrateCategoriesExamplesToTyped(categories)).not.toThrow()
+    expect(categories[0].entries[0].examples).toBeUndefined()
   })
 })

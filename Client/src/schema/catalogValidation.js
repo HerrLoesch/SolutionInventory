@@ -22,6 +22,13 @@ function validateExample(example, path, errors) {
   if (!String(example.label || '').trim()) {
     addFinding(errors, `${path}.label`, 'Example label is required.')
   }
+  // `type` is optional for backward compatibility: older catalogs may still
+  // have untyped examples with a nested `tools[]` array (pre-Phase-4.1
+  // shape) — only an invalid (non-practice/tool) type is an error, a
+  // missing one is not.
+  if (example.type !== undefined && example.type !== 'practice' && example.type !== 'tool') {
+    addFinding(errors, `${path}.type`, 'Example type must be "practice" or "tool" when present.')
+  }
   if (example.tools !== undefined) {
     const toolsValid = Array.isArray(example.tools) && example.tools.every((t) => typeof t === 'string')
     if (!toolsValid) {
