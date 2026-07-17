@@ -54,8 +54,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─────────────────────────────────────────────────────────────────────────
   
   /**
-   * Read workspace data from the configured workspace directory
-   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   * Read workspace data from the configured workspace directory.
+   * `notFound: true` means no data file exists yet (safe to seed a fresh
+   * workspace); any other failure means a file exists but could not be read
+   * (must NOT be treated as "no data" — see docs/spec-fragenkataloge.md §3.3.1).
+   * @returns {Promise<{success: boolean, notFound?: boolean, data?: Object, error?: string}>}
    */
   readDataFile: () => ipcRenderer.invoke('read-data-file'),
 

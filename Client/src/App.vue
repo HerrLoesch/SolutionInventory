@@ -100,6 +100,30 @@
       </v-card>
     </v-dialog>
 
+    <!-- Workspace data could not be loaded (corrupt / unrecognized version) -->
+    <v-dialog v-model="workspaceLoadErrorOpen" persistent max-width="500">
+      <v-card>
+        <v-card-title class="text-h6 text-error">Workspace data could not be loaded</v-card-title>
+        <v-divider />
+        <v-card-text>
+          <p class="mb-4">{{ workspaceLoadError?.message }}</p>
+          <p class="mb-0">
+            The stored data has <strong>not</strong> been touched or deleted. Fix the
+            underlying issue (e.g. restore the correct app version or repair the file)
+            and restart the app, or start a new empty workspace below — this will not
+            overwrite the existing data until you explicitly save into it.
+          </p>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="error" variant="text" @click="startFreshWorkspace">
+            Start New Workspace
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- About Dialog -->
     <v-dialog v-model="aboutDialogOpen" max-width="420">
       <v-card>
@@ -123,7 +147,7 @@
 </template>
 
 <script>
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Workspace from './components/workspace/Workspace.vue'
 import TreeNav from './components/TreeNav.vue'
@@ -168,7 +192,13 @@ export default {
       document.removeEventListener('mouseup', stopResize)
     })
     const store = useWorkspaceStore()
-    const { lastSaved, workspaceDirNeeded, autoSaveEnabled, workspace, activeProjectId } = storeToRefs(store)
+    const { lastSaved, workspaceDirNeeded, workspaceLoadError, autoSaveEnabled, workspace, activeProjectId } = storeToRefs(store)
+
+    const workspaceLoadErrorOpen = computed(() => !!workspaceLoadError.value)
+
+    function startFreshWorkspace() {
+      store.resolveWorkspaceLoadErrorWithFreshWorkspace()
+    }
 
     const isElectron = !!(window.electronAPI)
     const baseUrl = import.meta.env.BASE_URL
@@ -299,6 +329,9 @@ export default {
       appVersion,
       autoSaveEnabled,
       workspaceDirNeeded,
+      workspaceLoadError,
+      workspaceLoadErrorOpen,
+      startFreshWorkspace,
       workspaceSetupDir,
       selectDirectory,
       confirmWorkspace,

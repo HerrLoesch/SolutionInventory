@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "timestamp": "2025-01-15T08:30:00.000Z",
+  "workspace": {
+    "id": "workspace-legacy1",
+    "projects": [
+      {
+        "id": "project-legacy1",
+        "name": "Legacy Project",
+        "questionnaireIds": ["questionnaire-legacy1"],
+        "radarRefs": [
+          { "entryId": "arch-hlp", "option": "Layered" }
+        ],
+        "radarOverrides": [
+          {
+            "entryId": "arch-hlp",
+            "option": "layered",
+            "categoryOverride": "Architecture",
+            "status": "Trial",
+            "shortComment": "short note",
+            "comment": "long note describing the migration path",
+            "link": "https://legacy.example.com"
+          }
+        ]
+      }
+    ],
+    "questionnaires": [
+      {
+        "id": "questionnaire-legacy1",
+        "name": "Legacy Questionnaire",
+        "categories": [
+          {
+            "id": "architecture",
+            "title": "Architecture",
+            "entries": [
+              {
+                "id": "arch-hlp",
+                "aspect": "High-Level Pattern",
+                "answers": [
+                  { "technology": "Layered", "status": "Trial", "comments": "note" }
+                ],
+                "applicability": "applicable"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "activeQuestionnaireId": "questionnaire-legacy1",
+  "openQuestionnaireIds": ["questionnaire-legacy1"],
+  "activeWorkspaceTabId": "questionnaire-legacy1",
+  "openProjectSummaryIds": []
+}

@@ -315,7 +315,7 @@ ipcMain.handle('read-data-file', async () => {
     
     const filePath = path.join(config.workspaceDir, DATA_FILE_NAME);
     if (!fs.existsSync(filePath)) {
-      return { success: false, error: 'Workspace data file not found' };
+      return { success: false, notFound: true, error: 'Workspace data file not found' };
     }
     
     const content = fs.readFileSync(filePath, 'utf-8');

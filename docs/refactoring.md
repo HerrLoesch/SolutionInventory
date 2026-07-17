@@ -1,6 +1,12 @@
 # Refactoring- und Verbesserungsvorschläge
 
-_Stand: 2026-07-05 · Analysebasis: Branch `Dev`, v1.11.0_
+_Stand: 2026-07-17 (aktualisiert, ursprünglich 2026-07-05) · Analysebasis: Branch `Dev`, v1.11.0_
+
+> **Update 2026-07-17:** Abschnitt 2.1 ist teilweise umgesetzt (Vitest-Unit-Tests für die
+> „God"-Klassen, Commit `3487e09`). Neu aufgenommen: 2.0 (Datenverlust-Risiko im Ladepfad)
+> und die CI-Lücke, dass die Unit-Tests nicht in der Pipeline laufen (2.2). Die
+> Teststrategie für die Katalog-Umstellung ist in `docs/spec-fragenkataloge.md` §6
+> ausgearbeitet.
 
 Dieses Dokument beschreibt Verbesserungspotenziale der Codebasis mit Fokus auf
 **Qualität**, **Stabilität** und **Best Practices**. Die Vorschläge sind nach
@@ -94,30 +100,57 @@ Austauschformat versioniert dokumentiert werden.
 
 ## 2. Priorität Hoch – Stabilität & Qualitätssicherung
 
-### 2.1 Keine Unit-Tests, nur E2E
+### 2.0 ~~⚠ Datenverlust-Risiko: Ladepfad ersetzt unbekannte Daten durch Seed~~ → behoben (2026-07-17)
 
-Es existieren ausschließlich E2E-Tests (Cucumber, 9 Szenarien) und **keine**
-Unit-Tests – weder für den Client noch für den MCP-Server (`find` nach `*.spec.js`,
-`*.test.js`, `*Tests.csproj` → leer).
+**Ursprünglicher Befund:** `initFromStorage()` (`workspaceStore.js:160-196`) rief
+`seedWorkspace()` auf, sobald `applyStoredData()` `false` lieferte – und das tat es bei
+**jeder** Versionsabweichung (`data.version !== STORAGE_VERSION`). Trifft eine App-Version
+auf einen Speicherstand mit anderer Versionsnummer (Downgrade, geteiltes
+Electron-Workspace-Verzeichnis, PWA-Cache) oder auf kaputtes JSON, wurde ein frischer
+Workspace geseedet; der Autosave (1,5 s Debounce) überschrieb anschließend die
+Originaldaten ohne Warnung.
 
-**Risiko:** Logiklastige Funktionen (Radar-Migration, Abweichungsanalyse,
-`QuestionnaireEvaluator`, Geometrie-Berechnungen) sind ungetestet und
-refactoring-anfällig.
+**Behoben:** `initFromStorage()` seedet nur noch, wenn wirklich *kein* Datensatz existiert
+(leeres localStorage bzw. `notFound: true` von `readDataFile` im Electron-Fall). Jeder
+andere Fehlerfall (Parse-Fehler, nicht erkannte Version, Lesefehler) setzt stattdessen
+`workspaceLoadError` (`workspaceStore.js`); `persist()` ist währenddessen ein No-Op, sodass
+Autosave die unlesbaren Daten nicht überschreiben kann. Ein Dialog in `App.vue` zeigt den
+Fehler an; nur ein expliziter Nutzerklick (`resolveWorkspaceLoadErrorWithFreshWorkspace()`)
+seedet einen neuen Workspace. `electron/main.js` liefert dafür `notFound: true`, um „keine
+Datei" von „Datei vorhanden, aber unlesbar" zu unterscheiden. Abgesichert durch
+`tests/unit/storageCompat.spec.js` (12 Tests, u. a. Web- und Electron-Pfad) gegen die
+eingefrorenen Fixtures in `tests/data/storage/`.
 
-**Empfehlung:**
-- Client: **Vitest** einführen (passt nahtlos zu Vite). Erste Kandidaten für
-  Unit-Tests: `migrateProjectRadar`, `toProjectTabId`/`fromProjectTabId`,
-  Radar-Layout-Geometrie (nach Extraktion aus 1.1), `techRadarExport.js`.
-- Server: **xUnit**-Projekt `McpServer.Tests` für `QuestionnaireEvaluator` und
-  `ProjectRepository` (Parsing/Migration von Workspace-JSON).
+**Noch offen (Phase 1, s. `spec-fragenkataloge.md` §3.3.1):** eine echte Migrationskette für
+künftige ältere Versionen (aktuell existiert nur `STORAGE_VERSION = 1`, daher kein
+Migrationsbedarf) sowie automatisches Backup vor der ersten Persistierung nach einer
+Migration. Beides wird mit der Katalog-Einführung (`STORAGE_VERSION = 2`) relevant.
 
-### 2.2 CI testet den MCP-Server nicht
+### 2.1 ~~Keine Unit-Tests, nur E2E~~ → teilweise umgesetzt (2026-07-17)
 
-Die Workflows `build-and-deploy.yml` und `ci-dev.yml` schließen `MCP/**` per
-`paths-ignore` explizit aus und bauen/testen nur den Client. Der komplette
-.NET-Teil hat **kein CI**. **Empfehlung:** Einen `dotnet build` + `dotnet test`
-Job ergänzen (getriggert bei Änderungen unter `MCP/**`), damit der Server nicht
-unbemerkt bricht.
+**Erledigt (Commit `3487e09`):** Vitest ist eingerichtet (`npm run test:unit`), mit
+7 Spec-Dateien unter `Client/tests/unit/` für `workspaceStore` (CRUD, Tab-Handling,
+Legacy-Radar-Migration, Persistenz-Round-Trip), `techRadar`, `techRadarExport`,
+`projectMatrix`, `treeNav` und `categoriesService`.
+
+**Offen:**
+- Die Unit-Tests laufen **nicht in der CI** (s. 2.2).
+- Keine Fixtures, die das persistierte Speicherformat älterer Versionen einfrieren
+  (nur Round-Trip innerhalb derselben Codeversion) – s. 2.0 und Spec §6.2.
+- Server: weiterhin keine Tests. **xUnit**-Projekt `McpServer.Tests` für
+  `QuestionnaireEvaluator` und `ProjectRepository` (Parsing/Migration von
+  Workspace-JSON) steht aus.
+
+### 2.2 CI führt Unit-Tests nicht aus und testet den MCP-Server nicht
+
+`ci-dev.yml` und `build-and-deploy.yml` führen nur `npx cucumber-js` aus – der neue
+`npm run test:unit`-Lauf fehlt in beiden Workflows und muss als Pflicht-Step **vor**
+den E2E-Tests ergänzt werden.
+
+Außerdem schließen beide Workflows `MCP/**` per `paths-ignore` explizit aus und
+bauen/testen nur den Client. Der komplette .NET-Teil hat **kein CI**.
+**Empfehlung:** Einen `dotnet build` + `dotnet test` Job ergänzen (getriggert bei
+Änderungen unter `MCP/**`), damit der Server nicht unbemerkt bricht.
 
 ### 2.3 Kein Linting / Formatierungs-Gate
 
@@ -245,8 +278,14 @@ verwaisen.
 
 ## Empfohlene Reihenfolge (Roadmap)
 
-1. **Qualitätsgitter zuerst:** ESLint/Prettier + Vitest + `dotnet test` im CI
-   einführen (Abschnitte 2.1–2.3). Ohne Netz sind größere Refactorings riskant.
+_(aktualisiert 2026-07-17)_
+
+0. ~~**Datenverlust-Risiko im Ladepfad beheben**~~ (2.0) + Speicherformat-Fixtures
+   einfrieren – **erledigt (2026-07-17).** Voraussetzung für jede Datenmodell-Änderung
+   (Katalog-Spec) war damit erfüllt.
+1. **Qualitätsgitter vervollständigen:** `npm run test:unit` in beide CI-Workflows,
+   ESLint/Prettier, `dotnet test` im CI (Abschnitte 2.1–2.3; Vitest selbst ist
+   bereits eingeführt). Ohne Netz sind größere Refactorings riskant.
 2. **Fehlerbehandlung härten** (2.4/2.5) – schneller Gewinn bei Stabilität und
    Vermeidung stillen Datenverlusts.
 3. **Domänen-Konstanten zentralisieren** (1.3) – kleines, risikoarmes Refactoring

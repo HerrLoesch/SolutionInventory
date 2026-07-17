@@ -46,6 +46,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const pendingMenuAction = ref(null) // { action: string, payload?: any } | null
   const workspaceDirNeeded = ref(false)
   const questionnaireHiddenEntries = ref({}) // Record<questionnaireId, string[]>
+  // Set when stored data exists but could not be loaded (corrupt file/JSON, or
+  // an unrecognized version). Never auto-resolved: seeding or overwriting the
+  // unreadable data requires an explicit user action (resolveWorkspaceLoadError).
+  const workspaceLoadError = ref(null) // { reason: 'unreadable' | 'unsupported-version', message: string } | null
 
   const activeQuestionnaire = computed(() => {
     return workspace.value.questionnaires.find((item) => item.id === activeQuestionnaireId.value) || null
@@ -158,6 +162,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function initFromStorage() {
+    workspaceLoadError.value = null
+
     // --- Electron: file-based storage ---
     if (window.electronAPI) {
       const dir = await window.electronAPI.getWorkspaceDir()
@@ -167,15 +173,33 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }
       workspaceDirNeeded.value = false
       const result = await window.electronAPI.readDataFile()
-      if (result.success) {
-        try {
-          if (!applyStoredData(result.data)) seedWorkspace()
-        } catch (error) {
-          console.error('Error applying stored data:', error)
+      if (!result.success) {
+        // No file at all (fresh workspace directory) is the only case that may
+        // seed automatically. Any other read failure (permissions, disk error)
+        // must not be treated as "no data".
+        if (result.notFound) {
           seedWorkspace()
+        } else {
+          workspaceLoadError.value = {
+            reason: 'unreadable',
+            message: result.error || 'Workspace data file could not be read.'
+          }
         }
-      } else {
-        seedWorkspace()
+        return
+      }
+      try {
+        if (!applyStoredData(result.data)) {
+          workspaceLoadError.value = {
+            reason: 'unsupported-version',
+            message: 'Workspace data was created by a different app version and could not be loaded.'
+          }
+        }
+      } catch (error) {
+        console.error('Error applying stored data:', error)
+        workspaceLoadError.value = {
+          reason: 'unreadable',
+          message: 'Workspace data is corrupted and could not be loaded.'
+        }
       }
       return
     }
@@ -186,13 +210,35 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       seedWorkspace()
       return
     }
+    let data
     try {
-      const data = JSON.parse(saved)
-      if (!applyStoredData(data)) seedWorkspace()
+      data = JSON.parse(saved)
     } catch (error) {
       console.error('Error loading from localStorage:', error)
-      seedWorkspace()
+      workspaceLoadError.value = {
+        reason: 'unreadable',
+        message: 'Stored workspace data is corrupted and could not be loaded.'
+      }
+      return
     }
+    if (!applyStoredData(data)) {
+      workspaceLoadError.value = {
+        reason: 'unsupported-version',
+        message: 'Stored workspace data was created by a different app version and could not be loaded.'
+      }
+    }
+  }
+
+  /**
+   * Explicit, user-triggered recovery from a workspaceLoadError: discards the
+   * unreadable data in memory and starts a fresh seeded workspace. Never
+   * called automatically — the caller must have shown the error to the user
+   * first, since this is the point of no silent data loss (see docs/spec-fragenkataloge.md §3.3.1).
+   */
+  function resolveWorkspaceLoadErrorWithFreshWorkspace() {
+    if (!workspaceLoadError.value) return
+    workspaceLoadError.value = null
+    seedWorkspace()
   }
 
   async function setWorkspaceDir(dirPath) {
@@ -253,6 +299,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function persist() {
+    // Never write while unreadable stored data is still sitting unresolved —
+    // doing so would overwrite it with whatever is currently in memory (e.g.
+    // a freshly initialized, empty workspace) and complete the data loss that
+    // workspaceLoadError exists to prevent.
+    if (workspaceLoadError.value) return
     const dataToSave = {
       version: STORAGE_VERSION,
       timestamp: new Date().toISOString(),
@@ -1011,6 +1062,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openProjectSummaryIds,
     lastSaved,
     workspaceDirNeeded,
+    workspaceLoadError,
+    resolveWorkspaceLoadErrorWithFreshWorkspace,
     autoSaveEnabled,
     activeQuestionnaire,
     activeCategories,

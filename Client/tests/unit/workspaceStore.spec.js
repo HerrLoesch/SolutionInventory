@@ -545,12 +545,13 @@ describe('persistence round-trip (localStorage)', () => {
     expect(store.workspace.projects).toHaveLength(0)
   })
 
-  it('initFromStorage seeds a fresh workspace when localStorage contains invalid JSON', async () => {
+  it('initFromStorage does NOT seed over invalid JSON — it surfaces workspaceLoadError instead (see storageCompat.spec.js for the full B1 fix coverage)', async () => {
     localStorage.setItem('solution-inventory-data', '{not valid json')
     const store = useWorkspaceStore()
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     await store.initFromStorage()
-    expect(store.workspace.questionnaires).toHaveLength(1)
+    expect(store.workspaceLoadError).toEqual(expect.objectContaining({ reason: 'unreadable' }))
+    expect(store.workspace.questionnaires).toHaveLength(0)
     spy.mockRestore()
   })
 })
