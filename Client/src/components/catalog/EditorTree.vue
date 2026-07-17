@@ -12,99 +12,124 @@
     />
 
     <v-list v-model:opened="openGroups" density="compact" class="editor-tree-list">
-      <v-list-group v-for="category in filteredCategories" :key="category.id" :value="category.id">
-        <template #activator="{ props: activatorProps }">
-          <v-list-item
-            v-bind="activatorProps"
-            :active="selectedId === category.id"
-            @click="$emit('select', { kind: 'category', categoryId: category.id })"
-          >
-            <template #prepend>
-              <v-icon size="16">{{ category.isMetadata ? 'mdi-cog-outline' : 'mdi-folder-outline' }}</v-icon>
-            </template>
-            <v-list-item-title>{{ category.title }}</v-list-item-title>
-            <template #append>
-              <v-menu location="bottom end">
-                <template #activator="{ props: menuProps }">
-                  <v-btn icon size="x-small" variant="text" class="node-menu" v-bind="menuProps" @click.stop>
-                    <v-icon size="16">mdi-dots-vertical</v-icon>
-                  </v-btn>
+      <draggable :list="filteredCategories" :disabled="!!search.trim()" item-key="id" tag="div" handle=".drag-handle">
+        <template #item="{ element: category }">
+          <v-list-group :value="category.id">
+            <template #activator="{ props: activatorProps }">
+              <v-list-item
+                v-bind="activatorProps"
+                :active="selectedId === category.id"
+                @click="$emit('select', { kind: 'category', categoryId: category.id })"
+              >
+                <template #prepend>
+                  <v-icon size="16" class="drag-handle" :class="{ 'drag-handle-disabled': !!search.trim() }">
+                    mdi-drag-vertical
+                  </v-icon>
+                  <v-icon size="16">{{ category.isMetadata ? 'mdi-cog-outline' : 'mdi-folder-outline' }}</v-icon>
                 </template>
-                <v-list density="compact">
-                  <v-list-item @click.stop="$emit('duplicate', { kind: 'category', categoryId: category.id })">
-                    <v-list-item-title>Duplicate</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item
-                    @click.stop="$emit('move', { kind: 'category', categoryId: category.id, direction: -1 })"
-                  >
-                    <v-list-item-title>Move up</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item @click.stop="$emit('move', { kind: 'category', categoryId: category.id, direction: 1 })">
-                    <v-list-item-title>Move down</v-list-item-title>
-                  </v-list-item>
-                  <v-divider></v-divider>
-                  <v-list-item @click.stop="$emit('delete', { kind: 'category', categoryId: category.id })">
-                    <v-list-item-title class="text-error">Delete</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
+                <v-list-item-title>{{ category.title }}</v-list-item-title>
+                <template #append>
+                  <v-menu location="bottom end">
+                    <template #activator="{ props: menuProps }">
+                      <v-btn icon size="x-small" variant="text" class="node-menu" v-bind="menuProps" @click.stop>
+                        <v-icon size="16">mdi-dots-vertical</v-icon>
+                      </v-btn>
+                    </template>
+                    <v-list density="compact">
+                      <v-list-item @click.stop="$emit('duplicate', { kind: 'category', categoryId: category.id })">
+                        <v-list-item-title>Duplicate</v-list-item-title>
+                      </v-list-item>
+                      <v-list-item
+                        @click.stop="$emit('move', { kind: 'category', categoryId: category.id, direction: -1 })"
+                      >
+                        <v-list-item-title>Move up</v-list-item-title>
+                      </v-list-item>
+                      <v-list-item
+                        @click.stop="$emit('move', { kind: 'category', categoryId: category.id, direction: 1 })"
+                      >
+                        <v-list-item-title>Move down</v-list-item-title>
+                      </v-list-item>
+                      <v-divider></v-divider>
+                      <v-list-item @click.stop="$emit('delete', { kind: 'category', categoryId: category.id })">
+                        <v-list-item-title class="text-error">Delete</v-list-item-title>
+                      </v-list-item>
+                    </v-list>
+                  </v-menu>
+                </template>
+              </v-list-item>
             </template>
-          </v-list-item>
-        </template>
 
-        <v-list-item
-          v-for="entry in filteredEntries(category)"
-          :key="entry.id"
-          class="entry-item"
-          :active="selectedId === entry.id"
-          @click="$emit('select', { kind: 'entry', categoryId: category.id, entryId: entry.id })"
-        >
-          <v-list-item-title>{{ entry.aspect }}</v-list-item-title>
-          <template #append>
-            <v-menu location="bottom end">
-              <template #activator="{ props: menuProps }">
-                <v-btn icon size="x-small" variant="text" class="node-menu" v-bind="menuProps" @click.stop>
-                  <v-icon size="16">mdi-dots-vertical</v-icon>
-                </v-btn>
+            <draggable
+              :list="filteredEntries(category)"
+              :disabled="!!search.trim()"
+              item-key="id"
+              tag="div"
+              group="editor-tree-entries"
+              handle=".drag-handle"
+            >
+              <template #item="{ element: entry }">
+                <v-list-item
+                  class="entry-item"
+                  :active="selectedId === entry.id"
+                  @click="$emit('select', { kind: 'entry', categoryId: category.id, entryId: entry.id })"
+                >
+                  <template #prepend>
+                    <v-icon size="16" class="drag-handle" :class="{ 'drag-handle-disabled': !!search.trim() }">
+                      mdi-drag-vertical
+                    </v-icon>
+                  </template>
+                  <v-list-item-title>{{ entry.aspect }}</v-list-item-title>
+                  <template #append>
+                    <v-menu location="bottom end">
+                      <template #activator="{ props: menuProps }">
+                        <v-btn icon size="x-small" variant="text" class="node-menu" v-bind="menuProps" @click.stop>
+                          <v-icon size="16">mdi-dots-vertical</v-icon>
+                        </v-btn>
+                      </template>
+                      <v-list density="compact">
+                        <v-list-item
+                          @click.stop="
+                            $emit('duplicate', { kind: 'entry', categoryId: category.id, entryId: entry.id })
+                          "
+                        >
+                          <v-list-item-title>Duplicate</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item
+                          @click.stop="
+                            $emit('move', { kind: 'entry', categoryId: category.id, entryId: entry.id, direction: -1 })
+                          "
+                        >
+                          <v-list-item-title>Move up</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item
+                          @click.stop="
+                            $emit('move', { kind: 'entry', categoryId: category.id, entryId: entry.id, direction: 1 })
+                          "
+                        >
+                          <v-list-item-title>Move down</v-list-item-title>
+                        </v-list-item>
+                        <v-divider></v-divider>
+                        <v-list-item
+                          @click.stop="$emit('delete', { kind: 'entry', categoryId: category.id, entryId: entry.id })"
+                        >
+                          <v-list-item-title class="text-error">Delete</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </template>
+                </v-list-item>
               </template>
-              <v-list density="compact">
-                <v-list-item
-                  @click.stop="$emit('duplicate', { kind: 'entry', categoryId: category.id, entryId: entry.id })"
-                >
-                  <v-list-item-title>Duplicate</v-list-item-title>
-                </v-list-item>
-                <v-list-item
-                  @click.stop="
-                    $emit('move', { kind: 'entry', categoryId: category.id, entryId: entry.id, direction: -1 })
-                  "
-                >
-                  <v-list-item-title>Move up</v-list-item-title>
-                </v-list-item>
-                <v-list-item
-                  @click.stop="
-                    $emit('move', { kind: 'entry', categoryId: category.id, entryId: entry.id, direction: 1 })
-                  "
-                >
-                  <v-list-item-title>Move down</v-list-item-title>
-                </v-list-item>
-                <v-divider></v-divider>
-                <v-list-item
-                  @click.stop="$emit('delete', { kind: 'entry', categoryId: category.id, entryId: entry.id })"
-                >
-                  <v-list-item-title class="text-error">Delete</v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
-          </template>
-        </v-list-item>
+            </draggable>
 
-        <v-list-item v-if="!category.isMetadata" class="add-entry-item" @click="$emit('add-entry', category.id)">
-          <template #prepend>
-            <v-icon size="16">mdi-plus</v-icon>
-          </template>
-          <v-list-item-title class="text-caption">Add entry</v-list-item-title>
-        </v-list-item>
-      </v-list-group>
+            <v-list-item v-if="!category.isMetadata" class="add-entry-item" @click="$emit('add-entry', category.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-plus</v-icon>
+              </template>
+              <v-list-item-title class="text-caption">Add entry</v-list-item-title>
+            </v-list-item>
+          </v-list-group>
+        </template>
+      </draggable>
     </v-list>
 
     <v-btn variant="text" size="small" prepend-icon="mdi-plus" @click="$emit('add-category')">Add category</v-btn>
@@ -113,6 +138,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import draggable from 'vuedraggable'
 
 const props = defineProps({
   categories: {
@@ -142,6 +168,10 @@ function filteredEntries(category) {
   return entries.filter((entry) => matches(entry.aspect) || matches(entry.description))
 }
 
+// While searching this is a filtered *copy* (a new array from .filter()), so
+// dragging is disabled at the same time (see :disabled above) — reordering
+// only ever splices the real `props.categories`/`category.entries` arrays,
+// never a throwaway filtered view.
 const filteredCategories = computed(() => {
   if (!search.value.trim()) return props.categories
   return props.categories.filter((category) => matches(category.title) || filteredEntries(category).length > 0)
@@ -212,5 +242,24 @@ const openGroups = computed({
 .editor-tree-list :deep(.v-list-item:hover) .node-menu {
   opacity: 1;
   pointer-events: auto;
+}
+
+.drag-handle {
+  cursor: grab;
+  /* !important: v-icon ships its own default (medium-emphasis, ~0.6) opacity
+     that otherwise wins over this plain class rule on the icon element
+     itself — unlike .node-menu above, which sits on a v-btn wrapper instead
+     of directly on a v-icon and isn't affected by that. */
+  opacity: 0 !important;
+  margin-right: 4px;
+}
+
+.editor-tree-list :deep(.v-list-item:hover) .drag-handle {
+  opacity: 0.6 !important;
+}
+
+.drag-handle-disabled {
+  cursor: default;
+  opacity: 0 !important;
 }
 </style>

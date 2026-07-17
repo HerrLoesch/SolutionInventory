@@ -7,7 +7,12 @@
         <v-chip v-if="dirty" size="small" color="warning" variant="flat">unsaved</v-chip>
       </div>
       <div class="d-flex align-center gap-2">
-        <v-btn variant="text" :disabled="!dirty" @click="onDiscard">Undo</v-btn>
+        <v-btn icon variant="text" :disabled="!canUndo" title="Undo (Ctrl/Cmd+Z)" @click="undo">
+          <v-icon>mdi-undo</v-icon>
+        </v-btn>
+        <v-btn icon variant="text" :disabled="!canRedo" title="Redo (Ctrl/Cmd+Shift+Z)" @click="redo">
+          <v-icon>mdi-redo</v-icon>
+        </v-btn>
         <v-btn color="primary" @click="onSave">Save</v-btn>
         <v-menu location="bottom end">
           <template #activator="{ props: menuProps }">
@@ -124,7 +129,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { generateSlugId } from '../../stores/workspaceFactories'
 import { validateCatalog } from '../../schema/catalogValidation'
@@ -173,6 +178,136 @@ const validationDialogOpen = ref(false)
 const lastValidation = ref(null)
 
 const jsonPreview = computed(() => JSON.stringify(draft.value, null, 2))
+
+// --- Undo/Redo history (§5.5 Phase 5) ---
+// Session-only, local to this open editor tab (not persisted, not shared
+// with the store's dirty-flag — that one only tracks "differs from last
+// save", this tracks "can I step backward/forward through recent edits").
+// A JSON-snapshot stack of `draft.categories` rather than a command list:
+// every mutation in this file (add/duplicate/delete/move) already ends with
+// a consistent categories tree, and EditorTree.vue's drag & drop mutates the
+// same tree directly — snapshotting after the fact covers all of them
+// uniformly with no per-action bookkeeping.
+const HISTORY_DEBOUNCE_MS = 500
+const HISTORY_LIMIT = 50
+
+function snapshotCategories() {
+  return JSON.parse(JSON.stringify(draft.value.categories))
+}
+
+// Seeded synchronously at setup time: each open catalog tab gets its own
+// persistent CatalogEditor instance (keyed by tab id in Workspace.vue), so
+// `props.catalogId` never changes across this instance's lifetime — no need
+// to watch it.
+const historyStack = ref(draft.value ? [snapshotCategories()] : [])
+const historyIndex = ref(historyStack.value.length ? 0 : -1)
+let historyTimer = null
+
+// Comparison-based rather than a "who triggered this" flag: only records a
+// new step if the content actually differs from the most recent one. This
+// makes it safe to call unconditionally after every draft change, including
+// the ones undo()/redo() themselves cause (they land back on a snapshot's
+// exact content, so this naturally no-ops instead of needing a re-entrancy
+// guard timed against Vue's watch/nextTick flush order).
+function pushHistorySnapshotIfChanged() {
+  if (!draft.value) return
+  const currentJson = JSON.stringify(draft.value.categories)
+  const lastJson = historyIndex.value >= 0 ? JSON.stringify(historyStack.value[historyIndex.value]) : undefined
+  if (currentJson === lastJson) return
+  historyStack.value = historyStack.value.slice(0, historyIndex.value + 1)
+  historyStack.value.push(JSON.parse(currentJson))
+  if (historyStack.value.length > HISTORY_LIMIT) historyStack.value.shift()
+  historyIndex.value = historyStack.value.length - 1
+}
+
+// Debounced: rapid edits (typing) coalesce into one history step per pause
+// in activity, so Undo reverts a meaningful chunk of work rather than one
+// keystroke at a time.
+watch(
+  () => draft.value?.categories,
+  () => {
+    clearTimeout(historyTimer)
+    historyTimer = setTimeout(pushHistorySnapshotIfChanged, HISTORY_DEBOUNCE_MS)
+  },
+  { deep: true }
+)
+
+const canUndo = computed(() => historyIndex.value > 0)
+const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1)
+
+// If the jump lands on a tree that no longer has the selected category/entry
+// (e.g. undoing past its creation), clear the selection rather than showing
+// a blank detail pane bound to a stale id — same defensive pattern as
+// onDelete below.
+function reconcileSelectionAfterHistoryJump() {
+  const category = draft.value.categories.find((c) => c.id === selectedCategoryId.value)
+  if (!category) {
+    selectedCategoryId.value = ''
+    selectedEntryId.value = ''
+    return
+  }
+  if (selectedEntryId.value && !(category.entries || []).some((e) => e.id === selectedEntryId.value)) {
+    selectedEntryId.value = ''
+  }
+}
+
+function undo() {
+  if (!canUndo.value) return
+  clearTimeout(historyTimer)
+  historyIndex.value -= 1
+  draft.value.categories = JSON.parse(JSON.stringify(historyStack.value[historyIndex.value]))
+  reconcileSelectionAfterHistoryJump()
+}
+
+function redo() {
+  if (!canRedo.value) return
+  clearTimeout(historyTimer)
+  historyIndex.value += 1
+  draft.value.categories = JSON.parse(JSON.stringify(historyStack.value[historyIndex.value]))
+  reconcileSelectionAfterHistoryJump()
+}
+
+// --- Keyboard flows (§5.5 Phase 5): Cmd/Ctrl+S saves, Cmd/Ctrl+Z / +Shift+Z
+// (or +Y) undo/redo. Guarded to this tab's own catalog being the active
+// workspace tab, since Vuetify's v-window keeps every open tab's
+// CatalogEditor mounted (just visually hidden) — without this guard, a
+// background catalog tab would also react to the shortcut.
+function isEditableElement(el) {
+  if (!el) return false
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable
+}
+
+function onKeydown(event) {
+  if (store.activeWorkspaceTabId !== store.toCatalogTabId(props.catalogId)) return
+  if (!(event.metaKey || event.ctrlKey)) return
+
+  const key = event.key.toLowerCase()
+  if (key === 's') {
+    event.preventDefault()
+    onSave()
+    return
+  }
+  // Leave the browser's native per-field undo/redo alone while typing in a
+  // text field — only take over Z/Shift+Z when focus is elsewhere in the
+  // editor (e.g. right after clicking a tree node).
+  if (isEditableElement(document.activeElement)) return
+  if (key === 'z' && event.shiftKey) {
+    event.preventDefault()
+    redo()
+  } else if (key === 'z') {
+    event.preventDefault()
+    undo()
+  } else if (key === 'y') {
+    event.preventDefault()
+    redo()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  clearTimeout(historyTimer)
+})
 
 function onSelect({ kind, categoryId, entryId }) {
   selectedCategoryId.value = categoryId
@@ -345,7 +480,15 @@ defineExpose({
   onSave,
   onDiscard,
   onExport,
-  onValidationReport
+  onValidationReport,
+  historyStack,
+  historyIndex,
+  canUndo,
+  canRedo,
+  undo,
+  redo,
+  pushHistorySnapshotIfChanged,
+  onKeydown
 })
 </script>
 

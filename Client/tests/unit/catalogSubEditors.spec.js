@@ -102,6 +102,40 @@ describe('ExamplesEditor', () => {
     ])
   })
 
+  it('keyFor returns a stable key for the same object across calls, distinct across objects', () => {
+    const entry = {
+      examples: [
+        { type: 'practice', label: 'A' },
+        { type: 'tool', label: 'B' }
+      ]
+    }
+    const wrapper = mount(ExamplesEditor, { props: { entry } })
+
+    const keyA1 = wrapper.vm.keyFor(entry.examples[0])
+    const keyA2 = wrapper.vm.keyFor(entry.examples[0])
+    const keyB = wrapper.vm.keyFor(entry.examples[1])
+
+    expect(keyA1).toBe(keyA2)
+    expect(keyA1).not.toBe(keyB)
+  })
+
+  it('onDescriptionEnter on the last row appends a new row of the same type, but is a no-op on earlier rows', () => {
+    const entry = {
+      examples: [
+        { type: 'practice', label: 'A', description: '' },
+        { type: 'tool', label: 'B', description: '' }
+      ]
+    }
+    const wrapper = mount(ExamplesEditor, { props: { entry } })
+
+    wrapper.vm.onDescriptionEnter(0) // not the last row — no-op
+    expect(entry.examples).toHaveLength(2)
+
+    wrapper.vm.onDescriptionEnter(1) // last row — appends
+    expect(entry.examples).toHaveLength(3)
+    expect(entry.examples[2]).toEqual({ type: 'tool', label: '', description: '' })
+  })
+
   it('move swaps an example with its neighbor and is a no-op past either boundary', () => {
     const entry = {
       examples: [

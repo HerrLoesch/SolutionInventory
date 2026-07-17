@@ -196,3 +196,104 @@ describe('CatalogEditor — save / discard', () => {
     expect(wrapper.vm.dirty).toBe(true)
   })
 })
+
+describe('CatalogEditor — undo/redo history (§5.5 Phase 5)', () => {
+  it('starts with a single snapshot (as opened) — nothing to undo or redo yet', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+
+    expect(wrapper.vm.historyStack).toHaveLength(1)
+    expect(wrapper.vm.canUndo).toBe(false)
+    expect(wrapper.vm.canRedo).toBe(false)
+  })
+
+  it('undo() reverts the last recorded change and enables redo()', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+    const countBefore = wrapper.vm.draft.categories.length
+
+    wrapper.vm.onAddCategory()
+    await flush(wrapper)
+    wrapper.vm.pushHistorySnapshotIfChanged() // simulates the debounce firing
+    expect(wrapper.vm.canUndo).toBe(true)
+
+    wrapper.vm.undo()
+    await flush(wrapper)
+
+    expect(wrapper.vm.draft.categories).toHaveLength(countBefore)
+    expect(wrapper.vm.canRedo).toBe(true)
+  })
+
+  it('redo() re-applies an undone change', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+    wrapper.vm.onAddCategory()
+    await flush(wrapper)
+    wrapper.vm.pushHistorySnapshotIfChanged()
+    const countAfterAdd = wrapper.vm.draft.categories.length
+
+    wrapper.vm.undo()
+    await flush(wrapper)
+    wrapper.vm.redo()
+    await flush(wrapper)
+
+    expect(wrapper.vm.draft.categories).toHaveLength(countAfterAdd)
+  })
+
+  it('a new edit after undo() truncates the redo branch', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+    wrapper.vm.onAddCategory()
+    await flush(wrapper)
+    wrapper.vm.pushHistorySnapshotIfChanged()
+
+    wrapper.vm.undo()
+    await flush(wrapper)
+    expect(wrapper.vm.canRedo).toBe(true)
+
+    wrapper.vm.onAddEntry(wrapper.vm.draft.categories[0].id)
+    await flush(wrapper)
+    wrapper.vm.pushHistorySnapshotIfChanged()
+
+    expect(wrapper.vm.canRedo).toBe(false)
+  })
+
+  it('pushHistorySnapshotIfChanged() is a no-op when nothing changed since the last snapshot', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+
+    wrapper.vm.pushHistorySnapshotIfChanged()
+    wrapper.vm.pushHistorySnapshotIfChanged()
+
+    expect(wrapper.vm.historyStack).toHaveLength(1)
+  })
+
+  it('undo() past the point a selected category existed clears the selection instead of leaving a stale one', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+    wrapper.vm.onAddCategory()
+    await flush(wrapper)
+    wrapper.vm.pushHistorySnapshotIfChanged()
+    expect(wrapper.vm.selectedCategoryId).toBeTruthy()
+
+    wrapper.vm.undo()
+    await flush(wrapper)
+
+    expect(wrapper.vm.selectedCategoryId).toBe('')
+    expect(wrapper.vm.selectedEntryId).toBe('')
+  })
+
+  it('undo()/redo() are no-ops at the boundaries of the stack', async () => {
+    const { wrapper } = setupEditor()
+    await flush(wrapper)
+    const before = wrapper.vm.draft.categories.length
+
+    wrapper.vm.undo() // nothing to undo yet
+    await flush(wrapper)
+    expect(wrapper.vm.draft.categories).toHaveLength(before)
+
+    wrapper.vm.redo() // nothing to redo yet
+    await flush(wrapper)
+    expect(wrapper.vm.draft.categories).toHaveLength(before)
+  })
+})

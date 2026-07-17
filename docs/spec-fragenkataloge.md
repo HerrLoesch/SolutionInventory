@@ -484,7 +484,7 @@ statischen Info-Text (`QuestionnaireConfig.vue:143-148`).
 Client/src/components/catalog/
 ├─ CatalogLibrary.vue          ✅ realisiert direkt in TreeNav.vue statt als eigene Komponente
 ├─ CatalogEditor.vue           ✅ Container: Kopfzeile, Dirty-State, Save/Undo, Layout
-├─ EditorTree.vue              ✅ Strukturbaum: Suche, Kontextmenüs, Auf/Ab (Drag & Drop folgt Phase 5)
+├─ EditorTree.vue              ✅ Strukturbaum: Suche, Kontextmenüs, Auf/Ab **und** Drag & Drop
 ├─ CategoryForm.vue            ✅ Kategorie-Stammdaten + Entry-Kurzliste
 ├─ EntryForm.vue               ✅ Aspekt, ID, Description, Beispiele (via ExamplesEditor), appliesTo
 ├─ ExamplesEditor.vue          ✅ flache Liste, je Zeile Type (Practice/Tool)/Label/Description
@@ -702,14 +702,56 @@ Standardkatalog aufgerufen (§6.4).
     Strings statt `{title, value}`-Objekten für `v-select`. Behoben durch `item-title`/
     `item-value`-Props und Umbau von `fieldChoices()` auf Objekt-Rückgabe.
 
-**Phase 5 — Komfort**
-19. Drag & Drop via `vuedraggable` (Baum + Beispiele), Entries zwischen Kategorien verschieben (P5).
-    Fallback bis dahin: Auf/Ab-Buttons im Knoten-Menü.
-20. Undo/Redo-Stack, Duplizieren von Kategorien/Entries (P10).
-21. Tastatur-Flows (Enter = nächste Zeile, Cmd/Ctrl+S = Speichern).
+**Phase 5 — Komfort — ✅ abgeschlossen (2026-07-17)**
+19. ✅ Drag & Drop via `vuedraggable@4.1.0` in `EditorTree.vue` (Kategorien-Reorder,
+    Entry-Reorder **und** Verschieben zwischen Kategorien über eine gemeinsame
+    `group="editor-tree-entries"`) und `ExamplesEditor.vue` (Beispiel-Reorder). Auf/Ab-Buttons
+    **bleiben** zusätzlich bestehen (Tastatur-/Screenreader-Zugänglichkeit, Drag & Drop ist
+    naturgemäß mausgebunden) — kein Fallback mehr im ursprünglichen Sinn, sondern bewusst
+    dauerhaft gleichrangige zweite Bedienoption (P5). Während der Baum gefiltert ist (Suche
+    aktiv), ist Drag & Drop deaktiviert (`:disabled` auf `<draggable>`) statt auf der gefilterten
+    statt der echten Liste zu operieren — die gefilterte Liste ist nur bei aktiver Suche eine
+    eigene Kopie, sonst dieselbe Referenz wie die echte Kategorien-/Entries-Liste, s. Kommentar
+    in `EditorTree.vue`.
+20. ✅ Undo/Redo-Stack in `CatalogEditor.vue` — Session-lokal je offenem Editor-Tab (nicht
+    persistiert, unabhängig vom Store-Dirty-Flag), Snapshot-basiert (`draft.categories` als
+    JSON-Snapshot, kein Command-Pattern) statt pro Aktion einzeln zu instrumentieren, damit
+    Baum-Drag&Drop und alle bestehenden Mutationen (Add/Duplicate/Delete/Move) einheitlich
+    erfasst werden. Getippte Änderungen werden über 500ms debounced zu einem Schritt
+    zusammengefasst. Vergleichsbasiert statt Flag-basiert re-entrant-sicher: ein Snapshot wird
+    nur aufgezeichnet, wenn er inhaltlich vom letzten abweicht — dadurch lösen `undo()`/`redo()`
+    selbst (sie landen exakt auf dem Snapshot-Inhalt) keinen erneuten Eintrag aus, ganz ohne
+    Flag/`nextTick`-Timing-Abhängigkeit (bewusst einfacher als das `flush:'sync'`-Muster beim
+    Dirty-Tracking in Phase 3, s. dortiger Kommentar in `workspaceStore.js`). „Duplizieren von
+    Kategorien/Entries" (P10) war bereits seit Phase 3 vorhanden (Knotenmenü), hier nur verifiziert.
+21. ✅ Tastatur-Flows: Cmd/Ctrl+S speichert, Cmd/Ctrl+Z / +Shift+Z (bzw. +Y) für Undo/Redo —
+    beide nur wirksam, wenn der Tab des jeweiligen Katalogs der aktive Workspace-Tab ist (Vuetifys
+    `v-window` hält alle offenen Tabs gleichzeitig gemountet, daher ein expliziter Guard gegen
+    `store.activeWorkspaceTabId`, sonst würde ein Shortcut versehentlich einen Hintergrund-Tab
+    treffen). Z/Shift+Z greifen zusätzlich nicht, während der Fokus in einem Textfeld liegt, damit
+    das native Feld-Undo des Browsers beim Tippen nicht überschrieben wird. Enter in der
+    Description-Zeile des letzten Beispiels in `ExamplesEditor.vue` legt eine neue Zeile
+    desselben Typs an und fokussiert sie.
 
-**Neue Abhängigkeit:** `vuedraggable@next` (Vue-3-Wrapper um Sortable.js) für Phase 5;
-optional, da Auf/Ab-Buttons als Fallback existieren.
+    24 neue/erweiterte Unit-Tests (`tests/unit/catalogEditor.spec.js` Undo/Redo-Block,
+    `tests/unit/catalogSubEditors.spec.js` `keyFor`/`onDescriptionEnter`); Drag & Drop selbst
+    (Sortable.js-Mausinteraktion) ist in jsdom nicht sinnvoll unit-testbar — dafür per echtem
+    Playwright-Mausdrag im manuellen Browser-Test verifiziert (s. u.). Gesamte Unit-Suite danach
+    239/239 grün, `npm run lint`/`format:check` sauber, volle E2E-Suite (9 Szenarien/65 Schritte)
+    grün, Produktions-Build erfolgreich.
+
+    **Beim manuellen Browser-Test gefunden und behoben** (1 Bug, von den Unit-Tests nicht
+    erkannt, da CSS-Kaskaden-Effekte nur im gerenderten DOM sichtbar sind): Der neue
+    Drag-Handle-Icon in `EditorTree.vue` war permanent sichtbar statt nur bei Hover — Vuetifys
+    `v-icon` bringt eine eigene Default-Opacity (~0.6, "medium emphasis") mit, die die einfache
+    scoped-CSS-Regel `.drag-handle { opacity: 0 }` überstimmte (der baugleiche, bereits aus
+    Phase 3 bestehende `.node-menu`-Hover-Trick war davon nicht betroffen, da er auf einem
+    `v-btn`-Wrapper sitzt statt direkt auf einem `v-icon`). Behoben mit `!important` auf beiden
+    Opacity-Regeln (Basis- und Hover-Zustand), analog zur bereits bestehenden
+    `.drag-handle-disabled`-Regel, die dasselbe Problem schon vorwegnahm.
+
+**Neue Abhängigkeit:** `vuedraggable@4.1.0` (Vue-3-Wrapper um Sortable.js), installiert für
+Phase 5.
 
 **Phase 6 — Standardkatalog-Konsistenzprüfung (letzte Phase)**
 
@@ -782,15 +824,24 @@ Funktional:
   gleichrangige Beispiele). *(Nachtrag zu Phase 4, §3.1a, 2026-07-17)*
 - [ ] Ein Katalog mit 10 Kategorien à 20 Entries ist ohne Volltext-Scrolling navigierbar (Baum + Suche). *(Baum+Suche vorhanden, aber nicht mit dieser Datenmenge stichprobenartig geprüft.)*
 - [x] Löschen einer Kategorie ist 5 Sekunden per Undo rücknehmbar. *(Phase 3, 2026-07-17 — auch für Entries.)*
+- [x] Kategorien und Entries lassen sich per Drag & Drop umsortieren, Entries auch zwischen
+  Kategorien verschieben; Auf/Ab-Buttons bleiben als zweite Bedienoption verfügbar.
+  *(Phase 5, 2026-07-17)*
+- [x] Strukturänderungen im Editor (inkl. Drag & Drop) lassen sich schrittweise per Undo/Redo
+  zurücknehmen/wiederholen, unabhängig vom „Alle Änderungen verwerfen"-Reset.
+  *(Phase 5, 2026-07-17)*
+- [x] Cmd/Ctrl+S speichert den aktiven Katalog-Tab; Cmd/Ctrl+Z/+Shift+Z steppt durch die
+  Undo/Redo-Historie, ohne das native Text-Undo in Eingabefeldern zu stören.
+  *(Phase 5, 2026-07-17)*
 
 Abwärtskompatibilität (verbindlich, Nachweis über §6.2):
 
-- [ ] Ein v1-Workspace (localStorage **und** Electron-Datei) lädt nach dem Umbau verlustfrei: alle Projekte, Fragebögen, Antworten, Kommentare, Applicability-Werte, Radar-Daten, ausgeblendete Entries und offenen Tabs sind unverändert vorhanden.
-- [ ] Die Migration ist idempotent: zweimaliges Laden/Migrieren erzeugt denselben Zustand.
-- [ ] Vor der ersten Persistierung im neuen Format existiert ein Backup des Alt-Stands.
-- [ ] Ein Datensatz mit *neuerer* Version oder Parse-Fehler wird **nie** durch einen Seed ersetzt oder überschrieben; die UI zeigt einen Fehlerzustand, Autosave bleibt aus.
-- [ ] Projekt-/Fragebogen-Exporte aus v1.11 (u. a. `tests/data/golden_sample_project.json`) lassen sich unverändert importieren; Fragebögen ohne `catalogId` funktionieren vollständig (Ausfüllen, Radar, Matrix, Vergleich, Export).
-- [ ] Das Projekt-Exportformat behält seine Grundstruktur; neue Felder sind additiv.
+- [x] Ein v1-Workspace (localStorage **und** Electron-Datei) lädt nach dem Umbau verlustfrei: alle Projekte, Fragebögen, Antworten, Kommentare, Applicability-Werte, Radar-Daten, ausgeblendete Entries und offenen Tabs sind unverändert vorhanden. *(Phase 0/1 — `storageCompat.spec.js` „loads every stored field without data loss" auf `v1-workspace-full.json`. Electron- und Web-Ladepfad laufen beide über dieselbe `applyStoredData()`, nur die I/O-Schicht unterscheidet sich — die dediziert electron-spezifischen Tests decken deren Fehlerfälle ab, s. B1-Block unten. Bereinigt 2026-07-17, war zuvor unmarkiert trotz bestehender Testabdeckung.)*
+- [x] Die Migration ist idempotent: zweimaliges Laden/Migrieren erzeugt denselben Zustand. *(Phase 0/1 — `storageCompat.spec.js` „is idempotent" für `v1-workspace-full.json` und die v1→v2-Katalogmigration. Bereinigt 2026-07-17.)*
+- [ ] Vor der ersten Persistierung im neuen Format existiert ein Backup des Alt-Stands. *(Nicht implementiert — kein Backup-Mechanismus in `persistence.js`/`workspaceStore.js`. Echte Lücke, nicht nur unmarkiert.)*
+- [x] Ein Datensatz mit *neuerer* Version oder Parse-Fehler wird **nie** durch einen Seed ersetzt oder überschrieben; die UI zeigt einen Fehlerzustand, Autosave bleibt aus. *(Phase 0 — B1-Fix, `storageCompat.spec.js` Block „B1 fix", je vier Tests für Web und Electron. Bereinigt 2026-07-17.)*
+- [x] Projekt-/Fragebogen-Exporte aus v1.11 (u. a. `tests/data/golden_sample_project.json`) lassen sich unverändert importieren; Fragebögen ohne `catalogId` funktionieren vollständig (Ausfüllen, Radar, Matrix, Vergleich, Export). *(E2E `export-import.feature`, 2/2 Szenarien grün — Import bleibt exaktes Byte-Match, s. §3.1a zur bewussten Entscheidung, dafür keine Beispiel-Migration beim Import laufen zu lassen. `catalogId`/`catalogVersion` sind optionale Felder, die Radar-/Matrix-/Export-Logik liest sie nirgends. Bereinigt 2026-07-17.)*
+- [x] Das Projekt-Exportformat behält seine Grundstruktur; neue Felder sind additiv. *(Per Konstruktion — s. „Kompatibilitätsregel" oben; abgesichert durch den persist()-Round-Trip-Test in `storageCompat.spec.js`. Bereinigt 2026-07-17.)*
 
 ---
 

@@ -32,6 +32,7 @@
     "md-editor-v3": "^6.5.1",
     "pinia": "^2.3.1",
     "vue": "^3.5.35",
+    "vuedraggable": "^4.1.0",
     "vuetify": "^3.12.7"
   },
   "devDependencies": {
