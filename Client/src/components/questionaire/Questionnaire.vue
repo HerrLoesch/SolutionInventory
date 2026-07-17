@@ -302,7 +302,7 @@
                           <v-combobox
                             v-model="answer.technology"
                             label="Solution"
-                            :items="getSuggestions(entry)"
+                            :items="getSuggestions(entry, answer.answerType)"
                             clearable
                             hide-details
                           />
@@ -659,21 +659,23 @@ export default {
       })
     }
 
-    function getSuggestions(entry) {
+    function getSuggestions(entry, answerType) {
       if (!entry.examples || !Array.isArray(entry.examples)) {
         return []
       }
 
       const suggestions = []
+      const includeLabels = answerType !== 'Tool'
+      const includeTools = answerType !== 'Practice'
 
       entry.examples.forEach((example) => {
-        // Add the example label
-        if (example.label) {
+        // Practice suggestions: the example's own label (a methodology/pattern/approach).
+        if (includeLabels && example.label && !suggestions.includes(example.label)) {
           suggestions.push(example.label)
         }
 
-        // Add all tools from the example
-        if (Array.isArray(example.tools)) {
+        // Tool suggestions: concrete tools/libraries implementing that example.
+        if (includeTools && Array.isArray(example.tools)) {
           example.tools.forEach((tool) => {
             if (tool && !suggestions.includes(tool)) {
               suggestions.push(tool)
