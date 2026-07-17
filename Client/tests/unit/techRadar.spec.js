@@ -9,7 +9,7 @@ import { createActivePinia, mountWithStore } from './helpers/mountWithStore'
 // jsdom's incomplete MutationObserver support. Stub out the markdown editor
 // and the custom-export dialog: none of these tests touch their rendered
 // markup, only the logic exposed via `wrapper.vm`.
-function mountRadar (props, pinia) {
+function mountRadar(props, pinia) {
   return mountWithStore(TechRadar, {
     props,
     pinia,
@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
-function makeCategory (title, entryId, answers) {
+function makeCategory(title, entryId, answers) {
   return {
     id: `cat-${title}`,
     title,
@@ -33,7 +33,7 @@ function makeCategory (title, entryId, answers) {
 // Creates its own active Pinia instance (returned alongside the store) so the
 // caller can hand that exact instance to mountWithStore() and have the
 // mounted component see the same seeded data.
-function seedProjectWithRadarRefs (categoryDefs) {
+function seedProjectWithRadarRefs(categoryDefs) {
   const pinia = createActivePinia()
   const store = useWorkspaceStore()
   const projectId = store.addProject('P')
@@ -48,7 +48,11 @@ function seedProjectWithRadarRefs (categoryDefs) {
 describe('allBlips', () => {
   it('derives effective status/category from the matching questionnaire answer', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'Vue', status: 'Adopt', comments: 'nice', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: 'Adopt', comments: 'nice', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -63,7 +67,11 @@ describe('allBlips', () => {
 
   it('prefers a manual radar status/category override over the questionnaire answer', () => {
     const { pinia, store, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     store.setRadarOverride(projectId, 'e1', 'Vue', { status: 'Retire', comment: '', categoryOverride: 'Legacy' })
     const { wrapper } = mountRadar({ projectId }, pinia)
@@ -81,10 +89,26 @@ describe('allBlips', () => {
 describe('quadrant auto-assignment', () => {
   it('assigns the first three categories to dedicated quadrants and groups the rest into quadrant 4', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] },
-      { title: 'Backend', entryId: 'e2', answers: [{ technology: 'B', status: 'Adopt', comments: '', answerType: 'Tool' }] },
-      { title: 'Cloud', entryId: 'e3', answers: [{ technology: 'C', status: 'Adopt', comments: '', answerType: 'Tool' }] },
-      { title: 'DevOps', entryId: 'e4', answers: [{ technology: 'D', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      },
+      {
+        title: 'Backend',
+        entryId: 'e2',
+        answers: [{ technology: 'B', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      },
+      {
+        title: 'Cloud',
+        entryId: 'e3',
+        answers: [{ technology: 'C', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      },
+      {
+        title: 'DevOps',
+        entryId: 'e4',
+        answers: [{ technology: 'D', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -103,7 +127,11 @@ describe('quadrant auto-assignment', () => {
 
   it('derives an auto-generated quadrant label when no manual override is set', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
     expect(wrapper.vm.effectiveQuadrantLabels[1]).toBe('Architecture')
@@ -129,7 +157,11 @@ describe('quadrant auto-assignment', () => {
 describe('status visibility toggling', () => {
   it('hides a ring and its blips when toggled off', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -141,7 +173,11 @@ describe('status visibility toggling', () => {
 
   it('refuses to hide the last visible status', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
     ;['Adopt', 'Trial', 'Assess', 'Hold'].forEach((s) => wrapper.vm.toggleStatusVisibility(s))
@@ -154,7 +190,11 @@ describe('status visibility toggling', () => {
 describe('computedRings', () => {
   it('produces one boundary per visible ring, ending exactly at OUTER_R', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -170,8 +210,16 @@ describe('computedRings', () => {
 describe('positioned blips', () => {
   it('assigns a sequential 1-based index in legend order (Q1, Q0, Q2, Q3)', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] },
-      { title: 'Backend', entryId: 'e2', answers: [{ technology: 'B', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      },
+      {
+        title: 'Backend',
+        entryId: 'e2',
+        answers: [{ technology: 'B', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -208,7 +256,11 @@ describe('positioned blips', () => {
 describe('remove / edit flows', () => {
   it('confirmRemove + executeRemove deletes the radar ref via the store', () => {
     const { pinia, store, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -223,7 +275,11 @@ describe('remove / edit flows', () => {
 
   it('openEdit seeds the edit form from the blip, saveEdit persists via setRadarOverride', () => {
     const { pinia, store, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'A', status: 'Adopt', comments: '', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
@@ -266,14 +322,21 @@ describe('tooltip helpers', () => {
 describe('exportRadarJson (ThoughtWorks BYOR format)', () => {
   it('serializes blips with name/ring/quadrant/description fields', () => {
     const { pinia, projectId } = seedProjectWithRadarRefs([
-      { title: 'Architecture', entryId: 'e1', answers: [{ technology: 'Vue', status: 'Adopt', comments: 'nice', answerType: 'Tool' }] }
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: 'Adopt', comments: 'nice', answerType: 'Tool' }]
+      }
     ])
     const { wrapper } = mountRadar({ projectId }, pinia)
 
     const captured = []
     const OriginalBlob = global.Blob
     global.Blob = class extends OriginalBlob {
-      constructor (parts, opts) { super(parts, opts); captured.push(parts.join('')) }
+      constructor(parts, opts) {
+        super(parts, opts)
+        captured.push(parts.join(''))
+      }
     }
     vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:mock')
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
@@ -284,13 +347,15 @@ describe('exportRadarJson (ThoughtWorks BYOR format)', () => {
     const data = JSON.parse(captured[0])
     // description falls back to the questionnaire answer's comment ("nice")
     // since no radar-level comment override was set for this blip.
-    expect(data).toEqual([{
-      name: 'Vue',
-      ring: 'Adopt',
-      quadrant: 'Architecture',
-      isNew: 'FALSE',
-      description: 'nice'
-    }])
+    expect(data).toEqual([
+      {
+        name: 'Vue',
+        ring: 'Adopt',
+        quadrant: 'Architecture',
+        isNew: 'FALSE',
+        description: 'nice'
+      }
+    ])
 
     global.Blob = OriginalBlob
     vi.restoreAllMocks()

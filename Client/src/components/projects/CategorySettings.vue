@@ -5,30 +5,35 @@
       <v-tab value="deviation">Deviation</v-tab>
     </v-tabs>
 
-    <div v-if="!categories.length" class="text-body-2 text-medium-emphasis">
-      No categories available.
-    </div>
+    <div v-if="!categories.length" class="text-body-2 text-medium-emphasis">No categories available.</div>
 
     <template v-else>
       <!-- VISIBILITY TAB -->
       <v-window v-model="activeTab">
         <v-window-item value="visibility">
           <p class="text-body-2 text-medium-emphasis mb-2">
-            Choose which categories and aspects are <strong>shown</strong> in the project summary.
-            Unchecked items will be hidden from the overview.
+            Choose which categories and aspects are <strong>shown</strong> in the project summary. Unchecked items will
+            be hidden from the overview.
           </p>
-            <div class="cs-bulk-actions mb-2">
+          <div class="cs-bulk-actions mb-2">
             <v-tooltip text="Check all" location="top">
               <template #activator="{ props: tp }">
-              <v-btn v-bind="tp" icon="mdi-check-all" size="x-small" variant="plain" @click="checkAllVis(true)" />
+                <v-btn v-bind="tp" icon="mdi-check-all" size="x-small" variant="plain" @click="checkAllVis(true)" />
               </template>
             </v-tooltip>
             <v-tooltip text="Uncheck all" location="top">
               <template #activator="{ props: tp }">
-              <v-btn v-bind="tp" icon="mdi-close-box-multiple-outline" size="x-small" variant="plain" @click="checkAllVis(false)" class="ml-1" />
+                <v-btn
+                  v-bind="tp"
+                  icon="mdi-close-box-multiple-outline"
+                  size="x-small"
+                  variant="plain"
+                  class="ml-1"
+                  @click="checkAllVis(false)"
+                />
               </template>
             </v-tooltip>
-            </div>
+          </div>
           <v-list density="compact" class="cs-list pa-0">
             <template v-for="cat in categories" :key="cat.id">
               <v-list-item class="cs-category-row" @click="toggleExpand('vis', cat.id)">
@@ -79,8 +84,8 @@
         <!-- DEVIATION TAB -->
         <v-window-item value="deviation">
           <p class="text-body-2 text-medium-emphasis mb-2">
-            Choose which categories and aspects must <strong>not</strong> deviate across questionnaires.
-            Checked items will be highlighted in the project summary when answers differ.
+            Choose which categories and aspects must <strong>not</strong> deviate across questionnaires. Checked items
+            will be highlighted in the project summary when answers differ.
           </p>
           <div class="cs-bulk-actions mb-2">
             <v-tooltip text="Check all" location="top">
@@ -90,7 +95,14 @@
             </v-tooltip>
             <v-tooltip text="Uncheck all" location="top">
               <template #activator="{ props: tp }">
-                <v-btn v-bind="tp" icon="mdi-close-box-multiple-outline" size="x-small" variant="tonal" @click="checkAllDev(false)" class="ml-1" />
+                <v-btn
+                  v-bind="tp"
+                  icon="mdi-close-box-multiple-outline"
+                  size="x-small"
+                  variant="tonal"
+                  class="ml-1"
+                  @click="checkAllDev(false)"
+                />
               </template>
             </v-tooltip>
           </div>
@@ -187,9 +199,7 @@ export default {
     }
 
     function sortedEntries(cat) {
-      return [...(cat.entries || [])].sort((a, b) =>
-        (a.aspect || a.id || '').localeCompare(b.aspect || b.id || '')
-      )
+      return [...(cat.entries || [])].sort((a, b) => (a.aspect || a.id || '').localeCompare(b.aspect || b.id || ''))
     }
 
     // ── VISIBILITY (default: true = visible) ──────────────────────────────────
@@ -216,7 +226,9 @@ export default {
     function toggleVisCategory(cat, value) {
       const next = { ...props.visibilitySettings }
       next[cat.id] = value
-      ;(cat.entries || []).forEach((e) => { delete next[e.id] })
+      ;(cat.entries || []).forEach((e) => {
+        delete next[e.id]
+      })
       emit('update:visibilitySettings', next)
     }
 
@@ -255,7 +267,9 @@ export default {
     function toggleDevCategory(cat, value) {
       const next = { ...props.modelValue }
       next[cat.id] = value
-      ;(cat.entries || []).forEach((e) => { delete next[e.id] })
+      ;(cat.entries || []).forEach((e) => {
+        delete next[e.id]
+      })
       emit('update:modelValue', next)
     }
 
@@ -276,7 +290,9 @@ export default {
       const next = {}
       props.categories.forEach((cat) => {
         next[cat.id] = value
-        ;(cat.entries || []).forEach((e) => { next[e.id] = value })
+        ;(cat.entries || []).forEach((e) => {
+          next[e.id] = value
+        })
       })
       emit('update:visibilitySettings', next)
     }
@@ -285,7 +301,9 @@ export default {
       const next = {}
       props.categories.forEach((cat) => {
         next[cat.id] = value
-        ;(cat.entries || []).forEach((e) => { next[e.id] = value })
+        ;(cat.entries || []).forEach((e) => {
+          next[e.id] = value
+        })
       })
       emit('update:modelValue', next)
     }

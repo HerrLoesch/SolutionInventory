@@ -12,7 +12,7 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
-async function flush (wrapper) {
+async function flush(wrapper) {
   await wrapper.vm.$nextTick()
 }
 
@@ -27,7 +27,12 @@ describe('tree structure', () => {
     expect(wrapper.vm.treeItems).toHaveLength(1)
     expect(wrapper.vm.treeItems[0]).toMatchObject({ id: projectId, title: 'Alpha', type: 'project' })
     expect(wrapper.vm.treeItems[0].children).toHaveLength(1)
-    expect(wrapper.vm.treeItems[0].children[0]).toMatchObject({ id: qId, title: 'Q1', type: 'questionnaire', projectId })
+    expect(wrapper.vm.treeItems[0].children[0]).toMatchObject({
+      id: qId,
+      title: 'Q1',
+      type: 'questionnaire',
+      projectId
+    })
   })
 
   it('lists unassigned questionnaires separately from project trees', async () => {

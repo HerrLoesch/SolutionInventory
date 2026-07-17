@@ -2,21 +2,25 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useWorkspaceStore } from '../../src/stores/workspaceStore'
 
-function seedProjectWithQuestionnaire (store, { entryId = 'arch-hlp', category = 'Architecture' } = {}) {
+function seedProjectWithQuestionnaire(store, { entryId = 'arch-hlp', category = 'Architecture' } = {}) {
   const projectId = store.addProject('Project A')
-  const questionnaireId = store.addQuestionnaire('Q1', [
-    {
-      id: 'cat-1',
-      title: category,
-      entries: [
-        {
-          id: entryId,
-          aspect: 'Aspect',
-          answers: [{ technology: 'Vue', status: 'Adopt', comments: 'great', answerType: 'Tool' }]
-        }
-      ]
-    }
-  ], projectId)
+  const questionnaireId = store.addQuestionnaire(
+    'Q1',
+    [
+      {
+        id: 'cat-1',
+        title: category,
+        entries: [
+          {
+            id: entryId,
+            aspect: 'Aspect',
+            answers: [{ technology: 'Vue', status: 'Adopt', comments: 'great', answerType: 'Tool' }]
+          }
+        ]
+      }
+    ],
+    projectId
+  )
   return { projectId, questionnaireId }
 }
 
@@ -61,6 +65,67 @@ describe('workspace/project/questionnaire CRUD', () => {
     expect(project.questionnaireIds).toContain(questionnaireId)
     expect(store.activeQuestionnaireId).toBe(questionnaireId)
     expect(store.openQuestionnaireIds).toContain(questionnaireId)
+  })
+
+  it('addQuestionnaire without explicit categories instantiates the project default catalog', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('P')
+    // No categories passed (null, like the "+ New Questionnaire" UI flow) —
+    // must fall back to instantiating a catalog rather than crashing.
+    const questionnaireId = store.addQuestionnaire('From catalog', null, projectId)
+    const questionnaire = store.getQuestionnaireById(questionnaireId)
+
+    expect(questionnaire.catalogId).toBeTruthy()
+    expect(questionnaire.catalogVersion).toBeTruthy()
+    expect(questionnaire.categories.length).toBeGreaterThan(0)
+
+    const nonMetaCategory = questionnaire.categories.find((c) => !c.isMetadata)
+    expect(nonMetaCategory.entries[0].applicability).toBe('applicable')
+    expect(nonMetaCategory.entries[0].answers).toEqual([{ technology: '', status: '', comments: '' }])
+  })
+
+  it('addQuestionnaire prefers the project defaultCatalogId when a matching catalog exists in the library', () => {
+    const store = useWorkspaceStore()
+    // Seed a workspace the normal way so workspace.catalogs is populated.
+    store.loadFromData({
+      version: 2,
+      workspace: {
+        id: 'ws1',
+        projects: [],
+        questionnaires: [],
+        catalogs: [
+          {
+            id: 'catalog-standard',
+            name: 'Standard',
+            version: 1,
+            schemaVersion: 1,
+            categories: [{ id: 'meta', title: 'Metadata', isMetadata: true }]
+          },
+          {
+            id: 'catalog-custom',
+            name: 'Custom',
+            version: 1,
+            schemaVersion: 1,
+            categories: [
+              { id: 'meta', title: 'Metadata', isMetadata: true },
+              { id: 'custom-cat', title: 'Custom Category', entries: [{ id: 'custom-entry', aspect: 'Custom Aspect' }] }
+            ]
+          }
+        ]
+      },
+      openQuestionnaireIds: [],
+      activeQuestionnaireId: '',
+      openProjectSummaryIds: [],
+      activeWorkspaceTabId: ''
+    })
+    const projectId = store.addProject('P')
+    store.workspace.projects.find((p) => p.id === projectId).defaultCatalogId = 'catalog-custom'
+
+    const questionnaireId = store.addQuestionnaire('From custom catalog', null, projectId)
+    const questionnaire = store.getQuestionnaireById(questionnaireId)
+
+    expect(questionnaire.catalogId).toBe('catalog-custom')
+    expect(questionnaire.categories.some((c) => c.id === 'custom-cat')).toBe(true)
   })
 
   it('deleteQuestionnaire removes it from all projects and closes its tab', () => {
@@ -297,7 +362,9 @@ describe('legacy radar migration (via loadFromData)', () => {
       name: 'Legacy',
       questionnaireIds: [],
       radarRefs: [{ entryId: 'e1', option: 'Vue' }],
-      radarOverrides: [{ entryId: 'e1', option: 'vue', status: 'Trial', shortComment: 'sc', comment: 'desc', link: 'https://x' }]
+      radarOverrides: [
+        { entryId: 'e1', option: 'vue', status: 'Trial', shortComment: 'sc', comment: 'desc', link: 'https://x' }
+      ]
     }
     const ok = store.loadFromData({
       version: 1,
@@ -311,15 +378,17 @@ describe('legacy radar migration (via loadFromData)', () => {
     const migrated = store.workspace.projects.find((p) => p.id === 'project-legacy')
     expect(migrated.radarRefs).toBeUndefined()
     expect(migrated.radarOverrides).toBeUndefined()
-    expect(migrated.radar).toEqual([{
-      entryId: 'e1',
-      option: 'Vue',
-      category: '',
-      status: 'Trial',
-      shortComment: 'sc',
-      description: 'desc',
-      link: 'https://x'
-    }])
+    expect(migrated.radar).toEqual([
+      {
+        entryId: 'e1',
+        option: 'Vue',
+        category: '',
+        status: 'Trial',
+        shortComment: 'sc',
+        description: 'desc',
+        link: 'https://x'
+      }
+    ])
   })
 
   it('importProject migrates legacy radar data supplied at import time', () => {
@@ -329,20 +398,27 @@ describe('legacy radar migration (via loadFromData)', () => {
       radarOverrides: [{ entryId: 'e1', option: 'react', status: 'Hold' }]
     })
     const project = store.workspace.projects.find((p) => p.name === 'Imported')
-    expect(project.radar).toEqual([{
-      entryId: 'e1',
-      option: 'React',
-      category: '',
-      status: 'Hold',
-      shortComment: '',
-      description: '',
-      link: ''
-    }])
+    expect(project.radar).toEqual([
+      {
+        entryId: 'e1',
+        option: 'React',
+        category: '',
+        status: 'Hold',
+        shortComment: '',
+        description: '',
+        link: ''
+      }
+    ])
   })
 
   it('leaves an already-migrated radar array untouched', () => {
     const store = useWorkspaceStore()
-    const project = { id: 'p1', name: 'P', questionnaireIds: [], radar: [{ entryId: 'e1', option: 'Vue', status: 'Adopt' }] }
+    const project = {
+      id: 'p1',
+      name: 'P',
+      questionnaireIds: [],
+      radar: [{ entryId: 'e1', option: 'Vue', status: 'Adopt' }]
+    }
     store.loadFromData({
       version: 1,
       workspace: { id: 'ws1', projects: [project], questionnaires: [] },
@@ -359,9 +435,17 @@ describe('legacy radar migration (via loadFromData)', () => {
 describe('answers / applicability', () => {
   it('addAnswer appends a blank answer to an applicable entry', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }]
+        }
+      ],
+      store.addProject('P')
+    )
     store.addAnswer('e1')
     const entry = store.activeCategories[0].entries[0]
     expect(entry.answers).toHaveLength(2)
@@ -369,9 +453,24 @@ describe('answers / applicability', () => {
 
   it('addAnswer is a no-op when the entry is not applicable', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', applicability: 'not applicable', answers: [{ technology: 'not applicable', status: '', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [
+            {
+              id: 'e1',
+              aspect: 'A',
+              applicability: 'not applicable',
+              answers: [{ technology: 'not applicable', status: '', comments: '' }]
+            }
+          ]
+        }
+      ],
+      store.addProject('P')
+    )
     store.addAnswer('e1')
     const entry = store.activeCategories[0].entries[0]
     expect(entry.answers).toHaveLength(1)
@@ -379,18 +478,34 @@ describe('answers / applicability', () => {
 
   it('deleteAnswer refuses to remove the last remaining answer', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }]
+        }
+      ],
+      store.addProject('P')
+    )
     store.deleteAnswer('e1', 0)
     expect(store.activeCategories[0].entries[0].answers).toHaveLength(1)
   })
 
   it('setApplicability("unknown") collapses answers to a single sentinel answer', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: 'X', status: 'Adopt', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: 'X', status: 'Adopt', comments: '' }] }]
+        }
+      ],
+      store.addProject('P')
+    )
     const entry = store.activeCategories[0].entries[0]
     store.setApplicability(entry, 'unknown')
     expect(entry.applicability).toBe('unknown')
@@ -406,9 +521,17 @@ describe('answers / applicability', () => {
   // fixing the underlying string mismatch is a product decision, not this test's job.
   it('setApplicability("not applicable") currently leaves existing free-form answers untouched (see comment above)', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: 'X', status: 'Adopt', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: 'X', status: 'Adopt', comments: '' }] }]
+        }
+      ],
+      store.addProject('P')
+    )
     const entry = store.activeCategories[0].entries[0]
     store.setApplicability(entry, 'not applicable')
     expect(entry.applicability).toBe('not applicable')
@@ -417,9 +540,17 @@ describe('answers / applicability', () => {
 
   it('setApplicability back to "applicable" restores a blank answer when none remain', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: 'X', status: 'Adopt', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: 'X', status: 'Adopt', comments: '' }] }]
+        }
+      ],
+      store.addProject('P')
+    )
     const entry = store.activeCategories[0].entries[0]
     store.setApplicability(entry, 'unknown')
     store.setApplicability(entry, 'applicable')
@@ -428,9 +559,17 @@ describe('answers / applicability', () => {
 
   it('setApplicability falls back to "applicable" for unrecognised values', () => {
     const store = useWorkspaceStore()
-    store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }] }
-    ], store.addProject('P'))
+    store.addQuestionnaire(
+      'Q',
+      [
+        {
+          id: 'cat',
+          title: 'Cat',
+          entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }]
+        }
+      ],
+      store.addProject('P')
+    )
     const entry = store.activeCategories[0].entries[0]
     store.setApplicability(entry, 'bogus-value')
     expect(entry.applicability).toBe('applicable')
@@ -441,9 +580,11 @@ describe('normalizeCategories (via addQuestionnaire)', () => {
   it('defaults missing applicability to "applicable" and seeds a blank answer', () => {
     const store = useWorkspaceStore()
     const projectId = store.addProject('P')
-    const qId = store.addQuestionnaire('Q', [
-      { id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A' }] }
-    ], projectId)
+    const qId = store.addQuestionnaire(
+      'Q',
+      [{ id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A' }] }],
+      projectId
+    )
     const q = store.getQuestionnaireById(qId)
     expect(q.categories[0].entries[0].applicability).toBe('applicable')
     expect(q.categories[0].entries[0].answers).toEqual([{ technology: '', status: '', comments: '' }])
@@ -451,7 +592,13 @@ describe('normalizeCategories (via addQuestionnaire)', () => {
 
   it('deep-clones input categories so mutating the questionnaire cannot affect caller data', () => {
     const store = useWorkspaceStore()
-    const source = [{ id: 'cat', title: 'Cat', entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }] }]
+    const source = [
+      {
+        id: 'cat',
+        title: 'Cat',
+        entries: [{ id: 'e1', aspect: 'A', answers: [{ technology: '', status: '', comments: '' }] }]
+      }
+    ]
     const qId = store.addQuestionnaire('Q', source, store.addProject('P'))
     store.getQuestionnaireById(qId).categories[0].title = 'Changed'
     expect(source[0].title).toBe('Cat')
@@ -461,9 +608,7 @@ describe('normalizeCategories (via addQuestionnaire)', () => {
 describe('getExampleItems', () => {
   it('normalizes array-of-object examples and appends tools to the description', () => {
     const store = useWorkspaceStore()
-    const items = store.getExampleItems([
-      { label: 'Layered', description: 'Some desc.', tools: ['A', 'B'] }
-    ])
+    const items = store.getExampleItems([{ label: 'Layered', description: 'Some desc.', tools: ['A', 'B'] }])
     expect(items).toEqual([{ label: 'Layered', description: 'Some desc (A, B).' }])
   })
 
@@ -501,7 +646,9 @@ describe('renderTextWithLinks', () => {
   it('auto-links bare URLs', () => {
     const store = useWorkspaceStore()
     const html = store.renderTextWithLinks('Visit https://example.com now')
-    expect(html).toBe('Visit <a href="https://example.com" target="_blank" rel="noopener noreferrer">https://example.com</a> now')
+    expect(html).toBe(
+      'Visit <a href="https://example.com" target="_blank" rel="noopener noreferrer">https://example.com</a> now'
+    )
   })
 
   it('returns an empty string for falsy input', () => {

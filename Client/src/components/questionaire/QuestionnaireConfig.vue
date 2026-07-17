@@ -31,35 +31,20 @@
         <v-card v-if="selectedCategory">
           <v-card-title class="d-flex justify-space-between align-center">
             <h3>Edit Category: {{ selectedCategory.title }}</h3>
-            <v-btn
-              icon
-              size="small"
-              color="error"
-              variant="text"
-              @click="deleteCategory(selectedCategoryIndex)"
-            >
+            <v-btn icon size="small" color="error" variant="text" @click="deleteCategory(selectedCategoryIndex)">
               <v-icon>mdi-delete</v-icon>
             </v-btn>
           </v-card-title>
           <v-card-text>
             <!-- Category Basics -->
             <v-text-field
-              label="Title"
               v-model="selectedCategory.title"
+              label="Title"
+              class="mb-3"
               @update:model-value="updateCategoryId"
-              class="mb-3"
             />
-            <v-textarea
-              label="Description"
-              v-model="selectedCategory.desc"
-              rows="2"
-              class="mb-3"
-            />
-            <v-checkbox
-              label="Is Metadata Category"
-              v-model="selectedCategory.isMetadata"
-              class="mb-3"
-            />
+            <v-textarea v-model="selectedCategory.desc" label="Description" rows="2" class="mb-3" />
+            <v-checkbox v-model="selectedCategory.isMetadata" label="Is Metadata Category" class="mb-3" />
 
             <v-divider class="my-4" />
 
@@ -67,30 +52,26 @@
             <div v-if="!selectedCategory.isMetadata">
               <div class="d-flex justify-space-between align-center mb-3">
                 <h4>Entries (Aspects)</h4>
-                <v-btn color="secondary" size="small" @click="addEntry">
-                  <v-icon>mdi-plus</v-icon> Add Entry
-                </v-btn>
+                <v-btn color="secondary" size="small" @click="addEntry"> <v-icon>mdi-plus</v-icon> Add Entry </v-btn>
               </div>
 
-              <div v-for="(entry, entryIdx) in selectedCategory.entries" :key="entryIdx" class="mb-4 pa-3 border rounded">
+              <div
+                v-for="(entry, entryIdx) in selectedCategory.entries"
+                :key="entryIdx"
+                class="mb-4 pa-3 border rounded"
+              >
                 <div class="d-flex justify-space-between align-center mb-2">
                   <strong>Entry {{ entryIdx + 1 }}</strong>
-                  <v-btn
-                    icon
-                    size="x-small"
-                    color="error"
-                    variant="text"
-                    @click="deleteEntry(entryIdx)"
-                  >
+                  <v-btn icon size="x-small" color="error" variant="text" @click="deleteEntry(entryIdx)">
                     <v-icon>mdi-delete</v-icon>
                   </v-btn>
                 </div>
                 <v-text-field
-                  label="Aspect"
                   v-model="entry.aspect"
-                  @update:model-value="updateEntryId(entryIdx)"
+                  label="Aspect"
                   density="compact"
                   class="mb-2"
+                  @update:model-value="updateEntryId(entryIdx)"
                 />
 
                 <div class="d-flex justify-space-between align-center mb-2">
@@ -102,21 +83,9 @@
                 </div>
 
                 <div v-if="entry.examples && entry.examples.length" class="example-list">
-                  <div
-                    v-for="(example, exampleIdx) in entry.examples"
-                    :key="exampleIdx"
-                    class="example-row"
-                  >
-                    <v-text-field
-                      label="Label"
-                      v-model="example.label"
-                      density="compact"
-                    />
-                    <v-text-field
-                      label="Description"
-                      v-model="example.description"
-                      density="compact"
-                    />
+                  <div v-for="(example, exampleIdx) in entry.examples" :key="exampleIdx" class="example-row">
+                    <v-text-field v-model="example.label" label="Label" density="compact" />
+                    <v-text-field v-model="example.description" label="Description" density="compact" />
                     <v-btn
                       icon
                       size="x-small"
@@ -134,7 +103,11 @@
                 </v-alert>
               </div>
 
-              <v-alert v-if="!selectedCategory.entries || selectedCategory.entries.length === 0" type="info" density="compact">
+              <v-alert
+                v-if="!selectedCategory.entries || selectedCategory.entries.length === 0"
+                type="info"
+                density="compact"
+              >
                 No entries yet. Click "Add Entry" to create one.
               </v-alert>
             </div>
@@ -142,8 +115,8 @@
             <!-- Metadata Fields Info -->
             <div v-else>
               <v-alert type="info" density="compact">
-                This is a metadata category. Metadata fields are: productName, company, department, contactPerson, description,
-                executionType, architecturalRole, targetAudience
+                This is a metadata category. Metadata fields are: productName, company, department, contactPerson,
+                description, executionType, architecturalRole, targetAudience
               </v-alert>
             </div>
           </v-card-text>
@@ -158,18 +131,10 @@
 
         <!-- Action Buttons -->
         <div class="mt-4 d-flex gap-2">
-          <v-btn color="success" @click="saveChanges">
-            <v-icon>mdi-content-save</v-icon> Save Changes
-          </v-btn>
-          <v-btn color="warning" @click="resetChanges">
-            <v-icon>mdi-refresh</v-icon> Reset
-          </v-btn>
-          <v-btn color="info" @click="showJsonDialog = true">
-            <v-icon>mdi-code-json</v-icon> View JSON
-          </v-btn>
-          <v-btn color="info" @click="exportStructure">
-            <v-icon>mdi-download</v-icon> Export Structure
-          </v-btn>
+          <v-btn color="success" @click="saveChanges"> <v-icon>mdi-content-save</v-icon> Save Changes </v-btn>
+          <v-btn color="warning" @click="resetChanges"> <v-icon>mdi-refresh</v-icon> Reset </v-btn>
+          <v-btn color="info" @click="showJsonDialog = true"> <v-icon>mdi-code-json</v-icon> View JSON </v-btn>
+          <v-btn color="info" @click="exportStructure"> <v-icon>mdi-download</v-icon> Export Structure </v-btn>
         </div>
       </v-col>
     </v-row>
@@ -181,8 +146,8 @@
           <span class="text-h6">JSON Structure</span>
         </v-card-title>
         <v-card-text>
-          <v-sheet class="pa-3" color="grey-lighten-4" style="max-height: 70vh; overflow-y: auto;">
-            <pre style="font-size: 11px; line-height: 1.4;">{{ jsonPreview }}</pre>
+          <v-sheet class="pa-3" color="grey-lighten-4" style="max-height: 70vh; overflow-y: auto">
+            <pre style="font-size: 11px; line-height: 1.4">{{ jsonPreview }}</pre>
           </v-sheet>
         </v-card-text>
         <v-card-actions class="gap-3">
@@ -212,11 +177,15 @@ export default {
     const showJsonDialog = ref(false)
 
     // Watch for external changes
-    watch(() => props.categories, (newCategories) => {
-      if (JSON.stringify(newCategories) !== JSON.stringify(localCategories.value)) {
-        localCategories.value = JSON.parse(JSON.stringify(newCategories))
-      }
-    }, { deep: true })
+    watch(
+      () => props.categories,
+      (newCategories) => {
+        if (JSON.stringify(newCategories) !== JSON.stringify(localCategories.value)) {
+          localCategories.value = JSON.parse(JSON.stringify(newCategories))
+        }
+      },
+      { deep: true }
+    )
 
     const selectedCategory = computed(() => {
       if (selectedCategoryIndex.value < localCategories.value.length) {
@@ -285,9 +254,7 @@ export default {
           aspect: aspect,
           examples: [],
           applicability: 'applicable',
-          answers: [
-            { technology: '', status: '', comments: '' }
-          ]
+          answers: [{ technology: '', status: '', comments: '' }]
         })
       }
     }
@@ -403,7 +370,7 @@ export default {
 
 <style scoped>
 .border {
-  border: 2px solid #90A4AE;
+  border: 2px solid #90a4ae;
 }
 
 .rounded {

@@ -1,7 +1,6 @@
 <template>
   <div class="workspace">
-    <div v-if="workspaceTabs.length" class="workspace-actions">
-    </div>
+    <div v-if="workspaceTabs.length" class="workspace-actions"></div>
 
     <v-tabs v-if="workspaceTabs.length" v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
       <v-tab
@@ -14,13 +13,7 @@
         <v-icon v-if="tab.type === 'project-summary'" size="16" class="mr-2">mdi-folder</v-icon>
         <v-icon v-else size="16" class="mr-2">mdi-file-document-outline</v-icon>
         <span class="tab-title">{{ tab.label }}</span>
-        <v-btn
-          icon
-          size="x-small"
-          variant="text"
-          class="tab-close"
-          @click.stop="closeTab(tab.id)"
-        >
+        <v-btn icon size="x-small" variant="text" class="tab-close" @click.stop="closeTab(tab.id)">
           <v-icon size="14">mdi-close</v-icon>
         </v-btn>
       </v-tab>
@@ -31,15 +24,8 @@
     </div>
 
     <v-window v-else v-model="activeTab">
-      <v-window-item
-        v-for="tab in workspaceTabs"
-        :key="tab.id"
-        :value="tab.id"
-      >
-        <ProjectSummary
-          v-if="tab.type === 'project-summary'"
-          :project-id="tab.projectId"
-        />
+      <v-window-item v-for="tab in workspaceTabs" :key="tab.id" :value="tab.id">
+        <ProjectSummary v-if="tab.type === 'project-summary'" :project-id="tab.projectId" />
         <Questionnaire
           v-else
           :categories="tab.categories"
@@ -56,10 +42,7 @@
         <v-card-title>Configuration</v-card-title>
         <v-divider />
         <v-card-text>
-          <QuestionnaireConfig
-            :categories="activeCategories"
-            @update-categories="updateCategories"
-          />
+          <QuestionnaireConfig :categories="activeCategories" @update-categories="updateCategories" />
         </v-card-text>
         <v-divider />
         <v-card-actions class="gap-3">
@@ -102,11 +85,9 @@ export default {
       { immediate: true, deep: true }
     )
 
-
     function updateQuestionnaire(questionnaireId, newCategories) {
       store.updateQuestionnaireCategories(questionnaireId, newCategories)
     }
-
 
     function closeTab(tabId) {
       store.closeWorkspaceTab(tabId)
@@ -148,14 +129,14 @@ export default {
 }
 
 .workspace-tabs {
-  border-bottom: 1px solid #ECEFF1;
+  border-bottom: 1px solid #eceff1;
   margin-bottom: 16px;
 }
 
 .workspace-empty {
   padding: 32px 12px;
   text-align: center;
-  color: #607D8B;
+  color: #607d8b;
   font-size: 14px;
 }
 

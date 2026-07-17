@@ -15,6 +15,7 @@ import { useWorkspaceStore } from '../../src/stores/workspaceStore'
 import v1WorkspaceFull from '../data/storage/v1-workspace-full.json'
 import v1WorkspaceLegacyRadar from '../data/storage/v1-workspace-legacy-radar.json'
 import v1CategoriesOnly from '../data/storage/v1-categories-only.json'
+import pkg from '../../package.json'
 
 const STORAGE_KEY = 'solution-inventory-data'
 
@@ -44,7 +45,7 @@ describe('storage compatibility (Golden Master)', () => {
       expect(project.radar).toEqual(v1WorkspaceFull.workspace.projects[0].radar)
       expect(project.radarCategoryOrder).toEqual(['Architecture', 'Frontend'])
       expect(project.radarCategoryQuadrants).toEqual({ Architecture: 0, Frontend: 1 })
-      expect(project.radarQuadrantLabels).toEqual({ '0': 'Techniques', '1': 'Tools' })
+      expect(project.radarQuadrantLabels).toEqual({ 0: 'Techniques', 1: 'Tools' })
       expect(project.deviationSettings).toEqual({ enabled: true })
       expect(project.visibilitySettings).toEqual({ showHidden: false })
       expect(project.referenceQuestionnaireId).toBe('questionnaire-q1')
@@ -156,6 +157,73 @@ describe('storage compatibility (Golden Master)', () => {
     })
   })
 
+  describe('v1→v2 catalog migration (docs/spec-fragenkataloge.md §3.3.2)', () => {
+    it('loading a v1 payload adds the standard catalog and stamps defaultCatalogId on projects, without touching existing data', () => {
+      const store = useWorkspaceStore()
+      const ok = store.loadFromData(clone(v1WorkspaceFull))
+      expect(ok).toBe(true)
+
+      expect(store.workspace.catalogs).toHaveLength(1)
+      expect(store.workspace.catalogs[0].id).toBe('catalog-standard')
+
+      const project = store.workspace.projects.find((p) => p.id === 'project-p1')
+      expect(project.defaultCatalogId).toBe('catalog-standard')
+
+      // Existing questionnaires are left as pure legacy instances — no
+      // fabricated catalogId provenance for structure the app never
+      // actually validated against a catalog (spec §7 point 6).
+      const questionnaire = store.getQuestionnaireById('questionnaire-q1')
+      expect(questionnaire.catalogId).toBeUndefined()
+
+      // The questionnaire's own structure/answers are untouched by the migration.
+      const archCategory = questionnaire.categories.find((c) => c.id === 'architecture')
+      expect(archCategory.entries.find((e) => e.id === 'arch-hlp').answers[0].technology).toBe('Clean Arch')
+    })
+
+    it('is idempotent — loading the same v1 payload twice does not duplicate the standard catalog', () => {
+      const store = useWorkspaceStore()
+      store.loadFromData(clone(v1WorkspaceFull))
+      store.loadFromData(clone(v1WorkspaceFull))
+
+      expect(store.workspace.catalogs).toHaveLength(1)
+    })
+
+    it('the oldest categories-only format also ends up with a catalog library after migration', () => {
+      const store = useWorkspaceStore()
+      const ok = store.loadFromData(clone(v1CategoriesOnly))
+      expect(ok).toBe(true)
+      expect(store.workspace.catalogs).toHaveLength(1)
+      expect(store.workspace.catalogs[0].id).toBe('catalog-standard')
+    })
+
+    it('round-trips through persist() (now writing v2) and a fresh store reload without losing the catalog', async () => {
+      const store = useWorkspaceStore()
+      store.loadFromData(clone(v1WorkspaceFull))
+      await store.persist()
+
+      const persistedRaw = JSON.parse(localStorage.getItem(STORAGE_KEY))
+      expect(persistedRaw.version).toBe(2)
+      // Records which app release wrote this file (see docs/spec-fragenkataloge.md §3.3.3).
+      expect(persistedRaw.appVersion).toBe(pkg.version)
+
+      setActivePinia(createPinia())
+      const restored = useWorkspaceStore()
+      await restored.initFromStorage()
+
+      expect(restored.workspace.catalogs).toHaveLength(1)
+      expect(restored.workspace.projects.find((p) => p.id === 'project-p1').defaultCatalogId).toBe('catalog-standard')
+    })
+
+    it('a file written before appVersion tracking existed (no appVersion field) still loads fine', () => {
+      // v1WorkspaceFull predates this field entirely — confirms its absence
+      // is tolerated, not treated as corrupt/unsupported data.
+      expect(v1WorkspaceFull.appVersion).toBeUndefined()
+      const store = useWorkspaceStore()
+      const ok = store.loadFromData(clone(v1WorkspaceFull))
+      expect(ok).toBe(true)
+    })
+  })
+
   describe('B1 fix — unreadable/unrecognized workspace data is preserved, not silently discarded (docs/refactoring.md §2.0)', () => {
     it('web: a payload with an unrecognized version sets workspaceLoadError instead of seeding', async () => {
       const payloadWithNewerVersion = { ...clone(v1WorkspaceFull), version: 999 }
@@ -164,9 +232,7 @@ describe('storage compatibility (Golden Master)', () => {
       const store = useWorkspaceStore()
       await store.initFromStorage()
 
-      expect(store.workspaceLoadError).toEqual(
-        expect.objectContaining({ reason: 'unsupported-version' })
-      )
+      expect(store.workspaceLoadError).toEqual(expect.objectContaining({ reason: 'unsupported-version' }))
       // The in-memory workspace stays at its untouched initial state — no seed,
       // no partial data — until the user explicitly opts in to start fresh.
       expect(store.workspace.projects).toHaveLength(0)
@@ -256,9 +322,7 @@ describe('storage compatibility (Golden Master)', () => {
       const store = useWorkspaceStore()
       await store.initFromStorage()
 
-      expect(store.workspaceLoadError).toEqual(
-        expect.objectContaining({ reason: 'unsupported-version' })
-      )
+      expect(store.workspaceLoadError).toEqual(expect.objectContaining({ reason: 'unsupported-version' }))
       expect(store.workspace.projects).toHaveLength(0)
     })
   })

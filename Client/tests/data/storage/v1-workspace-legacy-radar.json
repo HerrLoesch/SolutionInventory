@@ -8,9 +8,7 @@
         "id": "project-legacy1",
         "name": "Legacy Project",
         "questionnaireIds": ["questionnaire-legacy1"],
-        "radarRefs": [
-          { "entryId": "arch-hlp", "option": "Layered" }
-        ],
+        "radarRefs": [{ "entryId": "arch-hlp", "option": "Layered" }],
         "radarOverrides": [
           {
             "entryId": "arch-hlp",
@@ -36,9 +34,7 @@
               {
                 "id": "arch-hlp",
                 "aspect": "High-Level Pattern",
-                "answers": [
-                  { "technology": "Layered", "status": "Trial", "comments": "note" }
-                ],
+                "answers": [{ "technology": "Layered", "status": "Trial", "comments": "note" }],
                 "applicability": "applicable"
               }
             ]

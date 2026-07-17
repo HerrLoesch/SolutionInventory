@@ -23,9 +23,7 @@
         {
           "id": "arch-hlp",
           "aspect": "High-Level Pattern",
-          "answers": [
-            { "technology": "Monolith", "status": "Adopt", "comments": "initial assessment" }
-          ],
+          "answers": [{ "technology": "Monolith", "status": "Adopt", "comments": "initial assessment" }],
           "applicability": "applicable"
         }
       ]

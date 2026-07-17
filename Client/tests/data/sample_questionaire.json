@@ -129,20 +129,12 @@
             {
               "label": "HTTP / RESTful",
               "description": "Web-based synchronous request-response protocols.",
-              "tools": [
-                "REST APIs",
-                "OpenAPI"
-              ]
+              "tools": ["REST APIs", "OpenAPI"]
             },
             {
               "label": "GraphQL",
               "description": "Query language for APIs with strongly-typed schema.",
-              "tools": [
-                "Apollo",
-                "Relay",
-                "Strawberry Shake",
-                "Hot Chocolate"
-              ]
+              "tools": ["Apollo", "Relay", "Strawberry Shake", "Hot Chocolate"]
             },
             {
               "label": "gRPC",
@@ -152,11 +144,7 @@
             {
               "label": "WebSocket / Real-time",
               "description": "Persistent bidirectional communication channels.",
-              "tools": [
-                "SignalR",
-                "Socket.IO",
-                "WebSocket API"
-              ]
+              "tools": ["SignalR", "Socket.IO", "WebSocket API"]
             },
             {
               "label": "AMQP / MQTT",
@@ -166,11 +154,7 @@
             {
               "label": "COM / DCOM",
               "description": "Component Object Model for inter-process communication and distributed object invocation.",
-              "tools": [
-                "Windows COM",
-                "DCOM",
-                "COM+"
-              ]
+              "tools": ["Windows COM", "DCOM", "COM+"]
             }
           ],
           "description": "Defines the primary protocols utilized for data exchange across system boundaries and client-server interactions.",
@@ -242,10 +226,7 @@
           "id": "arch-data-pattern",
           "aspect": "Data Architecture Patterns",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Domain Service / Microservice"
-            ]
+            "architecturalRole": ["Standalone System", "Domain Service / Microservice"]
           },
           "examples": [
             {
@@ -287,10 +268,7 @@
           "id": "arch-ownership",
           "aspect": "Data Ownership",
           "appliesTo": {
-            "architecturalRole": [
-              "Domain Service / Microservice",
-              "Integration Bridge / Middleware"
-            ]
+            "architecturalRole": ["Domain Service / Microservice", "Integration Bridge / Middleware"]
           },
           "examples": [
             {
@@ -332,11 +310,7 @@
           "id": "arch-tenancy",
           "aspect": "Multi-Tenancy Model",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Domain Service / Microservice",
-              "AI / ML Inference Engine"
-            ]
+            "architecturalRole": ["Standalone System", "Domain Service / Microservice", "AI / ML Inference Engine"]
           },
           "examples": [
             {
@@ -481,11 +455,7 @@
           "id": "arch-off",
           "aspect": "Offline Capability",
           "appliesTo": {
-            "executionType": [
-              "Web Application",
-              "Desktop Application",
-              "Mobile Application"
-            ]
+            "executionType": ["Web Application", "Desktop Application", "Mobile Application"]
           },
           "examples": [
             {
@@ -527,10 +497,7 @@
           "id": "arch-decompose",
           "aspect": "Service Decomposition",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Integration Bridge / Middleware"
-            ]
+            "architecturalRole": ["Standalone System", "Integration Bridge / Middleware"]
           },
           "examples": [
             {
@@ -711,9 +678,7 @@
             {
               "label": "Progressive Rollout",
               "description": "Gradual exposure of new features to a subset of users.",
-              "tools": [
-                "Canary"
-              ]
+              "tools": ["Canary"]
             },
             {
               "label": "Build-Time Configuration",
@@ -921,11 +886,7 @@
       "title": "Frontend",
       "desc": "Client-side frameworks, UI libraries and patterns",
       "appliesTo": {
-        "executionType": [
-          "Web Application",
-          "Desktop Application",
-          "Mobile Application"
-        ]
+        "executionType": ["Web Application", "Desktop Application", "Mobile Application"]
       },
       "entries": [
         {
@@ -935,29 +896,17 @@
             {
               "label": "Windows",
               "description": "Requires a Microsoft Windows environment.",
-              "tools": [
-                "Windows 10",
-                "Windows 11"
-              ]
+              "tools": ["Windows 10", "Windows 11"]
             },
             {
               "label": "Linux",
               "description": "Requires a Linux distribution.",
-              "tools": [
-                "Ubuntu",
-                "Debian",
-                "Fedora",
-                "RHEL"
-              ]
+              "tools": ["Ubuntu", "Debian", "Fedora", "RHEL"]
             },
             {
               "label": "macOS / iOS / Android",
               "description": "Requires Apple or Google OS.",
-              "tools": [
-                "macOS 12+",
-                "iOS 15+",
-                "Android 11+"
-              ]
+              "tools": ["macOS 12+", "iOS 15+", "Android 11+"]
             }
           ],
           "description": "Defines the underlying operating systems required to execute the client application.",
@@ -986,32 +935,17 @@
             {
               "label": "Web SPA Framework",
               "description": "Browser-based Single Page Application.",
-              "tools": [
-                "Angular",
-                "React",
-                "Vue.js",
-                "Svelte",
-                "Solid.js"
-              ]
+              "tools": ["Angular", "React", "Vue.js", "Svelte", "Solid.js"]
             },
             {
               "label": "Native Desktop",
               "description": "Application compiled for specific desktop environments.",
-              "tools": [
-                "WPF",
-                "WinForms",
-                "Qt",
-                "JavaFX"
-              ]
+              "tools": ["WPF", "WinForms", "Qt", "JavaFX"]
             },
             {
               "label": "Hybrid Desktop",
               "description": "Web technologies wrapped in a native container.",
-              "tools": [
-                "Electron",
-                "Tauri",
-                "NW.js"
-              ]
+              "tools": ["Electron", "Tauri", "NW.js"]
             }
           ],
           "description": "Describes the fundamental UI architecture and the selected technology stack.",
@@ -1040,41 +974,22 @@
             {
               "label": "Global State Container",
               "description": "Centralized, predictable state management pattern.",
-              "tools": [
-                "Redux",
-                "Zustand",
-                "MobX",
-                "Pinia",
-                "Vuex",
-                "NgRx",
-                "Recoil",
-                "Jotai"
-              ]
+              "tools": ["Redux", "Zustand", "MobX", "Pinia", "Vuex", "NgRx", "Recoil", "Jotai"]
             },
             {
               "label": "Reactive Programming",
               "description": "Stream-based state management using observables.",
-              "tools": [
-                "RxJS",
-                "Bacon.js",
-                "xstream"
-              ]
+              "tools": ["RxJS", "Bacon.js", "xstream"]
             },
             {
               "label": "MVVM Data Binding",
               "description": "Model-View-ViewModel pattern separating UI from state logic.",
-              "tools": [
-                "Knockout.js",
-                "MVVM Light"
-              ]
+              "tools": ["Knockout.js", "MVVM Light"]
             },
             {
               "label": "Local Component State",
               "description": "State is managed exclusively within individual components.",
-              "tools": [
-                "React useState/useReducer",
-                "Vue Composition API"
-              ]
+              "tools": ["React useState/useReducer", "Vue Composition API"]
             }
           ],
           "description": "Captures the strategy for holding, updating, and sharing data across different views or components.",
@@ -1103,33 +1018,17 @@
             {
               "label": "Proprietary Suite",
               "description": "Licensed commercial UI component packages.",
-              "tools": [
-                "Telerik",
-                "DevExpress",
-                "Syncfusion",
-                "AG Grid",
-                "Kendo UI"
-              ]
+              "tools": ["Telerik", "DevExpress", "Syncfusion", "AG Grid", "Kendo UI"]
             },
             {
               "label": "Open-Source Design System",
               "description": "Publicly available component libraries.",
-              "tools": [
-                "Material UI",
-                "Ant Design",
-                "Chakra UI",
-                "Vuetify",
-                "PrimeVue",
-                "Bootstrap",
-                "Tailwind UI"
-              ]
+              "tools": ["Material UI", "Ant Design", "Chakra UI", "Vuetify", "PrimeVue", "Bootstrap", "Tailwind UI"]
             },
             {
               "label": "In-House Components",
               "description": "Custom-built UI elements maintained internally.",
-              "tools": [
-                "ZUi"
-              ]
+              "tools": ["ZUi"]
             }
           ],
           "description": "Identifies the origin of the core user interface elements.",
@@ -1158,36 +1057,22 @@
             {
               "label": "Web CSS (Plain / Scoped)",
               "description": "Stylesheets in CSS with optional component scoping (global + per-component).",
-              "tools": [
-                "CSS",
-                "PostCSS",
-                "scoped styles"
-              ]
+              "tools": ["CSS", "PostCSS", "scoped styles"]
             },
             {
               "label": "Web Preprocessor",
               "description": "Precompiled CSS with variables, mixins, and nesting.",
-              "tools": [
-                "Sass/SCSS",
-                "LESS",
-                "Stylus"
-              ]
+              "tools": ["Sass/SCSS", "LESS", "Stylus"]
             },
             {
               "label": "Utility-First",
               "description": "Composing UI using small atomic utility classes.",
-              "tools": [
-                "Tailwind CSS"
-              ]
+              "tools": ["Tailwind CSS"]
             },
             {
               "label": "Component Library Theming",
               "description": "Using a UI library theme system and tokens as the primary styling mechanism.",
-              "tools": [
-                "Vuetify themes",
-                "Material UI theming",
-                "Bootstrap"
-              ]
+              "tools": ["Vuetify themes", "Material UI theming", "Bootstrap"]
             },
             {
               "label": ".NET Desktop Styling",
@@ -1226,30 +1111,17 @@
             {
               "label": "Service Worker",
               "description": "Caching network requests for offline use.",
-              "tools": [
-                "Workbox",
-                "sw-precache",
-                "sw-toolbox"
-              ]
+              "tools": ["Workbox", "sw-precache", "sw-toolbox"]
             },
             {
               "label": "Local Database",
               "description": "Structured local data storage.",
-              "tools": [
-                "IndexedDB",
-                "Dexie.js",
-                "LocalForage",
-                "SQLite",
-                "PouchDB"
-              ]
+              "tools": ["IndexedDB", "Dexie.js", "LocalForage", "SQLite", "PouchDB"]
             },
             {
               "label": "In-Memory Only",
               "description": "Data is only cached during the active user session.",
-              "tools": [
-                "SessionStorage",
-                "in-memory objects"
-              ]
+              "tools": ["SessionStorage", "in-memory objects"]
             }
           ],
           "description": "Describes how data is cached locally on the client to reduce network requests and support offline modes.",
@@ -1270,19 +1142,12 @@
             {
               "label": "Global Error Boundary",
               "description": "Centralized UI component catching rendering errors.",
-              "tools": [
-                "React Error Boundaries",
-                "Vue errorHandler"
-              ]
+              "tools": ["React Error Boundaries", "Vue errorHandler"]
             },
             {
               "label": "HTTP Interceptors",
               "description": "Centralized catching of failed network requests.",
-              "tools": [
-                "Axios interceptors",
-                "Angular HttpInterceptor",
-                "fetch wrappers"
-              ]
+              "tools": ["Axios interceptors", "Angular HttpInterceptor", "fetch wrappers"]
             },
             {
               "label": "Silent Failure",
@@ -1309,20 +1174,12 @@
             {
               "label": "Browser Console",
               "description": "Standard console outputs intended for debugging only.",
-              "tools": [
-                "console.log",
-                "console.error"
-              ]
+              "tools": ["console.log", "console.error"]
             },
             {
               "label": "Custom Logger Abstraction",
               "description": "Wrapper preventing direct console calls and allowing log-level filtering.",
-              "tools": [
-                "loglevel",
-                "winston",
-                "pino",
-                "bunyan"
-              ]
+              "tools": ["loglevel", "winston", "pino", "bunyan"]
             }
           ],
           "description": "Captures how client-side events are recorded within the code (Note: Telemetry to external servers is in Ops).",
@@ -1351,27 +1208,17 @@
             {
               "label": "WCAG Compliance",
               "description": "Adherence to specific Web Content Accessibility Guidelines.",
-              "tools": [
-                "WCAG 2.1 Level AA/AAA"
-              ]
+              "tools": ["WCAG 2.1 Level AA/AAA"]
             },
             {
               "label": "Screenreader Support",
               "description": "Implementation of ARIA attributes for assistive technologies.",
-              "tools": [
-                "NVDA",
-                "JAWS",
-                "VoiceOver",
-                "TalkBack"
-              ]
+              "tools": ["NVDA", "JAWS", "VoiceOver", "TalkBack"]
             },
             {
               "label": "Keyboard Navigation",
               "description": "Ensuring all interactive elements are operable via keyboard.",
-              "tools": [
-                "tabindex",
-                "focus management"
-              ]
+              "tools": ["tabindex", "focus management"]
             }
           ],
           "description": "Captures the defined standard for making the application usable by people with disabilities.",
@@ -1400,22 +1247,12 @@
             {
               "label": "Runtime Translation Library",
               "description": "Dynamic loading of language files at runtime.",
-              "tools": [
-                "i18next",
-                "vue-i18n",
-                "react-intl",
-                "FormatJS",
-                "ngx-translate",
-                "Transloco"
-              ]
+              "tools": ["i18next", "vue-i18n", "react-intl", "FormatJS", "ngx-translate", "Transloco"]
             },
             {
               "label": "Build-Time Localization",
               "description": "Compiling separate application bundles for each supported language.",
-              "tools": [
-                "Angular i18n",
-                "Polyglot.js"
-              ]
+              "tools": ["Angular i18n", "Polyglot.js"]
             }
           ],
           "description": "Describes the architectural approach to supporting multiple languages and cultural formats in the UI.",
@@ -1444,23 +1281,12 @@
             {
               "label": "SaaS Analytics",
               "description": "Tracking user interaction via cloud tools.",
-              "tools": [
-                "Google Analytics",
-                "Pendo",
-                "Mixpanel",
-                "Amplitude",
-                "Heap",
-                "Hotjar"
-              ]
+              "tools": ["Google Analytics", "Pendo", "Mixpanel", "Amplitude", "Heap", "Hotjar"]
             },
             {
               "label": "Self-Hosted Tracking",
               "description": "Internal behavioral tracking.",
-              "tools": [
-                "Matomo",
-                "Plausible",
-                "Umami"
-              ]
+              "tools": ["Matomo", "Plausible", "Umami"]
             },
             {
               "label": "No Tracking",
@@ -1486,44 +1312,22 @@
             {
               "label": "Module Bundler",
               "description": "Packaging code and assets.",
-              "tools": [
-                "Webpack",
-                "Vite",
-                "Rollup",
-                "esbuild",
-                "Parcel",
-                "Turbopack"
-              ]
+              "tools": ["Webpack", "Vite", "Rollup", "esbuild", "Parcel", "Turbopack"]
             },
             {
               "label": "Module Federation",
               "description": "Runtime code sharing across separately built applications.",
-              "tools": [
-                "Webpack Module Federation",
-                "Vite Federation"
-              ]
+              "tools": ["Webpack Module Federation", "Vite Federation"]
             },
             {
               "label": "Monorepo Tooling",
               "description": "Managing multi-package repositories.",
-              "tools": [
-                "Nx",
-                "Turborepo",
-                "Lerna",
-                "Rush",
-                "pnpm workspaces"
-              ]
+              "tools": ["Nx", "Turborepo", "Lerna", "Rush", "pnpm workspaces"]
             },
             {
               "label": "Native Compiler",
               "description": "Compiling UI code to native executables.",
-              "tools": [
-                "Flutter",
-                "React Native",
-                ".NET MAUI",
-                "Electron",
-                "Tauri"
-              ]
+              "tools": ["Flutter", "React Native", ".NET MAUI", "Electron", "Tauri"]
             }
           ],
           "description": "Describes the toolchain used to compile, minify, and package the frontend assets for deployment.",
@@ -1552,22 +1356,12 @@
             {
               "label": "Linter",
               "description": "Static analysis for code patterns.",
-              "tools": [
-                "ESLint",
-                "TSLint",
-                "Stylelint",
-                "oxlint",
-                "Biome"
-              ]
+              "tools": ["ESLint", "TSLint", "Stylelint", "oxlint", "Biome"]
             },
             {
               "label": "Formatter",
               "description": "Opinionated code styling enforcement.",
-              "tools": [
-                "Prettier",
-                "dprint",
-                "Biome"
-              ]
+              "tools": ["Prettier", "dprint", "Biome"]
             }
           ],
           "description": "Captures the automated rules ensuring consistent styling and preventing common syntax errors in the UI codebase.",
@@ -1596,24 +1390,12 @@
             {
               "label": "DOM Testing Framework",
               "description": "Tools for testing UI component rendering.",
-              "tools": [
-                "Jest",
-                "Vitest",
-                "React Testing Library",
-                "Vue Test Utils",
-                "Jasmine",
-                "Mocha",
-                "Karma"
-              ]
+              "tools": ["Jest", "Vitest", "React Testing Library", "Vue Test Utils", "Jasmine", "Mocha", "Karma"]
             },
             {
               "label": "Headless Browser Tests",
               "description": "Executing tests in a browser environment without UI.",
-              "tools": [
-                "Puppeteer",
-                "Playwright",
-                "jsdom"
-              ]
+              "tools": ["Puppeteer", "Playwright", "jsdom"]
             }
           ],
           "description": "Defines the framework used to validate isolated frontend logic and component behavior.",
@@ -1641,22 +1423,12 @@
             {
               "label": "Lightweight Editor",
               "description": "Editors heavily extended via plugins.",
-              "tools": [
-                "VS Code",
-                "Sublime Text",
-                "Atom",
-                "Zed"
-              ]
+              "tools": ["VS Code", "Sublime Text", "Atom", "Zed"]
             },
             {
               "label": "Full IDE",
               "description": "Integrated development environments.",
-              "tools": [
-                "Visual Studio",
-                "WebStorm",
-                "IntelliJ IDEA",
-                "Rider"
-              ]
+              "tools": ["Visual Studio", "WebStorm", "IntelliJ IDEA", "Rider"]
             }
           ],
           "description": "Describes the expected and officially supported local tooling setup for frontend engineers.",
@@ -1698,36 +1470,17 @@
             {
               "label": ".NET Runtime",
               "description": "Execution environment for C#, F#, or VB.NET.",
-              "tools": [
-                ".NET",
-                ".NET Framework",
-                "ASP.NET Core",
-                "Mono"
-              ]
+              "tools": [".NET", ".NET Framework", "ASP.NET Core", "Mono"]
             },
             {
               "label": "Java Virtual Machine (JVM)",
               "description": "Execution environment for Java, Kotlin, or Scala.",
-              "tools": [
-                "OpenJDK",
-                "Oracle JDK",
-                "GraalVM",
-                "Amazon Corretto",
-                "Spring Boot"
-              ]
+              "tools": ["OpenJDK", "Oracle JDK", "GraalVM", "Amazon Corretto", "Spring Boot"]
             },
             {
               "label": "Scripting Runtime",
               "description": "Interpreted runtimes.",
-              "tools": [
-                "Node.js",
-                "Deno",
-                "Bun",
-                "Python",
-                "Ruby",
-                "PHP",
-                "Go"
-              ]
+              "tools": ["Node.js", "Deno", "Bun", "Python", "Ruby", "PHP", "Go"]
             }
           ],
           "description": "Defines the foundational platform on which the server-side or core business logic executes.",
@@ -1749,29 +1502,17 @@
             {
               "label": "Windows",
               "description": "Requires a Microsoft Windows environment.",
-              "tools": [
-                "Windows 10",
-                "Windows 11"
-              ]
+              "tools": ["Windows 10", "Windows 11"]
             },
             {
               "label": "Linux",
               "description": "Requires a Linux distribution.",
-              "tools": [
-                "Ubuntu",
-                "Debian",
-                "Fedora",
-                "RHEL"
-              ]
+              "tools": ["Ubuntu", "Debian", "Fedora", "RHEL"]
             },
             {
               "label": "macOS / iOS / Android",
               "description": "Requires Apple or Google OS.",
-              "tools": [
-                "macOS 12+",
-                "iOS 15+",
-                "Android 11+"
-              ]
+              "tools": ["macOS 12+", "iOS 15+", "Android 11+"]
             }
           ],
           "description": "Defines the underlying operating systems required to execute the backend.",
@@ -1800,30 +1541,17 @@
             {
               "label": "OpenAPI Specification",
               "description": "Machine-readable interface files for RESTful services.",
-              "tools": [
-                "Swagger/Swashbuckle",
-                "Redoc",
-                "Scalar",
-                "Stoplight",
-                "NSwag"
-              ]
+              "tools": ["Swagger/Swashbuckle", "Redoc", "Scalar", "Stoplight", "NSwag"]
             },
             {
               "label": "GraphQL Schema",
               "description": "Introspectable schema definition language for GraphQL APIs.",
-              "tools": [
-                "GraphQL SDL",
-                "Apollo Studio",
-                "GraphiQL"
-              ]
+              "tools": ["GraphQL SDL", "Apollo Studio", "GraphiQL"]
             },
             {
               "label": "AsyncAPI Specification",
               "description": "Documentation standard for event-driven architectures.",
-              "tools": [
-                "AsyncAPI",
-                "CloudEvents"
-              ]
+              "tools": ["AsyncAPI", "CloudEvents"]
             }
           ],
           "description": "Describes the methodology for documenting exposed interfaces for consuming clients.",
@@ -1905,35 +1633,17 @@
             {
               "label": "Object-Relational Mapper (ORM)",
               "description": "Framework that maps database schemas to code entities.",
-              "tools": [
-                "Entity Framework",
-                "Hibernate",
-                "Sequelize",
-                "TypeORM",
-                "Prisma",
-                "Django ORM",
-                "SQLAlchemy"
-              ]
+              "tools": ["Entity Framework", "Hibernate", "Sequelize", "TypeORM", "Prisma", "Django ORM", "SQLAlchemy"]
             },
             {
               "label": "Micro-ORM",
               "description": "Lightweight mapper focusing on raw SQL execution.",
-              "tools": [
-                "Dapper",
-                "Slapper",
-                "PetaPoco"
-              ]
+              "tools": ["Dapper", "Slapper", "PetaPoco"]
             },
             {
               "label": "Raw SQL / Drivers",
               "description": "Direct execution of queries using low-level database drivers.",
-              "tools": [
-                "ADO.NET",
-                "JDBC",
-                "psycopg2",
-                "mysql2",
-                "pg"
-              ]
+              "tools": ["ADO.NET", "JDBC", "psycopg2", "mysql2", "pg"]
             }
           ],
           "description": "Captures the abstraction level used to interact with data stores.",
@@ -1955,24 +1665,12 @@
             {
               "label": "Built-in DI Framework",
               "description": "Using the dependency injection container provided by the core runtime.",
-              "tools": [
-                "ASP.NET Core DI",
-                "Spring Framework",
-                "NestJS"
-              ]
+              "tools": ["ASP.NET Core DI", "Spring Framework", "NestJS"]
             },
             {
               "label": "Third-Party DI Library",
               "description": "Integrating specialized external libraries for DI.",
-              "tools": [
-                "Autofac",
-                "Ninject",
-                "Unity",
-                "InversifyJS",
-                "TSyringe",
-                "Guice",
-                "Dagger"
-              ]
+              "tools": ["Autofac", "Ninject", "Unity", "InversifyJS", "TSyringe", "Guice", "Dagger"]
             },
             {
               "label": "Manual Composition",
@@ -2006,22 +1704,12 @@
             {
               "label": "In-Memory Cache",
               "description": "Caching data locally within the application process.",
-              "tools": [
-                "MemoryCache",
-                "Caffeine",
-                "Guava Cache",
-                "node-cache"
-              ]
+              "tools": ["MemoryCache", "Caffeine", "Guava Cache", "node-cache"]
             },
             {
               "label": "Distributed Cache",
               "description": "Externalizing cache to a shared memory store.",
-              "tools": [
-                "Redis",
-                "Memcached",
-                "Hazelcast",
-                "Apache Ignite"
-              ]
+              "tools": ["Redis", "Memcached", "Hazelcast", "Apache Ignite"]
             }
           ],
           "description": "Defines how the backend mitigates database load and reduces latency for frequently accessed data.",
@@ -2056,24 +1744,12 @@
             {
               "label": "Application-Level Scheduler",
               "description": "Scheduling libraries integrated directly into the application process.",
-              "tools": [
-                "Hangfire",
-                "Quartz.NET",
-                "node-cron",
-                "Bull",
-                "BullMQ",
-                "APScheduler",
-                "Celery"
-              ]
+              "tools": ["Hangfire", "Quartz.NET", "node-cron", "Bull", "BullMQ", "APScheduler", "Celery"]
             },
             {
               "label": "External Batch Processor",
               "description": "Dedicated external services triggered by time-based events.",
-              "tools": [
-                "Kubernetes CronJobs",
-                "AWS EventBridge",
-                "Azure Functions Timer"
-              ]
+              "tools": ["Kubernetes CronJobs", "AWS EventBridge", "Azure Functions Timer"]
             }
           ],
           "description": "Describes the architecture for executing time-based or long-running background tasks.",
@@ -2091,32 +1767,18 @@
           "id": "be-workflow",
           "aspect": "Workflow Engine",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Integration Bridge / Middleware"
-            ]
+            "architecturalRole": ["Standalone System", "Integration Bridge / Middleware"]
           },
           "examples": [
             {
               "label": "BPMN Engine",
               "description": "Executable business process models.",
-              "tools": [
-                "Camunda",
-                "Flowable",
-                "Activiti",
-                "jBPM"
-              ]
+              "tools": ["Camunda", "Flowable", "Activiti", "jBPM"]
             },
             {
               "label": "State Machine",
               "description": "Code-based workflow orchestrators.",
-              "tools": [
-                "Temporal",
-                "Elsa Workflows",
-                "Conductor",
-                "AWS Step Functions",
-                "Cadence"
-              ]
+              "tools": ["Temporal", "Elsa Workflows", "Conductor", "AWS Step Functions", "Cadence"]
             }
           ],
           "description": "Captures how complex, multi-step, or durable business processes are orchestrated and tracked.",
@@ -2137,21 +1799,12 @@
             {
               "label": "Global Exception Middleware",
               "description": "Centralized interception of unhandled exceptions converting them to standard HTTP responses.",
-              "tools": [
-                "ASP.NET Exception Filters",
-                "Express error middleware",
-                "Spring @ControllerAdvice"
-              ]
+              "tools": ["ASP.NET Exception Filters", "Express error middleware", "Spring @ControllerAdvice"]
             },
             {
               "label": "Result Pattern",
               "description": "Returning explicit success/failure objects instead of throwing exceptions.",
-              "tools": [
-                "FluentResults",
-                "LanguageExt",
-                "Result<T>",
-                "Railway-oriented programming"
-              ]
+              "tools": ["FluentResults", "LanguageExt", "Result<T>", "Railway-oriented programming"]
             }
           ],
           "description": "Describes the structural code pattern utilized to manage exceptions and provide meaningful error states.",
@@ -2173,25 +1826,12 @@
             {
               "label": "Structured Logging Library",
               "description": "Emitting logs as queryable JSON objects.",
-              "tools": [
-                "Serilog",
-                "NLog",
-                "Log4net",
-                "Winston",
-                "Pino",
-                "Bunyan",
-                "Logback",
-                "Log4j2",
-                "slf4j"
-              ]
+              "tools": ["Serilog", "NLog", "Log4net", "Winston", "Pino", "Bunyan", "Logback", "Log4j2", "slf4j"]
             },
             {
               "label": "Standard Text Logger",
               "description": "Classic string-based logging.",
-              "tools": [
-                "System.Diagnostics.Trace",
-                "Console logging"
-              ]
+              "tools": ["System.Diagnostics.Trace", "Console logging"]
             }
           ],
           "description": "Describes the in-code library used to generate log events before they are shipped to aggregation servers.",
@@ -2212,49 +1852,22 @@
             {
               "label": "xUnit / NUnit / JUnit",
               "description": "Standard object-oriented testing frameworks.",
-              "tools": [
-                "xUnit.net",
-                "NUnit",
-                "MSTest",
-                "JUnit 5",
-                "TestNG",
-                "pytest",
-                "RSpec",
-                "PHPUnit"
-              ]
+              "tools": ["xUnit.net", "NUnit", "MSTest", "JUnit 5", "TestNG", "pytest", "RSpec", "PHPUnit"]
             },
             {
               "label": "Mocking Libraries",
               "description": "Tools for generating fake dependencies.",
-              "tools": [
-                "Moq",
-                "NSubstitute",
-                "FakeItEasy",
-                "Mockito",
-                "Sinon",
-                "Jest mocks"
-              ]
+              "tools": ["Moq", "NSubstitute", "FakeItEasy", "Mockito", "Sinon", "Jest mocks"]
             },
             {
               "label": "Assertion Libraries",
               "description": "Fluent APIs for writing expressive test assertions.",
-              "tools": [
-                "Fluent Assertions",
-                "Shouldly",
-                "AssertJ",
-                "Chai",
-                "Hamcrest"
-              ]
+              "tools": ["Fluent Assertions", "Shouldly", "AssertJ", "Chai", "Hamcrest"]
             },
             {
               "label": "Test Data Builders",
               "description": "Libraries for creating test objects.",
-              "tools": [
-                "AutoMapper for DTOs",
-                "AutoFixture",
-                "Bogus",
-                "Factory Bot"
-              ]
+              "tools": ["AutoMapper for DTOs", "AutoFixture", "Bogus", "Factory Bot"]
             }
           ],
           "description": "Defines the frameworks used to isolate and test backend classes and domain logic.",
@@ -2282,19 +1895,12 @@
             {
               "label": "In-Memory Test Servers",
               "description": "Bootstrapping the application in memory for fast API testing.",
-              "tools": [
-                "WebApplicationFactory",
-                "Spring Boot Test",
-                "Supertest"
-              ]
+              "tools": ["WebApplicationFactory", "Spring Boot Test", "Supertest"]
             },
             {
               "label": "Testcontainers",
               "description": "Spinning up real databases in Docker for tests.",
-              "tools": [
-                "Testcontainers",
-                "Docker Compose for testing"
-              ]
+              "tools": ["Testcontainers", "Docker Compose for testing"]
             }
           ],
           "description": "Captures how data access layers and API endpoints are validated against real infrastructure during development.",
@@ -2315,22 +1921,12 @@
             {
               "label": "Micro-Benchmarking",
               "description": "Measuring execution time of specific algorithms.",
-              "tools": [
-                "BenchmarkDotNet",
-                "JMH",
-                "Criterion",
-                "Apache JMeter"
-              ]
+              "tools": ["BenchmarkDotNet", "JMH", "Criterion", "Apache JMeter"]
             },
             {
               "label": "Memory Profiling",
               "description": "Analyzing heap allocations and memory leaks locally.",
-              "tools": [
-                "dotMemory",
-                "VisualVM",
-                "Chrome DevTools",
-                "Valgrind"
-              ]
+              "tools": ["dotMemory", "VisualVM", "Chrome DevTools", "Valgrind"]
             }
           ],
           "description": "Describes how the development team analyzes code performance and optimization at a granular level.",
@@ -2358,26 +1954,12 @@
             {
               "label": "Full IDE",
               "description": "Heavyweight IDEs providing deep language integration.",
-              "tools": [
-                "Visual Studio",
-                "IntelliJ IDEA",
-                "Rider",
-                "PyCharm",
-                "WebStorm",
-                "Eclipse",
-                "NetBeans"
-              ]
+              "tools": ["Visual Studio", "IntelliJ IDEA", "Rider", "PyCharm", "WebStorm", "Eclipse", "NetBeans"]
             },
             {
               "label": "Lightweight Editor",
               "description": "Fast, plugin-based editors.",
-              "tools": [
-                "VS Code",
-                "Sublime Text",
-                "Vim",
-                "Emacs",
-                "Neovim"
-              ]
+              "tools": ["VS Code", "Sublime Text", "Vim", "Emacs", "Neovim"]
             }
           ],
           "description": "Describes the officially supported local IDE and tooling setup for backend engineers.",
@@ -2420,22 +2002,12 @@
             {
               "label": "Commercial RDBMS",
               "description": "Licensed relational database management systems.",
-              "tools": [
-                "Oracle Database",
-                "Microsoft SQL Server",
-                "IBM Db2"
-              ]
+              "tools": ["Oracle Database", "Microsoft SQL Server", "IBM Db2"]
             },
             {
               "label": "Open-Source RDBMS",
               "description": "Community-driven relational database systems.",
-              "tools": [
-                "PostgreSQL",
-                "MySQL",
-                "MariaDB",
-                "SQLite",
-                "CockroachDB"
-              ]
+              "tools": ["PostgreSQL", "MySQL", "MariaDB", "SQLite", "CockroachDB"]
             }
           ],
           "description": "Specifies the primary database engine utilized for highly structured, ACID-compliant transactional data storage.",
@@ -2463,22 +2035,12 @@
             {
               "label": "Code-First Migrations",
               "description": "Database changes derived from code models.",
-              "tools": [
-                "Entity Framework Migrations",
-                "Alembic",
-                "Django Migrations",
-                "TypeORM Migrations"
-              ]
+              "tools": ["Entity Framework Migrations", "Alembic", "Django Migrations", "TypeORM Migrations"]
             },
             {
               "label": "SQL-Based Versioning",
               "description": "Executing versioned SQL scripts.",
-              "tools": [
-                "Liquibase",
-                "Flyway",
-                "DbUp",
-                "golang-migrate"
-              ]
+              "tools": ["Liquibase", "Flyway", "DbUp", "golang-migrate"]
             }
           ],
           "description": "Captures how database schema alterations are version-controlled, reviewed, and deployed without data loss.",
@@ -2499,34 +2061,17 @@
             {
               "label": "Document Store",
               "description": "Database designed for semi-structured document-oriented information.",
-              "tools": [
-                "MongoDB",
-                "CouchDB",
-                "RavenDB",
-                "Cosmos DB"
-              ]
+              "tools": ["MongoDB", "CouchDB", "RavenDB", "Cosmos DB"]
             },
             {
               "label": "Key-Value Store",
               "description": "In-memory or on-disk database optimized for rapid retrieval via unique keys.",
-              "tools": [
-                "Redis",
-                "Memcached",
-                "DynamoDB",
-                "Riak"
-              ]
+              "tools": ["Redis", "Memcached", "DynamoDB", "Riak"]
             },
             {
               "label": "Search Engine",
               "description": "Data store optimized for full-text search and complex queries.",
-              "tools": [
-                "Elasticsearch",
-                "OpenSearch",
-                "Solr",
-                "Meilisearch",
-                "Typesense",
-                "Algolia"
-              ]
+              "tools": ["Elasticsearch", "OpenSearch", "Solr", "Meilisearch", "Typesense", "Algolia"]
             }
           ],
           "description": "Captures non-relational database technologies employed for specific use cases like flexible schemas or high-speed caching.",
@@ -2544,32 +2089,18 @@
           "id": "infra-vectordb",
           "aspect": "Vector Database / Search",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Domain Service / Microservice",
-              "AI / ML Inference Engine"
-            ]
+            "architecturalRole": ["Standalone System", "Domain Service / Microservice", "AI / ML Inference Engine"]
           },
           "examples": [
             {
               "label": "Dedicated Vector DB",
               "description": "Databases built specifically for high-dimensional vector embeddings.",
-              "tools": [
-                "Pinecone",
-                "Weaviate",
-                "Qdrant",
-                "Milvus",
-                "Chroma",
-                "Vespa"
-              ]
+              "tools": ["Pinecone", "Weaviate", "Qdrant", "Milvus", "Chroma", "Vespa"]
             },
             {
               "label": "Relational Vector Extension",
               "description": "Using vector extensions within traditional databases.",
-              "tools": [
-                "pgvector for PostgreSQL",
-                "Azure Cosmos DB vector search"
-              ]
+              "tools": ["pgvector for PostgreSQL", "Azure Cosmos DB vector search"]
             }
           ],
           "description": "Captures the storage and retrieval engine used for semantic search and contextual memory for AI models.",
@@ -2604,35 +2135,17 @@
             {
               "label": "Message Broker",
               "description": "Intermediary program that translates messages.",
-              "tools": [
-                "RabbitMQ",
-                "ActiveMQ",
-                "Azure Service Bus",
-                "AWS SQS",
-                "Google Pub/Sub",
-                "NATS"
-              ]
+              "tools": ["RabbitMQ", "ActiveMQ", "Azure Service Bus", "AWS SQS", "Google Pub/Sub", "NATS"]
             },
             {
               "label": "Event Streaming Platform",
               "description": "Distributed systems for real-time data feeds and event streams.",
-              "tools": [
-                "Apache Kafka",
-                "Redpanda",
-                "Pulsar",
-                "Amazon Kinesis"
-              ]
+              "tools": ["Apache Kafka", "Redpanda", "Pulsar", "Amazon Kinesis"]
             },
             {
               "label": "ETL / Integration Server",
               "description": "Platforms dedicated to extracting, transforming, and loading data.",
-              "tools": [
-                "Apache NiFi",
-                "Talend",
-                "Informatica",
-                "Azure Data Factory",
-                "AWS Glue"
-              ]
+              "tools": ["Apache NiFi", "Talend", "Informatica", "Azure Data Factory", "AWS Glue"]
             }
           ],
           "description": "Describes the infrastructure components responsible for asynchronous routing, message queuing, and event streaming between services.",
@@ -2651,32 +2164,18 @@
           "id": "infra-dataplatform",
           "aspect": "Data Platform & Warehousing",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Integration Bridge / Middleware"
-            ]
+            "architecturalRole": ["Standalone System", "Integration Bridge / Middleware"]
           },
           "examples": [
             {
               "label": "Data Warehouse",
               "description": "Central repository of integrated data for reporting and analysis.",
-              "tools": [
-                "Snowflake",
-                "Amazon Redshift",
-                "Google BigQuery",
-                "Azure Synapse",
-                "Teradata"
-              ]
+              "tools": ["Snowflake", "Amazon Redshift", "Google BigQuery", "Azure Synapse", "Teradata"]
             },
             {
               "label": "Data Lakehouse",
               "description": "Architecture combining data lakes with data warehouse capabilities.",
-              "tools": [
-                "Databricks",
-                "Apache Iceberg",
-                "Delta Lake",
-                "Apache Hudi"
-              ]
+              "tools": ["Databricks", "Apache Iceberg", "Delta Lake", "Apache Hudi"]
             }
           ],
           "description": "Defines the architecture used for handling big data, historical analytics, and federated queries.",
@@ -2695,44 +2194,23 @@
           "id": "infra-analytics",
           "aspect": "Data Analytics & Visualization",
           "appliesTo": {
-            "architecturalRole": [
-              "Standalone System",
-              "Integration Bridge / Middleware"
-            ]
+            "architecturalRole": ["Standalone System", "Integration Bridge / Middleware"]
           },
           "examples": [
             {
               "label": "Business Intelligence Tools",
               "description": "Software used to retrieve, analyze, transform, and report data for business intelligence.",
-              "tools": [
-                "Power BI",
-                "Tableau",
-                "Looker",
-                "Qlik",
-                "Metabase",
-                "Apache Superset",
-                "Grafana"
-              ]
+              "tools": ["Power BI", "Tableau", "Looker", "Qlik", "Metabase", "Apache Superset", "Grafana"]
             },
             {
               "label": "Time-Series Analytics",
               "description": "Tools specifically designed to visualize and analyze industrial or IoT time-series data.",
-              "tools": [
-                "InfluxDB",
-                "TimescaleDB",
-                "Prometheus + Grafana"
-              ]
+              "tools": ["InfluxDB", "TimescaleDB", "Prometheus + Grafana"]
             },
             {
               "label": "Embedded Dashboards",
               "description": "Analytics components directly integrated into the primary user interface.",
-              "tools": [
-                "Chart.js",
-                "D3.js",
-                "Apache ECharts",
-                "Plotly",
-                "Recharts"
-              ]
+              "tools": ["Chart.js", "D3.js", "Apache ECharts", "Plotly", "Recharts"]
             }
           ],
           "description": "Captures the presentation layer for data reporting. This details how end-users interact with aggregated data, generate reports, and monitor KPIs.",
@@ -2753,13 +2231,7 @@
             {
               "label": "Object Storage",
               "description": "Cloud-based unstructured data storage.",
-              "tools": [
-                "AWS S3",
-                "Azure Blob Storage",
-                "Google Cloud Storage",
-                "MinIO",
-                "Backblaze B2"
-              ]
+              "tools": ["AWS S3", "Azure Blob Storage", "Google Cloud Storage", "MinIO", "Backblaze B2"]
             },
             {
               "label": "Cognitive / AI APIs",
@@ -2818,33 +2290,17 @@
             {
               "label": "Container Image",
               "description": "Standardized OS-level virtualization package.",
-              "tools": [
-                "Docker Image",
-                "OCI Image",
-                "Podman Image"
-              ]
+              "tools": ["Docker Image", "OCI Image", "Podman Image"]
             },
             {
               "label": "OS Installer",
               "description": "Native installation routines.",
-              "tools": [
-                "MSI",
-                "DEB",
-                "RPM",
-                "PKG",
-                "AppImage",
-                "Snap",
-                "Flatpak"
-              ]
+              "tools": ["MSI", "DEB", "RPM", "PKG", "AppImage", "Snap", "Flatpak"]
             },
             {
               "label": "Serverless Package",
               "description": "Zipped code bundles deployed to function runtimes.",
-              "tools": [
-                "AWS SAM",
-                "Serverless Framework",
-                "ZIP archives"
-              ]
+              "tools": ["AWS SAM", "Serverless Framework", "ZIP archives"]
             }
           ],
           "description": "Describes the immutable artifact format utilized to transport the compiled application into a runtime environment.",
@@ -2866,22 +2322,12 @@
             {
               "label": "Automated Pull",
               "description": "Infrastructure actively fetches the latest artifacts.",
-              "tools": [
-                "Kubernetes GitOps with ArgoCD",
-                "Flux CD",
-                "Fleet"
-              ]
+              "tools": ["Kubernetes GitOps with ArgoCD", "Flux CD", "Fleet"]
             },
             {
               "label": "Push Pipeline",
               "description": "CI/CD pipeline forces artifacts onto the target servers.",
-              "tools": [
-                "GitHub Actions",
-                "GitLab CI",
-                "Jenkins",
-                "Azure DevOps Pipelines",
-                "CircleCI"
-              ]
+              "tools": ["GitHub Actions", "GitLab CI", "Jenkins", "Azure DevOps Pipelines", "CircleCI"]
             },
             {
               "label": "Manual Execution",
@@ -2908,29 +2354,17 @@
             {
               "label": "Environment Variables",
               "description": "Configuration supplied directly through the OS or container runtime.",
-              "tools": [
-                ".env files",
-                "Kubernetes ConfigMaps/Secrets"
-              ]
+              "tools": [".env files", "Kubernetes ConfigMaps/Secrets"]
             },
             {
               "label": "Central Config Server",
               "description": "A dedicated service dispensing configuration dynamically.",
-              "tools": [
-                "Consul",
-                "Spring Cloud Config",
-                "AWS AppConfig",
-                "Azure App Configuration"
-              ]
+              "tools": ["Consul", "Spring Cloud Config", "AWS AppConfig", "Azure App Configuration"]
             },
             {
               "label": "Local Config Files",
               "description": "Static JSON/YAML/XML files deployed alongside the application.",
-              "tools": [
-                "appsettings.json",
-                "config.yaml",
-                "application.properties"
-              ]
+              "tools": ["appsettings.json", "config.yaml", "application.properties"]
             }
           ],
           "description": "Describes the strategy for managing environment-specific settings outside of the source code.",
@@ -3007,42 +2441,23 @@
           "id": "ops-webserver",
           "aspect": "Webserver / Reverse Proxy",
           "appliesTo": {
-            "executionType": [
-              "Web Application",
-              "Headless Service / API"
-            ]
+            "executionType": ["Web Application", "Headless Service / API"]
           },
           "examples": [
             {
               "label": "OS-Native Web Server",
               "description": "Web servers integrated tightly with the host operating system.",
-              "tools": [
-                "IIS",
-                "Apache HTTP Server",
-                "nginx"
-              ]
+              "tools": ["IIS", "Apache HTTP Server", "nginx"]
             },
             {
               "label": "Reverse Proxy",
               "description": "Intermediary servers that forward client requests to backend processes.",
-              "tools": [
-                "nginx",
-                "HAProxy",
-                "Traefik",
-                "Envoy",
-                "Caddy",
-                "Kong",
-                "YARP"
-              ]
+              "tools": ["nginx", "HAProxy", "Traefik", "Envoy", "Caddy", "Kong", "YARP"]
             },
             {
               "label": "Application-Level Proxy",
               "description": "Reverse proxies built into the application runtime.",
-              "tools": [
-                "Kestrel with YARP",
-                "Node.js http-proxy",
-                "Spring Cloud Gateway"
-              ]
+              "tools": ["Kestrel with YARP", "Node.js http-proxy", "Spring Cloud Gateway"]
             }
           ],
           "description": "Specifies the infrastructure component responsible for accepting HTTP requests and routing traffic.",
@@ -3064,32 +2479,17 @@
             {
               "label": "Type 1 Hypervisor",
               "description": "Bare-metal virtualization software running directly on the host hardware.",
-              "tools": [
-                "VMware ESXi",
-                "Proxmox VE",
-                "Microsoft Hyper-V Server",
-                "Citrix Hypervisor"
-              ]
+              "tools": ["VMware ESXi", "Proxmox VE", "Microsoft Hyper-V Server", "Citrix Hypervisor"]
             },
             {
               "label": "Type 2 Hypervisor",
               "description": "Virtualization software running on top of a conventional operating system.",
-              "tools": [
-                "VMware Workstation",
-                "VirtualBox",
-                "Parallels",
-                "Hyper-V on Windows"
-              ]
+              "tools": ["VMware Workstation", "VirtualBox", "Parallels", "Hyper-V on Windows"]
             },
             {
               "label": "Cloud IaaS",
               "description": "Infrastructure as a Service providing virtualized computing resources over the internet.",
-              "tools": [
-                "AWS EC2",
-                "Azure Virtual Machines",
-                "Google Compute Engine",
-                "DigitalOcean Droplets"
-              ]
+              "tools": ["AWS EC2", "Azure Virtual Machines", "Google Compute Engine", "DigitalOcean Droplets"]
             }
           ],
           "description": "Describes the hypervisor technology used if the system architecture relies on partitioning physical servers into multiple virtual machines.",
@@ -3110,20 +2510,12 @@
             {
               "label": "Daemon-based Runtime",
               "description": "Container engine relying on a background service.",
-              "tools": [
-                "Docker Engine",
-                "containerd",
-                "CRI-O"
-              ]
+              "tools": ["Docker Engine", "containerd", "CRI-O"]
             },
             {
               "label": "Daemonless Runtime",
               "description": "Container engine capable of running containers as standard user processes.",
-              "tools": [
-                "Podman",
-                "LXC",
-                "Railcar"
-              ]
+              "tools": ["Podman", "LXC", "Railcar"]
             }
           ],
           "description": "Identifies the low-level software component responsible for executing containers on a host operating system.",
@@ -3145,22 +2537,12 @@
             {
               "label": "Cluster Orchestration",
               "description": "Systems for automating deployment and scaling across clusters.",
-              "tools": [
-                "Kubernetes",
-                "K3s",
-                "OpenShift",
-                "Nomad",
-                "Docker Swarm",
-                "Apache Mesos"
-              ]
+              "tools": ["Kubernetes", "K3s", "OpenShift", "Nomad", "Docker Swarm", "Apache Mesos"]
             },
             {
               "label": "Local Orchestration",
               "description": "Tools for defining and running multi-container applications on a single host.",
-              "tools": [
-                "Docker Compose",
-                "Podman Compose"
-              ]
+              "tools": ["Docker Compose", "Podman Compose"]
             }
           ],
           "description": "Captures the mechanisms used to manage container lifecycles, handle load balancing, and ensure desired states.",
@@ -3194,21 +2576,12 @@
             {
               "label": "Self-Hosted Registry",
               "description": "Private registry instances deployed within the organizational network.",
-              "tools": [
-                "Harbor",
-                "Nexus Repository",
-                "JFrog Artifactory",
-                "Quay"
-              ]
+              "tools": ["Harbor", "Nexus Repository", "JFrog Artifactory", "Quay"]
             },
             {
               "label": "General Artifact Repository",
               "description": "Systems capable of storing various package formats alongside container images.",
-              "tools": [
-                "Artifactory",
-                "Nexus",
-                "Azure Artifacts"
-              ]
+              "tools": ["Artifactory", "Nexus", "Azure Artifacts"]
             }
           ],
           "description": "Describes the central storage location for immutable build artifacts and container images.",
@@ -3237,23 +2610,12 @@
             {
               "label": "Declarative Provisioning",
               "description": "Defining the desired end-state of infrastructure using configuration files.",
-              "tools": [
-                "Terraform",
-                "Pulumi",
-                "AWS CloudFormation",
-                "Azure Bicep",
-                "OpenTofu"
-              ]
+              "tools": ["Terraform", "Pulumi", "AWS CloudFormation", "Azure Bicep", "OpenTofu"]
             },
             {
               "label": "Configuration Management",
               "description": "Tools focused on installing software on existing servers.",
-              "tools": [
-                "Ansible",
-                "Chef",
-                "Puppet",
-                "SaltStack"
-              ]
+              "tools": ["Ansible", "Chef", "Puppet", "SaltStack"]
             }
           ],
           "description": "Defines the methodology for provisioning and managing infrastructure through machine-readable definition files.",
@@ -3294,10 +2656,7 @@
             {
               "label": "Repository-Integrated CI",
               "description": "Pipelines configured directly within the source code hosting platform.",
-              "tools": [
-                "GitHub Actions workflows",
-                "GitLab CI YAML"
-              ]
+              "tools": ["GitHub Actions workflows", "GitLab CI YAML"]
             }
           ],
           "description": "Describes the automated workflows utilized to compile code, run tests, and deploy releases.",
@@ -3325,23 +2684,12 @@
             {
               "label": "Centralized Search Stack",
               "description": "Combinations of indexing engines and visualization dashboards.",
-              "tools": [
-                "ELK Stack - Elasticsearch/Logstash/Kibana",
-                "OpenSearch",
-                "Grafana Loki",
-                "Splunk"
-              ]
+              "tools": ["ELK Stack - Elasticsearch/Logstash/Kibana", "OpenSearch", "Grafana Loki", "Splunk"]
             },
             {
               "label": "Cloud Observability Platform",
               "description": "SaaS solutions for unified log management and analysis.",
-              "tools": [
-                "Datadog",
-                "New Relic",
-                "Dynatrace",
-                "Sumo Logic",
-                "Loggly"
-              ]
+              "tools": ["Datadog", "New Relic", "Dynatrace", "Sumo Logic", "Loggly"]
             }
           ],
           "description": "Captures the strategy for consolidating log data from disparate servers and microservices into a single repository.",
@@ -3377,33 +2725,17 @@
             {
               "label": "Time-Series Monitoring",
               "description": "Systems designed specifically to collect and query numeric metric data over time.",
-              "tools": [
-                "Prometheus",
-                "Victoria Metrics",
-                "InfluxDB",
-                "Graphite",
-                "TimescaleDB"
-              ]
+              "tools": ["Prometheus", "Victoria Metrics", "InfluxDB", "Graphite", "TimescaleDB"]
             },
             {
               "label": "Cloud-Native Monitoring",
               "description": "Built-in metric aggregation services provided by cloud environments.",
-              "tools": [
-                "AWS CloudWatch",
-                "Azure Monitor",
-                "Google Cloud Monitoring"
-              ]
+              "tools": ["AWS CloudWatch", "Azure Monitor", "Google Cloud Monitoring"]
             },
             {
               "label": "Incident Management Systems",
               "description": "Platforms that route alerts to on-call personnel based on predefined rules.",
-              "tools": [
-                "PagerDuty",
-                "Opsgenie",
-                "VictorOps",
-                "Alertmanager",
-                "OnCall"
-              ]
+              "tools": ["PagerDuty", "Opsgenie", "VictorOps", "Alertmanager", "OnCall"]
             }
           ],
           "description": "Describes the mechanisms used to continuously measure system health and notify operational staff when thresholds are breached.",
@@ -3432,24 +2764,12 @@
             {
               "label": "Telemetry Standards",
               "description": "Vendor-agnostic APIs for generating trace data.",
-              "tools": [
-                "OpenTelemetry",
-                "OpenTracing",
-                "OpenCensus"
-              ]
+              "tools": ["OpenTelemetry", "OpenTracing", "OpenCensus"]
             },
             {
               "label": "APM Solutions",
               "description": "Application Performance Monitoring suites incorporating automatic tracing.",
-              "tools": [
-                "Jaeger",
-                "Zipkin",
-                "Datadog APM",
-                "New Relic",
-                "Dynatrace",
-                "Elastic APM",
-                "AWS X-Ray"
-              ]
+              "tools": ["Jaeger", "Zipkin", "Datadog APM", "New Relic", "Dynatrace", "Elastic APM", "AWS X-Ray"]
             }
           ],
           "description": "Defines the methodology for tracking the lifecycle of a single request as it traverses multiple independent services.",
@@ -3505,29 +2825,17 @@
             {
               "label": "Automated DB Snapshots",
               "description": "Database management systems automatically capturing state at defined intervals.",
-              "tools": [
-                "AWS RDS automated backups",
-                "Azure SQL Database backups",
-                "pg_dump cron jobs"
-              ]
+              "tools": ["AWS RDS automated backups", "Azure SQL Database backups", "pg_dump cron jobs"]
             },
             {
               "label": "Offsite Replication",
               "description": "Copying backup data to geographically separate storage locations.",
-              "tools": [
-                "AWS S3 Cross-Region Replication",
-                "Azure Geo-Redundant Storage",
-                "rsync to remote sites"
-              ]
+              "tools": ["AWS S3 Cross-Region Replication", "Azure Geo-Redundant Storage", "rsync to remote sites"]
             },
             {
               "label": "Immutable Storage",
               "description": "Backups written to storage media that cannot be modified or deleted, protecting against ransomware.",
-              "tools": [
-                "AWS S3 Object Lock",
-                "Azure Immutable Blobs",
-                "Veeam Immutability"
-              ]
+              "tools": ["AWS S3 Object Lock", "Azure Immutable Blobs", "Veeam Immutability"]
             }
           ],
           "description": "Details the operational procedures designed to prevent catastrophic data loss.",
@@ -3588,24 +2896,12 @@
             {
               "label": "Token-Based Auth",
               "description": "Issuing cryptographically signed tokens to verify identity across stateless requests.",
-              "tools": [
-                "JWT",
-                "OAuth 2.0",
-                "PASETO"
-              ]
+              "tools": ["JWT", "OAuth 2.0", "PASETO"]
             },
             {
               "label": "Federated Identity",
               "description": "Delegating authentication responsibility to an external, trusted identity provider.",
-              "tools": [
-                "SAML 2.0",
-                "OpenID Connect",
-                "Azure AD",
-                "Okta",
-                "Auth0",
-                "Keycloak",
-                "AWS Cognito"
-              ]
+              "tools": ["SAML 2.0", "OpenID Connect", "Azure AD", "Okta", "Auth0", "Keycloak", "AWS Cognito"]
             }
           ],
           "description": "Describes the mechanisms employed to definitively verify the identity of a human user or a communicating system.",
@@ -3627,21 +2923,12 @@
             {
               "label": "Role-Based Access Control (RBAC)",
               "description": "Permissions are assigned to roles, and users are assigned to those roles.",
-              "tools": [
-                "built into most frameworks",
-                "Azure RBAC",
-                "AWS IAM Roles"
-              ]
+              "tools": ["built into most frameworks", "Azure RBAC", "AWS IAM Roles"]
             },
             {
               "label": "Attribute-Based Access Control (ABAC)",
               "description": "Access is granted based on policies evaluating attributes.",
-              "tools": [
-                "AWS IAM Policies",
-                "Open Policy Agent - OPA",
-                "Casbin",
-                "Cedar"
-              ]
+              "tools": ["AWS IAM Policies", "Open Policy Agent - OPA", "Casbin", "Cedar"]
             }
           ],
           "description": "Defines the logic and enforcement points used to determine what an authenticated identity is permitted to execute or view.",
@@ -3675,11 +2962,7 @@
             {
               "label": "Environment Injection",
               "description": "Injecting secrets directly into the application process via OS variables at startup.",
-              "tools": [
-                "Kubernetes Secrets",
-                "Docker Secrets",
-                "dotenv files"
-              ]
+              "tools": ["Kubernetes Secrets", "Docker Secrets", "dotenv files"]
             }
           ],
           "description": "Captures the architecture for handling sensitive configuration data without hardcoding it in source code.",
@@ -3701,12 +2984,7 @@
             {
               "label": "Transport Layer Security",
               "description": "Cryptographic protocols designed to provide communications security over a network.",
-              "tools": [
-                "TLS 1.2/1.3",
-                "HTTPS",
-                "mTLS",
-                "STARTTLS"
-              ]
+              "tools": ["TLS 1.2/1.3", "HTTPS", "mTLS", "STARTTLS"]
             },
             {
               "label": "Storage-Level Encryption",
@@ -3740,36 +3018,17 @@
             {
               "label": "Static Analysis (SAST)",
               "description": "Scanning source code for common security vulnerabilities without executing the program.",
-              "tools": [
-                "SonarQube",
-                "Checkmarx",
-                "Veracode",
-                "Fortify",
-                "Semgrep",
-                "CodeQL"
-              ]
+              "tools": ["SonarQube", "Checkmarx", "Veracode", "Fortify", "Semgrep", "CodeQL"]
             },
             {
               "label": "Software Composition Analysis (SCA)",
               "description": "Identifying known vulnerabilities within third-party dependencies and libraries.",
-              "tools": [
-                "Snyk",
-                "WhiteSource",
-                "Black Duck",
-                "OWASP Dependency-Check",
-                "npm audit",
-                "Trivy"
-              ]
+              "tools": ["Snyk", "WhiteSource", "Black Duck", "OWASP Dependency-Check", "npm audit", "Trivy"]
             },
             {
               "label": "Dynamic Analysis (DAST)",
               "description": "Interacting with a running web application to identify vulnerabilities like injection flaws.",
-              "tools": [
-                "OWASP ZAP",
-                "Burp Suite",
-                "Acunetix",
-                "Netsparker"
-              ]
+              "tools": ["OWASP ZAP", "Burp Suite", "Acunetix", "Netsparker"]
             }
           ],
           "description": "Describes the automated tooling integrated into the development lifecycle to proactively detect security flaws.",
@@ -3818,28 +3077,17 @@
             {
               "label": "Online Activation",
               "description": "Validation of usage rights against a central vendor server.",
-              "tools": [
-                "Microsoft Product Activation",
-                "Adobe Creative Cloud licensing"
-              ]
+              "tools": ["Microsoft Product Activation", "Adobe Creative Cloud licensing"]
             },
             {
               "label": "Floating License Server",
               "description": "Local network server managing a pool of concurrent usage tokens.",
-              "tools": [
-                "FlexNet",
-                "RLM - Reprise License Manager",
-                "Sentinel LDK"
-              ]
+              "tools": ["FlexNet", "RLM - Reprise License Manager", "Sentinel LDK"]
             },
             {
               "label": "Hardware Dongle",
               "description": "Physical cryptography device required to execute the software.",
-              "tools": [
-                "Wibu-Systems CodeMeter",
-                "SafeNet Sentinel",
-                "HASP"
-              ]
+              "tools": ["Wibu-Systems CodeMeter", "SafeNet Sentinel", "HASP"]
             }
           ],
           "description": "Captures the technical mechanisms used to protect intellectual property and enforce commercial usage rights.",
@@ -3861,12 +3109,7 @@
       "title": "Hardware & IO",
       "desc": "Hardware interfaces, sensors, and real-time IO",
       "appliesTo": {
-        "executionType": [
-          "Desktop Application",
-          "Mobile Application",
-          "Embedded / IoT",
-          "Background Worker / Daemon"
-        ]
+        "executionType": ["Desktop Application", "Mobile Application", "Embedded / IoT", "Background Worker / Daemon"]
       },
       "entries": [
         {
@@ -3910,21 +3153,12 @@
             {
               "label": "Vendor SDK",
               "description": "Interacting with hardware utilizing closed-source libraries provided by the manufacturer.",
-              "tools": [
-                "National Instruments NI-DAQmx",
-                "Basler Pylon SDK",
-                "FLIR Spinnaker SDK"
-              ]
+              "tools": ["National Instruments NI-DAQmx", "Basler Pylon SDK", "FLIR Spinnaker SDK"]
             },
             {
               "label": "Standardized Protocols",
               "description": "Utilizing industry-standard communication protocols.",
-              "tools": [
-                "SCPI - Standard Commands for Programmable Instruments",
-                "Modbus",
-                "OPC UA",
-                "MQTT"
-              ]
+              "tools": ["SCPI - Standard Commands for Programmable Instruments", "Modbus", "OPC UA", "MQTT"]
             }
           ],
           "description": "Identifies the layer of software utilized to bridge the application logic with the physical hardware.",
@@ -4033,22 +3267,12 @@
             {
               "label": "ALM Integration",
               "description": "Test management integrated directly into the Application Lifecycle Management tool.",
-              "tools": [
-                "Azure DevOps Test Plans",
-                "Jira Zephyr",
-                "HP ALM/Quality Center"
-              ]
+              "tools": ["Azure DevOps Test Plans", "Jira Zephyr", "HP ALM/Quality Center"]
             },
             {
               "label": "Dedicated Test Software",
               "description": "Standalone systems specialized purely in test planning and execution.",
-              "tools": [
-                "TestRail",
-                "qTest",
-                "Xray",
-                "PractiTest",
-                "TestLink"
-              ]
+              "tools": ["TestRail", "qTest", "Xray", "PractiTest", "TestLink"]
             }
           ],
           "description": "Describes the methodology and tooling for documenting and tracking manual and automated tests.",
@@ -4097,26 +3321,12 @@
             {
               "label": "Static Code Analysis",
               "description": "Tools that analyze source code for bugs and technical debt.",
-              "tools": [
-                "SonarQube",
-                "SonarCloud",
-                "CodeClimate",
-                "Codacy",
-                "DeepSource",
-                "ReSharper"
-              ]
+              "tools": ["SonarQube", "SonarCloud", "CodeClimate", "Codacy", "DeepSource", "ReSharper"]
             },
             {
               "label": "Code Coverage Tracking",
               "description": "Instrumentation measuring the percentage of executed source code.",
-              "tools": [
-                "Coverlet",
-                "JaCoCo",
-                "Istanbul/nyc",
-                "Coverage.py",
-                "Cobertura",
-                "OpenCover"
-              ]
+              "tools": ["Coverlet", "JaCoCo", "Istanbul/nyc", "Coverage.py", "Cobertura", "OpenCover"]
             }
           ],
           "description": "Describes mechanisms used to measure test coverage and enforce maintainability standards.",
@@ -4144,24 +3354,12 @@
             {
               "label": "API Testing Frameworks",
               "description": "Tools designed to send programmatic requests to backend APIs.",
-              "tools": [
-                "Postman/Newman",
-                "REST Assured",
-                "Karate DSL",
-                "Pact",
-                "Insomnia",
-                "HTTPie",
-                "curl"
-              ]
+              "tools": ["Postman/Newman", "REST Assured", "Karate DSL", "Pact", "Insomnia", "HTTPie", "curl"]
             },
             {
               "label": "Contract Testing",
               "description": "Verifying that services adhere to a shared, agreed-upon contract.",
-              "tools": [
-                "Pact",
-                "Spring Cloud Contract",
-                "Postman Contract Testing"
-              ]
+              "tools": ["Pact", "Spring Cloud Contract", "Postman Contract Testing"]
             }
           ],
           "description": "Defines the methodology for testing interactions between discrete system components without a UI.",
@@ -4180,36 +3378,18 @@
           "id": "qa-e2e",
           "aspect": "End-to-End (E2E) Testing",
           "appliesTo": {
-            "executionType": [
-              "Web Application",
-              "Desktop Application",
-              "Mobile Application"
-            ]
+            "executionType": ["Web Application", "Desktop Application", "Mobile Application"]
           },
           "examples": [
             {
               "label": "Browser Automation",
               "description": "Tools that control web browsers programmatically.",
-              "tools": [
-                "Selenium WebDriver",
-                "Playwright",
-                "Cypress",
-                "Puppeteer",
-                "WebDriverIO",
-                "TestCafe"
-              ]
+              "tools": ["Selenium WebDriver", "Playwright", "Cypress", "Puppeteer", "WebDriverIO", "TestCafe"]
             },
             {
               "label": "Desktop UI Automation",
               "description": "Frameworks capable of interacting with native OS UI components.",
-              "tools": [
-                "WinAppDriver",
-                "Appium",
-                "TestStack.White",
-                "FlaUI",
-                "Ranorex",
-                "Squish"
-              ]
+              "tools": ["WinAppDriver", "Appium", "TestStack.White", "FlaUI", "Ranorex", "Squish"]
             }
           ],
           "description": "Describes the approach to validating the entire software stack from the user interface down to the database.",
@@ -4239,24 +3419,12 @@
             {
               "label": "Protocol-Level Load Testing",
               "description": "Simulating high concurrency by sending large volumes of network requests.",
-              "tools": [
-                "Apache JMeter",
-                "Gatling",
-                "k6",
-                "Locust",
-                "Artillery",
-                "NBomber"
-              ]
+              "tools": ["Apache JMeter", "Gatling", "k6", "Locust", "Artillery", "NBomber"]
             },
             {
               "label": "Cloud-Distributed Stress Testing",
               "description": "Utilizing cloud infrastructure to simulate massive user traffic.",
-              "tools": [
-                "Azure Load Testing",
-                "AWS Distributed Load Testing",
-                "BlazeMeter",
-                "Flood.io"
-              ]
+              "tools": ["Azure Load Testing", "AWS Distributed Load Testing", "BlazeMeter", "Flood.io"]
             }
           ],
           "description": "Describes the approach to simulating high user traffic to validate system stability and SLAs.",
@@ -4286,24 +3454,12 @@
             {
               "label": "Synthetic Data Generation",
               "description": "Programmatically creating fake datasets for testing.",
-              "tools": [
-                "Faker.js",
-                "Bogus",
-                "Mockaroo",
-                "Generatedata",
-                "AutoFixture",
-                "Factory Bot"
-              ]
+              "tools": ["Faker.js", "Bogus", "Mockaroo", "Generatedata", "AutoFixture", "Factory Bot"]
             },
             {
               "label": "Production Anonymization",
               "description": "Scrubbing or obfuscating PII from production data before use in test environments.",
-              "tools": [
-                "Delphix",
-                "Tonic",
-                "AWS Database Migration Service with masking",
-                "SQL Data Masking"
-              ]
+              "tools": ["Delphix", "Tonic", "AWS Database Migration Service with masking", "SQL Data Masking"]
             }
           ],
           "description": "Captures the strategy for provisioning and securing data used during testing to maintain privacy compliance.",

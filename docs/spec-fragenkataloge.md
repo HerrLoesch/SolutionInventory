@@ -291,6 +291,30 @@ Ersetzt die Erstfassung („`STORAGE_VERSION` erhöhen"): Die Migration wird so 
 
 Die Migration läuft in `applyStoredData()` und ist durch die Tests in §6.2 abgesichert.
 
+#### 3.3.3 Programmversion im Datenmodell — ✅ erledigt (2026-07-17)
+
+Damit sich zu einer gespeicherten Datei nachvollziehen lässt, mit welcher Programmversion
+ihr Datenmodell zuletzt geschrieben wurde (unabhängig vom groben `STORAGE_VERSION`-Sprung),
+trägt jeder persistierte Snapshot zusätzlich die exakte App-Version:
+
+- **`appVersion`** (`buildSnapshot()`, `persistence.js`) — der Wert aus `package.json`
+  (`__APP_VERSION__`, bereits zuvor für den Info-Dialog verwendet) wird bei jedem `persist()`
+  und `persistTo()` in den Snapshot geschrieben, neben dem bereits vorhandenen `timestamp`.
+  Optional/additiv: Dateien aus Versionen vor diesem Feld (App ≤ 1.11.0) haben es schlicht
+  nicht — das ist kein Fehler, sondern zeigt „geschrieben vor Einführung dieses Feldes".
+- **Versions-Historie** (`migrations.js`, Kopfkommentar) dokumentiert, welcher
+  `STORAGE_VERSION`-Wert in welchem App-Versionsbereich geführt hat (grobe Zuordnung,
+  z. B. „`STORAGE_VERSION` 1: App ≤ 1.11.0"). Bei jeder `STORAGE_VERSION`-Erhöhung ist diese
+  Tabelle zusammen mit der neuen Migrationsstufe zu aktualisieren — inklusive Nachtrag der
+  tatsächlichen Release-Version, sobald sie erscheint (zum Zeitpunkt dieser Änderung noch
+  unveröffentlicht auf `Dev`).
+
+**Abgrenzung zu bereits bestehender Versionierung:** `appVersion` beschreibt die
+*Speicherformat-Herkunft* eines Workspace. Das ist unabhängig von `Catalog.version`
+(inhaltliche Katalog-Revision), `Catalog.schemaVersion` (Version des Katalog-Schemas, §3.2)
+und `Questionnaire.catalogVersion` (welche Katalogversion instanziiert wurde) — diese vier
+Versionsfelder beantworten jeweils eine andere Frage und ergänzen sich.
+
 ---
 
 ## 4. UI-Konzept
@@ -425,12 +449,15 @@ Die Store-Umbauten dienen zugleich der Stabilisierung des Gesamtsystems (vgl.
 `docs/refactoring.md` §1.1): Persistenz-, Migrations- und Katalog-Logik werden als
 **reine, einzeln testbare Module** extrahiert, der Store behält State + Orchestrierung.
 
-- **Modul-Extraktion:**
-  - `src/stores/persistence.js` — Laden/Speichern (localStorage + Electron), Debounce,
-    Backup-Handling (§3.3.1), Fehlerzustand statt stummem `console.error`.
-  - `src/stores/migrations.js` — Migrationskette (`data.categories`-Altformat,
-    `migrateProjectRadar`, v1→v2-Katalogmigration), reine Funktionen.
-  - `src/services/catalogService.js` — Katalog-CRUD + `instantiateCatalog`.
+- **Modul-Extraktion (✅ erledigt 2026-07-17, s. Phase 0/1):**
+  - `src/stores/workspaceFactories.js` — reine `createId`/`createWorkspace`/`createProject`/
+    `createQuestionnaire`.
+  - `src/stores/persistence.js` — Laden/Speichern (localStorage + Electron), `buildSnapshot`.
+    Backup-Handling vor Migrationen (§3.3.1) folgt mit Schritt 6.
+  - `src/stores/migrations.js` — `migrateProjectRadar`, `buildWorkspaceFromLegacyCategoriesFormat`.
+    Die v1→v2-Katalogmigrationsstufe kommt mit Schritt 6 hinzu.
+  - `src/services/catalogService.js` — **noch offen:** Katalog-CRUD + `instantiateCatalog`
+    (Schritt 8).
 - **Katalog-Bibliothek:** `workspace.catalogs[]` + CRUD (`addCatalog`, `renameCatalog`,
   `duplicateCatalog`, `deleteCatalog`, `updateCatalog`), `getCatalogById`.
 - **Instanziierung:** `instantiateCatalog(catalogId)` erzeugt aus einem Katalog einen
@@ -482,13 +509,42 @@ Standardkatalog aufgerufen (§6.4).
    (aktuell keine ältere Version zu migrieren).
 
 **Phase 1 — Fundament (Datenmodell & Schema)**
-5. `persistence.js`/`migrations.js` extrahieren (§5.2), abgesichert durch Phase-0-Tests.
-6. `workspace.catalogs[]`, Migrationsstufe v1→v2, `STORAGE_VERSION = 2` (§3.3.2).
-7. `catalog.schema.json` + `validateCatalog`, Unit-Test gegen Standardkatalog (§3.2).
-8. `instantiateCatalog`; `addQuestionnaire`/`importProject` darauf umstellen.
+5. ✅ **Erledigt (2026-07-17):** `workspaceFactories.js` (reine `createId`/`createWorkspace`/
+   `createProject`/`createQuestionnaire`), `migrations.js` (`migrateProjectRadar`,
+   `buildWorkspaceFromLegacyCategoriesFormat`) und `persistence.js` (localStorage-/
+   Electron-I/O, `buildSnapshot`) aus `workspaceStore.js` extrahiert (§5.2). Reiner
+   Strukturumbau ohne Verhaltensänderung — abgesichert durch die 134 Tests aus Phase 0,
+   die unverändert grün blieben.
+6. ✅ **Erledigt (2026-07-17):** `workspace.catalogs[]` eingeführt; `migrateWorkspaceToV2`
+   (`migrations.js`) fügt beim Laden eines v1-Datensatzes additiv den Standard-Katalog
+   (`catalog-standard`) hinzu und stampft `defaultCatalogId` auf Projekte — idempotent,
+   Fragebögen bleiben unangetastet (Entscheidung zu offenem Punkt 6: als reine
+   Legacy-Instanzen belassen, **keine** `catalogId`-Provenienz erfunden). `STORAGE_VERSION`
+   auf 2 erhöht; `applyStoredData` akzeptiert weiterhin Version 1 **und** 2 (§3.3.1
+   „tolerantes Laden"), Version 1 wird beim Laden migriert.
+7. ✅ **Erledigt:** `src/schema/catalog.schema.json` (Draft 2020-12, Dokumentationsgrundlage)
+   und `src/schema/catalogValidation.js` (`validateCatalog` — Fehler für Pflichtfelder/
+   Duplikate/Metadaten-Kategorie-Anzahl, Warnungen für `appliesTo`-Inkonsistenzen). Der
+   mitgelieferte Standardkatalog ist gegen die Regeln geprüft (Fixture-Test, 24 Tests in
+   `catalogValidation.spec.js`/`catalogService.spec.js`).
+8. ✅ **Erledigt:** `src/services/catalogService.js` mit `instantiateCatalog(catalog, name)`
+   (deep-clone, füllt `answers`/`applicability` via `normalizeCategories` auf, setzt
+   `catalogId`/`catalogVersion`) und `buildStandardCatalogFromSeed`. `addQuestionnaire`
+   nutzt `instantiateCatalog` mit dem `defaultCatalogId` des Projekts (Fallback: erster
+   Katalog der Bibliothek, dann On-the-fly-Standardkatalog), sobald keine expliziten
+   `categories` übergeben werden — das betrifft den „+ Fragebogen"-Flow in `TreeNav.vue`.
+   `importProject` bleibt unverändert: importierte Fragebögen tragen im heutigen
+   Exportformat keine Katalog-Provenienz und bleiben Legacy-Instanzen; das wird erst in
+   Phase 2 relevant, wenn der Export katalogbewusst wird.
+
+   **Bewusst zurückgestellt auf Phase 2:** volle Katalog-CRUD im Store (`addCatalog`,
+   `renameCatalog`, `duplicateCatalog`, `deleteCatalog`, `updateCatalog`) — ohne Bibliotheks-UI
+   als Aufrufer wäre das ungenutzter Code. `getCatalogById` existiert bereits (von
+   `addQuestionnaire` benötigt).
 
 **Phase 2 — Katalogauswahl & Bibliothek**
-9. `defaultCatalogId` in Projekt; „+ Projekt"-Dialog mit Katalogauswahl (§4.2).
+9. `defaultCatalogId` in Projekt (Datenfeld existiert bereits, s. Schritt 6); „+ Projekt"-Dialog
+   mit Katalogauswahl (§4.2) und Katalog-CRUD im Store fehlen noch.
 10. `CatalogLibrary` in `TreeNav` (§4.1): Liste, Anlegen, Duplizieren, Umbenennen, Löschen, Export.
 
 **Phase 3 — Editor als eigener Arbeitsbereich**

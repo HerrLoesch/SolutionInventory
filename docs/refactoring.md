@@ -57,10 +57,14 @@ kein Rebuild-Zwang für inhaltliche Änderungen, klarere Trennung Daten/Logik,
 leichtere Übersetzbarkeit.
 
 **Empfehlung `workspaceStore.js`:** In fokussierte Module/Composables aufteilen:
-- `persistence.js` – Laden/Speichern (localStorage + Electron), Debounce
-- `migrations.js` – `migrateProjectRadar` u. ä. Versionsmigrationen
-- `radar.js` – Radar-Refs/Overrides
-- Der Store selbst hält nur noch State + Orchestrierung.
+- ✅ **Erledigt (2026-07-17):** `workspaceFactories.js` (`createId`/`createWorkspace`/
+  `createProject`/`createQuestionnaire`), `migrations.js` (`migrateProjectRadar`,
+  `buildWorkspaceFromLegacyCategoriesFormat`), `persistence.js` (localStorage-/
+  Electron-I/O, `buildSnapshot`) extrahiert — reiner Strukturumbau, alle 134 Tests
+  blieben unverändert grün. Details: `docs/spec-fragenkataloge.md` §5.2/§5.5 Phase 1.
+- **Noch offen:** `radar.js` – Radar-Refs/Overrides (die radarbezogenen Store-Funktionen
+  sind bisher nicht ausgelagert). Der Store hält aktuell noch State + Orchestrierung
+  **und** diese Radar-Logik gemeinsam.
 
 ### 1.2 Options-API vs. Composition-API vereinheitlichen
 
@@ -152,16 +156,33 @@ bauen/testen nur den Client. Der komplette .NET-Teil hat **kein CI**.
 **Empfehlung:** Einen `dotnet build` + `dotnet test` Job ergänzen (getriggert bei
 Änderungen unter `MCP/**`), damit der Server nicht unbemerkt bricht.
 
-### 2.3 Kein Linting / Formatierungs-Gate
+### 2.3 Client-Linting/Formatierungs-Gate — ✅ erledigt (2026-07-17), C#-Teil offen
 
-Es existiert keine ESLint-/Prettier-Konfiguration (`package.json` enthält keine
-Lint-Skripte, keine `eslint.config.*`). Es gibt zwar eine `.editorconfig`, aber
-kein automatisches Gitter. **Empfehlung:**
-- `eslint` + `eslint-plugin-vue` + `prettier` einrichten, `npm run lint` als
-  Skript, und im PR-Workflow als Pflicht-Step ergänzen.
-- Für C#: `dotnet format --verify-no-changes` im CI, ergänzend `.editorconfig`
-  Analyzer-Regeln aktivieren (`<AnalysisLevel>latest</AnalysisLevel>`,
-  `<TreatWarningsAsErrors>` erwägen).
+**Erledigt:** `eslint` (Flat Config, `eslint.config.js`) + `eslint-plugin-vue` +
+`prettier` eingerichtet (`npm run lint`, `lint:fix`, `format`, `format:check`),
+als Pflicht-Step in beide CI-Workflows aufgenommen (vor den Unit-Tests). Der
+Erstlauf deckte 55 Befunde auf (52 mechanisch, 3 echte Probleme):
+- **Echter Bug:** `Questionnaire.vue` gab im `setup()`-Return ein redundantes
+  `categories: props.categories` zurück, das mit der gleichnamigen Prop
+  kollidierte (`vue/no-dupe-keys`) und im Template nirgends genutzt wurde —
+  entfernt.
+- **Totes Vue-Reactivity-Debugging:** `RINGS`-Konstante in `TechRadar.vue` war
+  von `computedRings` abgelöst worden, aber nicht entfernt worden; toter
+  `watch`-Import in `ProjectSummary.vue`; tote `getPiniaStore()`-Testhilfe in
+  `export-import.steps.js` — alle entfernt.
+- **Prettier-/Vue-Formatierer-Falle:** Ein mehrstatement Inline-Handler
+  (`@dragend="a; b"`) in `CustomHtmlExportDialog.vue` wurde von Prettiers
+  Vue-Template-Formatierer beim ersten `--write`-Lauf syntaktisch kaputt
+  umgebrochen (Statements ohne Trenner auf separate Zeilen). Behoben, indem
+  der Inline-Handler in eine benannte Methode `resetCategoryDrag()`
+  ausgelagert wurde — vermeidet die Formatierer-Falle dauerhaft, statt sie nur
+  einmalig zu reparieren.
+- Der gesamte Client wurde einmalig mit `prettier --write` formatiert (43
+  Dateien); danach durch die volle Unit- **und** E2E-Suite verifiziert.
+
+**Noch offen (C#):** `dotnet format --verify-no-changes` im CI, ergänzend
+`.editorconfig`-Analyzer-Regeln aktivieren (`<AnalysisLevel>latest</AnalysisLevel>`,
+`<TreatWarningsAsErrors>` erwägen).
 
 ### 2.4 Fehlerbehandlung: verschluckte Ausnahmen
 
@@ -283,9 +304,10 @@ _(aktualisiert 2026-07-17)_
 0. ~~**Datenverlust-Risiko im Ladepfad beheben**~~ (2.0) + Speicherformat-Fixtures
    einfrieren – **erledigt (2026-07-17).** Voraussetzung für jede Datenmodell-Änderung
    (Katalog-Spec) war damit erfüllt.
-1. **Qualitätsgitter vervollständigen:** `npm run test:unit` in beide CI-Workflows,
-   ESLint/Prettier, `dotnet test` im CI (Abschnitte 2.1–2.3; Vitest selbst ist
-   bereits eingeführt). Ohne Netz sind größere Refactorings riskant.
+1. **Qualitätsgitter vervollständigen:** `npm run test:unit` ✅ sowie
+   ESLint/Prettier ✅ in beide CI-Workflows aufgenommen (Abschnitte 2.1–2.3).
+   Noch offen: `dotnet build`/`dotnet test` + `dotnet format` im CI für den
+   MCP-Server (2.2/2.3). Ohne Netz sind größere Refactorings riskant.
 2. **Fehlerbehandlung härten** (2.4/2.5) – schneller Gewinn bei Stabilität und
    Vermeidung stillen Datenverlusts.
 3. **Domänen-Konstanten zentralisieren** (1.3) – kleines, risikoarmes Refactoring

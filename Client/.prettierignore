@@ -1,0 +1,6 @@
+dist
+release
+node_modules
+cucumber-report.html
+test-results
+package-lock.json

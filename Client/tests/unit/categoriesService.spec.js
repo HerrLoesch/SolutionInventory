@@ -35,7 +35,9 @@ describe('categoriesService.getCategoriesData', () => {
           expect(executionTypeLabels.has(value), `Unknown executionType "${value}" on entry ${entry.id}`).toBe(true)
         }
         for (const value of appliesTo.architecturalRole || []) {
-          expect(architecturalRoleLabels.has(value), `Unknown architecturalRole "${value}" on entry ${entry.id}`).toBe(true)
+          expect(architecturalRoleLabels.has(value), `Unknown architecturalRole "${value}" on entry ${entry.id}`).toBe(
+            true
+          )
         }
       }
     }

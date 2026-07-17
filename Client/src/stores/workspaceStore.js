@@ -1,39 +1,23 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { getCategoriesData } from '../services/categoriesService'
+import { buildStandardCatalogFromSeed, instantiateCatalog } from '../services/catalogService'
+import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
+import { normalizeCategories } from './normalizeCategories'
+import { migrateProjectRadar, buildWorkspaceFromLegacyCategoriesFormat, migrateWorkspaceToV2 } from './migrations'
+import {
+  buildSnapshot,
+  readFromLocalStorage,
+  writeToLocalStorage,
+  readFromElectronFile,
+  writeToElectronFile,
+  writeToElectronFileAt
+} from './persistence'
 
 const STORAGE_KEY = 'solution-inventory-data'
-const STORAGE_VERSION = 1
+const STORAGE_VERSION = 2
 
 export const useWorkspaceStore = defineStore('workspace', () => {
-  function createId(prefix) {
-    return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
-  }
-
-  function createWorkspace(projects = [], questionnaires = []) {
-    return {
-      id: createId('workspace'),
-      projects: Array.isArray(projects) ? projects : [],
-      questionnaires: Array.isArray(questionnaires) ? questionnaires : []
-    }
-  }
-
-  function createProject(name, questionnaireIds = []) {
-    return {
-      id: createId('project'),
-      name: name || 'New project',
-      questionnaireIds: Array.isArray(questionnaireIds) ? questionnaireIds : []
-    }
-  }
-
-  function createQuestionnaire(name, categories = []) {
-    return {
-      id: createId('questionnaire'),
-      name: name || 'New questionnaire',
-      categories: Array.isArray(categories) ? categories : []
-    }
-  }
-
   const workspace = ref(createWorkspace())
   const activeQuestionnaireId = ref('')
   const openQuestionnaireIds = ref([])
@@ -60,9 +44,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!tabId) return ''
     if (isProjectTabId(tabId)) return fromProjectTabId(tabId)
     // questionnaire tab – find the project that owns it
-    const project = workspace.value.projects.find((p) =>
-      (p.questionnaireIds || []).includes(tabId)
-    )
+    const project = workspace.value.projects.find((p) => (p.questionnaireIds || []).includes(tabId))
     return project?.id || ''
   })
 
@@ -105,41 +87,29 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return [...projectTabs, ...questionnaireTabs]
   })
 
-  function migrateProjectRadar(project) {
-    // Already migrated to new format
-    if (Array.isArray(project.radar)) return
-    // Migrate from legacy radarRefs + radarOverrides to unified radar array
-    const refs = Array.isArray(project.radarRefs) ? project.radarRefs : []
-    const overrides = Array.isArray(project.radarOverrides) ? project.radarOverrides : []
-    project.radar = refs.map((ref) => {
-      const norm = String(ref.option || '').trim().toLowerCase()
-      const override = overrides.find(
-        (o) => o.entryId === ref.entryId && String(o.option || '').toLowerCase() === norm
-      )
-      return {
-        entryId: ref.entryId,
-        option: String(ref.option || '').trim(),
-        category: String(override?.categoryOverride || '').trim(),
-        status: String(override?.status || '').trim(),
-        shortComment: String(override?.shortComment || '').trim(),
-        description: String(override?.comment || '').trim(),
-        link: String(override?.link || '').trim()
-      }
-    })
-    delete project.radarRefs
-    delete project.radarOverrides
-  }
+  // Versions this app can load. Tolerant loading (§3.3.1): any of these are
+  // accepted and, if older than STORAGE_VERSION, migrated up in memory —
+  // only a version outside this set (or malformed data) is "unsupported"
+  // and surfaces workspaceLoadError instead of being silently discarded.
+  const SUPPORTED_STORAGE_VERSIONS = [1, STORAGE_VERSION]
 
   function applyStoredData(data) {
-    if (data.version === STORAGE_VERSION && data.workspace) {
+    if (SUPPORTED_STORAGE_VERSIONS.includes(data.version) && data.workspace) {
       workspace.value = data.workspace
-      // Migrate any projects still using the legacy two-array format
+      // Migrate any projects still using the legacy two-array radar format
       ;(workspace.value.projects || []).forEach(migrateProjectRadar)
+      if (data.version === 1) {
+        migrateWorkspaceToV2(workspace.value, buildStandardCatalogFromSeed(getCategoriesData()))
+      } else if (!Array.isArray(workspace.value.catalogs)) {
+        workspace.value.catalogs = []
+      }
       // Restore open tabs and active state, filtering out IDs that no longer exist
       const existingIds = new Set(data.workspace.questionnaires?.map((q) => q.id) || [])
       const restoredOpen = (data.openQuestionnaireIds || []).filter((id) => existingIds.has(id))
       openQuestionnaireIds.value = restoredOpen
-      activeQuestionnaireId.value = existingIds.has(data.activeQuestionnaireId) ? data.activeQuestionnaireId : restoredOpen[0] || ''
+      activeQuestionnaireId.value = existingIds.has(data.activeQuestionnaireId)
+        ? data.activeQuestionnaireId
+        : restoredOpen[0] || ''
       const existingProjectIds = new Set(data.workspace.projects?.map((p) => p.id) || [])
       openProjectSummaryIds.value = (data.openProjectSummaryIds || []).filter((id) => existingProjectIds.has(id))
       activeWorkspaceTabId.value = data.activeWorkspaceTabId || activeQuestionnaireId.value
@@ -147,9 +117,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       hydrateLastSaved(data.timestamp)
       return true
     }
-    if (data.version === STORAGE_VERSION && data.categories) {
-      const initialQuestionnaire = createQuestionnaire('Current questionnaire', data.categories)
-      workspace.value = createWorkspace([], [initialQuestionnaire])
+    if (SUPPORTED_STORAGE_VERSIONS.includes(data.version) && data.categories) {
+      workspace.value = buildWorkspaceFromLegacyCategoriesFormat(data.categories)
+      migrateWorkspaceToV2(workspace.value, buildStandardCatalogFromSeed(getCategoriesData()))
       activeQuestionnaireId.value = ''
       openQuestionnaireIds.value = []
       activeWorkspaceTabId.value = ''
@@ -172,7 +142,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         return
       }
       workspaceDirNeeded.value = false
-      const result = await window.electronAPI.readDataFile()
+      const result = await readFromElectronFile(window.electronAPI)
       if (!result.success) {
         // No file at all (fresh workspace directory) is the only case that may
         // seed automatically. Any other read failure (permissions, disk error)
@@ -205,23 +175,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
 
     // --- Web: localStorage ---
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (!saved) {
+    const result = readFromLocalStorage(STORAGE_KEY)
+    if (!result.present) {
       seedWorkspace()
       return
     }
-    let data
-    try {
-      data = JSON.parse(saved)
-    } catch (error) {
-      console.error('Error loading from localStorage:', error)
+    if (result.corrupt) {
+      console.error('Error loading from localStorage:', result.error)
       workspaceLoadError.value = {
         reason: 'unreadable',
         message: 'Stored workspace data is corrupted and could not be loaded.'
       }
       return
     }
-    if (!applyStoredData(data)) {
+    if (!applyStoredData(result.data)) {
       workspaceLoadError.value = {
         reason: 'unsupported-version',
         message: 'Stored workspace data was created by a different app version and could not be loaded.'
@@ -273,9 +240,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function seedWorkspace() {
-    const catalogData = getCategoriesData()
-    const initialQuestionnaire = createQuestionnaire('Current questionnaire', catalogData.categories)
+    const standardCatalog = buildStandardCatalogFromSeed(getCategoriesData())
+    const initialQuestionnaire = instantiateCatalog(standardCatalog, 'Current questionnaire')
     workspace.value = createWorkspace([], [initialQuestionnaire])
+    workspace.value.catalogs = [standardCatalog]
     activeQuestionnaireId.value = ''
     openQuestionnaireIds.value = []
     activeWorkspaceTabId.value = ''
@@ -288,7 +256,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (autoSaveStarted.value) return
     autoSaveStarted.value = true
     watch(
-      () => [workspace.value, activeQuestionnaireId.value, openQuestionnaireIds.value, activeWorkspaceTabId.value, openProjectSummaryIds.value, questionnaireHiddenEntries.value],
+      () => [
+        workspace.value,
+        activeQuestionnaireId.value,
+        openQuestionnaireIds.value,
+        activeWorkspaceTabId.value,
+        openProjectSummaryIds.value,
+        questionnaireHiddenEntries.value
+      ],
       () => {
         if (!autoSaveEnabled.value) return
         clearTimeout(persistDebounceTimer)
@@ -304,28 +279,28 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     // a freshly initialized, empty workspace) and complete the data loss that
     // workspaceLoadError exists to prevent.
     if (workspaceLoadError.value) return
-    const dataToSave = {
+    const snapshot = buildSnapshot({
       version: STORAGE_VERSION,
-      timestamp: new Date().toISOString(),
+      appVersion: __APP_VERSION__,
       workspace: workspace.value,
       activeQuestionnaireId: activeQuestionnaireId.value,
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
       openProjectSummaryIds: openProjectSummaryIds.value,
       questionnaireHiddenEntries: questionnaireHiddenEntries.value
-    }
+    })
 
     if (window.electronAPI) {
       try {
-        await window.electronAPI.writeDataFile(JSON.stringify(dataToSave, null, 2))
-        hydrateLastSaved(dataToSave.timestamp)
+        await writeToElectronFile(window.electronAPI, snapshot)
+        hydrateLastSaved(snapshot.timestamp)
       } catch (error) {
         console.error('Error saving to file:', error)
       }
     } else {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
-        hydrateLastSaved(dataToSave.timestamp)
+        writeToLocalStorage(STORAGE_KEY, snapshot)
+        hydrateLastSaved(snapshot.timestamp)
       } catch (error) {
         console.error('Error saving to localStorage:', error)
       }
@@ -373,18 +348,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
    */
   async function persistTo(dirPath) {
     if (!window.electronAPI || !dirPath) return
-    const dataToSave = {
+    const snapshot = buildSnapshot({
       version: STORAGE_VERSION,
-      timestamp: new Date().toISOString(),
+      appVersion: __APP_VERSION__,
       workspace: workspace.value,
       activeQuestionnaireId: activeQuestionnaireId.value,
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
       openProjectSummaryIds: openProjectSummaryIds.value,
       questionnaireHiddenEntries: questionnaireHiddenEntries.value
-    }
+    })
     try {
-      await window.electronAPI.writeDataFileTo(dirPath, JSON.stringify(dataToSave, null, 2))
+      await writeToElectronFileAt(window.electronAPI, dirPath, snapshot)
     } catch (error) {
       console.error('Error saving workspace to path:', error)
     }
@@ -523,12 +498,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     project.name = nextName
   }
 
+  function getCatalogById(catalogId) {
+    return (workspace.value.catalogs || []).find((catalog) => catalog.id === catalogId) || null
+  }
+
+  // Falls back through: the project's chosen default catalog → the first
+  // catalog in the library → a standard catalog built on the fly (should
+  // only happen for a workspace whose migration somehow left it catalog-less).
+  function resolveDefaultCatalog(projectId) {
+    const project = projectId ? workspace.value.projects.find((item) => item.id === projectId) : null
+    const preferred = project?.defaultCatalogId ? getCatalogById(project.defaultCatalogId) : null
+    return preferred || workspace.value.catalogs?.[0] || buildStandardCatalogFromSeed(getCategoriesData())
+  }
+
   function addQuestionnaire(name, categories, projectId) {
-    const catalogData = getCategoriesData()
-    const questionnaire = createQuestionnaire(
-      name || 'New questionnaire',
-      normalizeCategories(categories || catalogData.categories)
-    )
+    const questionnaire = categories
+      ? createQuestionnaire(name || 'New questionnaire', normalizeCategories(categories))
+      : instantiateCatalog(resolveDefaultCatalog(projectId), name || 'New questionnaire')
     workspace.value.questionnaires.push(questionnaire)
 
     if (projectId) {
@@ -576,9 +562,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const copy = createQuestionnaire(`${source.name} (Copy)`, normalizeCategories(source.categories))
     workspace.value.questionnaires.push(copy)
     // Assign to the same project as original, if any
-    const project = workspace.value.projects.find((p) =>
-      (p.questionnaireIds || []).includes(questionnaireId)
-    )
+    const project = workspace.value.projects.find((p) => (p.questionnaireIds || []).includes(questionnaireId))
     if (project) {
       project.questionnaireIds = [...(project.questionnaireIds || []), copy.id]
     }
@@ -757,10 +741,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
     if (!Array.isArray(project.radar)) project.radar = []
-    const norm = String(option || '').trim().toLowerCase()
-    const idx = project.radar.findIndex(
-      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
-    )
+    const norm = String(option || '')
+      .trim()
+      .toLowerCase()
+    const idx = project.radar.findIndex((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm)
     if (idx !== -1) {
       project.radar.splice(idx, 1)
     } else {
@@ -768,21 +752,24 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       let categoryTitle = ''
       let answerStatus = ''
       let answerComments = ''
-      const projectQuestionnaires = workspace.value.questionnaires.filter(
-        (q) => (project.questionnaireIds || []).includes(q.id)
+      const projectQuestionnaires = workspace.value.questionnaires.filter((q) =>
+        (project.questionnaireIds || []).includes(q.id)
       )
       const preferred = projectQuestionnaires.find((q) => q.id === questionnaireId)
       const toSearch = preferred
         ? [preferred, ...projectQuestionnaires.filter((q) => q.id !== questionnaireId)]
         : projectQuestionnaires
       for (const q of toSearch) {
-        for (const cat of (q.categories || [])) {
+        for (const cat of q.categories || []) {
           if (cat.isMetadata) continue
           const entry = (cat.entries || []).find((e) => e.id === entryId)
           if (entry) {
             categoryTitle = String(cat.title || '').trim()
             const answer = (entry.answers || []).find(
-              (a) => String(a.technology || '').trim().toLowerCase() === norm
+              (a) =>
+                String(a.technology || '')
+                  .trim()
+                  .toLowerCase() === norm
             )
             if (answer) {
               answerStatus = String(answer.status || '').trim()
@@ -808,29 +795,34 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function isProjectRadarRef(projectId, entryId, option) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project || !Array.isArray(project.radar)) return false
-    const norm = String(option || '').trim().toLowerCase()
-    return project.radar.some(
-      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
-    )
+    const norm = String(option || '')
+      .trim()
+      .toLowerCase()
+    return project.radar.some((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm)
   }
 
   function getRadarOverride(projectId, entryId, option) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project || !Array.isArray(project.radar)) return null
-    const norm = String(option || '').trim().toLowerCase()
-    return project.radar.find(
-      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
-    ) || null
+    const norm = String(option || '')
+      .trim()
+      .toLowerCase()
+    return project.radar.find((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm) || null
   }
 
-  function setRadarOverride(projectId, entryId, option, { status, comment, shortComment = '', categoryOverride = '', link = '', mandatory = false }) {
+  function setRadarOverride(
+    projectId,
+    entryId,
+    option,
+    { status, comment, shortComment = '', categoryOverride = '', link = '', mandatory = false }
+  ) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
     if (!Array.isArray(project.radar)) project.radar = []
-    const norm = String(option || '').trim().toLowerCase()
-    const idx = project.radar.findIndex(
-      (r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm
-    )
+    const norm = String(option || '')
+      .trim()
+      .toLowerCase()
+    const idx = project.radar.findIndex((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm)
     if (idx !== -1) {
       const existing = project.radar[idx]
       project.radar.splice(idx, 1, {
@@ -897,9 +889,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       const filteredAnswers = (entry.answers || []).filter(
         (answer) => !['does not apply', 'unknown'].includes(answer.technology)
       )
-      entry.answers = filteredAnswers.length > 0
-        ? filteredAnswers
-        : [{ technology: '', status: '', comments: '', answerType: '' }]
+      entry.answers =
+        filteredAnswers.length > 0 ? filteredAnswers : [{ technology: '', status: '', comments: '', answerType: '' }]
     }
   }
 
@@ -964,9 +955,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           if (example && typeof example === 'object') {
             const label = String(example.label || '').trim()
             if (!label) return null
-            
+
             let description = example.description || ''
-            
+
             // Append tools in parentheses if tools array exists and has items
             if (Array.isArray(example.tools) && example.tools.length > 0) {
               const toolsText = example.tools.join(', ')
@@ -977,7 +968,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               }
               description = `${description} (${toolsText}).`
             }
-            
+
             return { label, description }
           }
           return null
@@ -996,30 +987,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return []
   }
 
-  function normalizeCategories(categories) {
-    const output = Array.isArray(categories)
-      ? JSON.parse(JSON.stringify(categories))
-      : []
-
-    output.forEach((category) => {
-      if (!category.entries) return
-      category.entries.forEach((entry) => {
-        if (!entry.applicability) {
-          entry.applicability = 'applicable'
-        }
-        if (['does not apply', 'unknown'].includes(entry.applicability)) {
-          entry.answers = [{ technology: entry.applicability, status: '', comments: '' }]
-          return
-        }
-        if (!entry.answers || entry.answers.length === 0) {
-          entry.answers = [{ technology: '', status: '', comments: '' }]
-        }
-      })
-    })
-
-    return output
-  }
-
   function escapeHtml(value) {
     return String(value)
       .replace(/&/g, '&amp;')
@@ -1028,7 +995,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
   }
-
 
   function getTabLabel(questionnaire) {
     const productName = getProjectName(questionnaire.categories)
@@ -1114,6 +1080,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     unassignQuestionnaire,
     assignQuestionnaireToProject,
     getQuestionnaireById,
+    getCatalogById,
     getProjectQuestionnaires,
     deleteQuestionnaire,
     renameQuestionnaire,

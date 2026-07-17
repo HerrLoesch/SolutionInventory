@@ -54,7 +54,10 @@
               ],
               "architecturalRole": [
                 { "label": "Not specified", "description": "Applicability is not yet determined." },
-                { "label": "Domain Service / Microservice", "description": "A specialized service owning a specific business domain." }
+                {
+                  "label": "Domain Service / Microservice",
+                  "description": "A specialized service owning a specific business domain."
+                }
               ]
             }
           },
@@ -68,10 +71,20 @@
                 "aspect": "High-Level Pattern",
                 "description": "Describes the foundational structural pattern of the application.",
                 "examples": [
-                  { "label": "Clean Arch", "description": "Concentric layers with strict dependency rules.", "tools": ["EF Core"] }
+                  {
+                    "label": "Clean Arch",
+                    "description": "Concentric layers with strict dependency rules.",
+                    "tools": ["EF Core"]
+                  }
                 ],
                 "answers": [
-                  { "technology": "Clean Arch", "status": "Adopt", "comments": "Works well", "answerType": "Tool", "isRadarRef": true }
+                  {
+                    "technology": "Clean Arch",
+                    "status": "Adopt",
+                    "comments": "Works well",
+                    "answerType": "Tool",
+                    "isRadarRef": true
+                  }
                 ],
                 "applicability": "applicable",
                 "entryComment": "Reviewed 2026-05"
@@ -81,11 +94,13 @@
                 "aspect": "Application State Model",
                 "appliesTo": { "architecturalRole": ["Domain Service / Microservice"] },
                 "examples": [
-                  { "label": "Stateless Services", "description": "No client session state is retained on the server.", "tools": [] }
+                  {
+                    "label": "Stateless Services",
+                    "description": "No client session state is retained on the server.",
+                    "tools": []
+                  }
                 ],
-                "answers": [
-                  { "technology": "unknown", "status": "", "comments": "", "answerType": "" }
-                ],
+                "answers": [{ "technology": "unknown", "status": "", "comments": "", "answerType": "" }],
                 "applicability": "unknown",
                 "entryComment": ""
               }

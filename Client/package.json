@@ -20,7 +20,11 @@
     "test:e2e": "start-server-and-test dev http://localhost:5173/SolutionInventory/ cucumber-js",
     "test:e2e:report": "start ./cucumber-report.html",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest"
+    "test:unit:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "html-to-image": "^1.11.13",
@@ -32,13 +36,19 @@
   },
   "devDependencies": {
     "@cucumber/cucumber": "^12.9.0",
+    "@eslint/js": "^9.39.5",
     "@pinia/testing": "^0.1.7",
     "@playwright/test": "^1.60.0",
     "@vitejs/plugin-vue": "^4.6.2",
     "@vue/test-utils": "^2.4.11",
     "electron": "^42.3.0",
     "electron-builder": "^26.8.1",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-vue": "^9.33.0",
+    "globals": "^15.15.0",
     "jsdom": "^24.1.3",
+    "prettier": "^3.9.5",
     "start-server-and-test": "^2.1.5",
     "vite": "^4.5.14",
     "vite-plugin-pwa": "^0.14.7",

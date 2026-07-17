@@ -8,7 +8,7 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
-function mountMatrix (props, pinia) {
+function mountMatrix(props, pinia) {
   return mountWithStore(ProjectMatrix, {
     props,
     pinia,
@@ -16,7 +16,7 @@ function mountMatrix (props, pinia) {
   })
 }
 
-function seedProjectWithQuestionnaires (questionnaireDefs) {
+function seedProjectWithQuestionnaires(questionnaireDefs) {
   const pinia = createActivePinia()
   const store = useWorkspaceStore()
   const projectId = store.addProject('P')
@@ -24,14 +24,26 @@ function seedProjectWithQuestionnaires (questionnaireDefs) {
   return { pinia, store, projectId, questionnaireIds }
 }
 
-function entryCategory (entryId, aspect, answers) {
+function entryCategory(entryId, aspect, answers) {
   return { id: 'cat-1', title: 'Architecture', entries: [{ id: entryId, aspect, answers }] }
 }
 
 describe('rows / matrix construction', () => {
   it('deduplicates entries across questionnaires and sorts by title', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [{ id: 'c1', title: 'Cat', entries: [{ id: 'e2', aspect: 'Zeta', answers: [] }, { id: 'e1', aspect: 'Alpha', answers: [] }] }] },
+      {
+        name: 'Q1',
+        categories: [
+          {
+            id: 'c1',
+            title: 'Cat',
+            entries: [
+              { id: 'e2', aspect: 'Zeta', answers: [] },
+              { id: 'e1', aspect: 'Alpha', answers: [] }
+            ]
+          }
+        ]
+      },
       { name: 'Q2', categories: [{ id: 'c1', title: 'Cat', entries: [{ id: 'e1', aspect: 'Alpha', answers: [] }] }] }
     ])
     const { wrapper } = mountMatrix({ projectId }, pinia)
@@ -52,11 +64,13 @@ describe('rows / matrix construction', () => {
     const { pinia, projectId, questionnaireIds } = seedProjectWithQuestionnaires([
       {
         name: 'Q1',
-        categories: [entryCategory('e1', 'A1', [
-          { technology: 'Zeta', status: 'Adopt', comments: '', answerType: 'Tool' },
-          { technology: '', status: '', comments: '', answerType: '' },
-          { technology: 'Alpha', status: 'Trial', comments: '', answerType: 'Tool' }
-        ])]
+        categories: [
+          entryCategory('e1', 'A1', [
+            { technology: 'Zeta', status: 'Adopt', comments: '', answerType: 'Tool' },
+            { technology: '', status: '', comments: '', answerType: '' },
+            { technology: 'Alpha', status: 'Trial', comments: '', answerType: 'Tool' }
+          ])
+        ]
       }
     ])
     const { wrapper } = mountMatrix({ projectId }, pinia)
@@ -68,8 +82,18 @@ describe('rows / matrix construction', () => {
 describe('deviation detection (no reference questionnaire)', () => {
   it('flags differing statuses for the same technology across questionnaires as a deviation', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] },
-      { name: 'Q2', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Q1',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      },
+      {
+        name: 'Q2',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     // Deviation is only surfaced as a *violation* when explicitly disallowed for this entry.
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { e1: true } }, pinia)
@@ -78,8 +102,18 @@ describe('deviation detection (no reference questionnaire)', () => {
 
   it('is not a violation when the entry is not flagged in deviationSettings, even if statuses differ', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] },
-      { name: 'Q2', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Q1',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      },
+      {
+        name: 'Q2',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: {} }, pinia)
     expect(wrapper.vm.isViolation({ id: 'e1', categoryId: 'cat-1' })).toBe(false)
@@ -87,8 +121,18 @@ describe('deviation detection (no reference questionnaire)', () => {
 
   it('is not a violation when every questionnaire agrees on status', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] },
-      { name: 'Q2', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Q1',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      },
+      {
+        name: 'Q2',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { e1: true } }, pinia)
     expect(wrapper.vm.isViolation({ id: 'e1', categoryId: 'cat-1' })).toBe(false)
@@ -96,8 +140,18 @@ describe('deviation detection (no reference questionnaire)', () => {
 
   it('category-level deviationSettings disallow deviations for every entry in that category', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] },
-      { name: 'Q2', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Q1',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      },
+      {
+        name: 'Q2',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { 'cat-1': true } }, pinia)
     expect(wrapper.vm.isViolation({ id: 'e1', categoryId: 'cat-1' })).toBe(true)
@@ -107,8 +161,18 @@ describe('deviation detection (no reference questionnaire)', () => {
 describe('deviation detection (with a reference questionnaire)', () => {
   it('flags a non-reference questionnaire whose status disagrees with the reference', () => {
     const { pinia, store, projectId, questionnaireIds } = seedProjectWithQuestionnaires([
-      { name: 'Reference', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] },
-      { name: 'Other', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Reference',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      },
+      {
+        name: 'Other',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     store.setReferenceQuestionnaire(projectId, questionnaireIds[0])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { e1: true } }, pinia)
@@ -120,8 +184,18 @@ describe('deviation detection (with a reference questionnaire)', () => {
     // reference short-circuits to "no deviation", see the test below), just
     // not one for the same technology as the non-reference questionnaire.
     const { pinia, store, projectId, questionnaireIds } = seedProjectWithQuestionnaires([
-      { name: 'Reference', categories: [entryCategory('e1', 'A1', [{ technology: 'Angular', status: 'Hold', comments: '', answerType: 'Tool' }])] },
-      { name: 'Other', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Reference',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Angular', status: 'Hold', comments: '', answerType: 'Tool' }])
+        ]
+      },
+      {
+        name: 'Other',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     store.setReferenceQuestionnaire(projectId, questionnaireIds[0])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { e1: true } }, pinia)
@@ -134,7 +208,12 @@ describe('deviation detection (with a reference questionnaire)', () => {
     // the non-reference questionnaires against each other in that case.
     const { pinia, store, projectId, questionnaireIds } = seedProjectWithQuestionnaires([
       { name: 'Reference', categories: [entryCategory('e1', 'A1', [])] },
-      { name: 'Other', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Other',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     store.setReferenceQuestionnaire(projectId, questionnaireIds[0])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { e1: true } }, pinia)
@@ -145,8 +224,38 @@ describe('deviation detection (with a reference questionnaire)', () => {
 describe('category violation rollup', () => {
   it('categoryHasViolation is true if any visible row in that category is a violation', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [{ id: 'cat-1', title: 'Architecture', entries: [{ id: 'e1', aspect: 'A1', answers: [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }] }] }] },
-      { name: 'Q2', categories: [{ id: 'cat-1', title: 'Architecture', entries: [{ id: 'e1', aspect: 'A1', answers: [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }] }] }] }
+      {
+        name: 'Q1',
+        categories: [
+          {
+            id: 'cat-1',
+            title: 'Architecture',
+            entries: [
+              {
+                id: 'e1',
+                aspect: 'A1',
+                answers: [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: 'Q2',
+        categories: [
+          {
+            id: 'cat-1',
+            title: 'Architecture',
+            entries: [
+              {
+                id: 'e1',
+                aspect: 'A1',
+                answers: [{ technology: 'Vue', status: 'Retire', comments: '', answerType: 'Tool' }]
+              }
+            ]
+          }
+        ]
+      }
     ])
     const { wrapper } = mountMatrix({ projectId, deviationSettings: { e1: true } }, pinia)
     expect(wrapper.vm.categoryHasViolation('Architecture')).toBe(true)
@@ -165,7 +274,12 @@ describe('unanswered detection', () => {
 
   it('isUnanswered is false once at least one questionnaire has a non-empty answer', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
-      { name: 'Q1', categories: [entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])] }
+      {
+        name: 'Q1',
+        categories: [
+          entryCategory('e1', 'A1', [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }])
+        ]
+      }
     ])
     const { wrapper } = mountMatrix({ projectId }, pinia)
     expect(wrapper.vm.isUnanswered('e1')).toBe(false)
@@ -177,14 +291,24 @@ describe('visibility settings', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
       {
         name: 'Q1',
-        categories: [{
-          id: 'cat-1',
-          title: 'Architecture',
-          entries: [
-            { id: 'e1', aspect: 'A1', answers: [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }] },
-            { id: 'e2', aspect: 'A2', answers: [{ technology: 'React', status: 'Adopt', comments: '', answerType: 'Tool' }] }
-          ]
-        }]
+        categories: [
+          {
+            id: 'cat-1',
+            title: 'Architecture',
+            entries: [
+              {
+                id: 'e1',
+                aspect: 'A1',
+                answers: [{ technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' }]
+              },
+              {
+                id: 'e2',
+                aspect: 'A2',
+                answers: [{ technology: 'React', status: 'Adopt', comments: '', answerType: 'Tool' }]
+              }
+            ]
+          }
+        ]
       }
     ])
     const { wrapper } = mountMatrix({ projectId, visibilitySettings: { e1: false } }, pinia)
@@ -196,14 +320,16 @@ describe('visibility settings', () => {
     const { pinia, projectId } = seedProjectWithQuestionnaires([
       {
         name: 'Q1',
-        categories: [{
-          id: 'cat-1',
-          title: 'Architecture',
-          entries: [
-            { id: 'e1', aspect: 'A1', answers: [] },
-            { id: 'e2', aspect: 'A2', answers: [] }
-          ]
-        }]
+        categories: [
+          {
+            id: 'cat-1',
+            title: 'Architecture',
+            entries: [
+              { id: 'e1', aspect: 'A1', answers: [] },
+              { id: 'e2', aspect: 'A2', answers: [] }
+            ]
+          }
+        ]
       }
     ])
     const { wrapper } = mountMatrix({ projectId, visibilitySettings: { e1: false } }, pinia)

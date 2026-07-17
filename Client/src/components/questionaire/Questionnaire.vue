@@ -43,13 +43,7 @@
                   <v-icon start size="12">mdi-eye-off-outline</v-icon>
                   {{ currentCategoryHiddenCount }} hidden
                 </v-chip>
-                <v-btn
-                  v-if="currentCategory.isMetadata"
-                  icon
-                  size="small"
-                  variant="text"
-                  @click="$emit('open-config')"
-                >
+                <v-btn v-if="currentCategory.isMetadata" icon size="small" variant="text" @click="$emit('open-config')">
                   <v-icon>mdi-cog</v-icon>
                   <v-tooltip activator="parent" location="bottom">Configuration</v-tooltip>
                 </v-btn>
@@ -63,7 +57,7 @@
                 density="compact"
                 variant="outlined"
                 hide-details
-                style="max-width: 220px;"
+                style="max-width: 220px"
                 @update:model-value="setAllApplicability"
               >
                 <template #item="{ props, item }">
@@ -78,12 +72,7 @@
           <v-card-text>
             <!-- Solution Description Metadata Form -->
             <div v-if="currentCategory.isMetadata" class="mt-4">
-              <v-alert
-                v-if="!architecturalRoleValue"
-                type="info"
-                variant="tonal"
-                class="mb-4"
-              >
+              <v-alert v-if="!architecturalRoleValue" type="info" variant="tonal" class="mb-4">
                 Please select an Architectural Role to unlock the remaining categories.
               </v-alert>
               <v-row dense>
@@ -91,45 +80,45 @@
                   <v-text-field
                     label="Software Product"
                     :model-value="currentCategory.metadata.productName"
+                    clearable
                     @blur="currentCategory.metadata.productName = $event.target.value"
                     @click:clear="currentCategory.metadata.productName = ''"
-                    clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
                     label="Company"
                     :model-value="currentCategory.metadata.company"
+                    clearable
                     @blur="currentCategory.metadata.company = $event.target.value"
                     @click:clear="currentCategory.metadata.company = ''"
-                    clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
                     label="Department"
                     :model-value="currentCategory.metadata.department"
+                    clearable
                     @blur="currentCategory.metadata.department = $event.target.value"
                     @click:clear="currentCategory.metadata.department = ''"
-                    clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-text-field
                     label="Contact Person"
                     :model-value="currentCategory.metadata.contactPerson"
+                    clearable
                     @blur="currentCategory.metadata.contactPerson = $event.target.value"
                     @click:clear="currentCategory.metadata.contactPerson = ''"
-                    clearable
                   />
                 </v-col>
                 <v-col cols="12">
                   <v-select
+                    v-model="currentCategory.metadata.executionType"
                     label="Execution Type"
                     :items="currentCategory.metadataOptions?.executionType || []"
                     item-title="label"
                     item-value="label"
-                    v-model="currentCategory.metadata.executionType"
                     clearable
                   >
                     <template #item="{ props, item }">
@@ -141,11 +130,11 @@
                 </v-col>
                 <v-col cols="12">
                   <v-select
+                    v-model="currentCategory.metadata.architecturalRole"
                     label="Architectural Role"
                     :items="currentCategory.metadataOptions?.architecturalRole || []"
                     item-title="label"
                     item-value="label"
-                    v-model="currentCategory.metadata.architecturalRole"
                     clearable
                   >
                     <template #item="{ props, item }">
@@ -159,10 +148,10 @@
                   <v-textarea
                     label="Description"
                     :model-value="currentCategory.metadata.description"
-                    @blur="currentCategory.metadata.description = $event.target.value"
                     placeholder="Brief description of the software product..."
                     rows="4"
                     auto-grow
+                    @blur="currentCategory.metadata.description = $event.target.value"
                   />
                 </v-col>
                 <v-col v-if="parentProject" cols="12">
@@ -176,8 +165,8 @@
                     @update:model-value="toggleReference"
                   />
                   <div class="text-caption text-medium-emphasis mt-1">
-                    Wird dieser Fragenkatalog als Referenz markiert, werden alle anderen Kataloge
-                    im Projektvergleich gegen diesen verglichen.
+                    Wird dieser Fragenkatalog als Referenz markiert, werden alle anderen Kataloge im Projektvergleich
+                    gegen diesen verglichen.
                   </div>
                 </v-col>
               </v-row>
@@ -203,8 +192,20 @@
                   class="ml-3"
                   @click="cycleSort"
                 >
-                  <v-icon>{{ entrySort === 'asc' ? 'mdi-sort-alphabetical-ascending' : entrySort === 'desc' ? 'mdi-sort-alphabetical-descending' : 'mdi-sort-variant' }}</v-icon>
-                  <v-tooltip activator="parent" location="bottom">{{ entrySort === 'asc' ? 'Sorted A→Z (click for Z→A)' : entrySort === 'desc' ? 'Sorted Z→A (click to reset)' : 'Sort alphabetically' }}</v-tooltip>
+                  <v-icon>{{
+                    entrySort === 'asc'
+                      ? 'mdi-sort-alphabetical-ascending'
+                      : entrySort === 'desc'
+                        ? 'mdi-sort-alphabetical-descending'
+                        : 'mdi-sort-variant'
+                  }}</v-icon>
+                  <v-tooltip activator="parent" location="bottom">{{
+                    entrySort === 'asc'
+                      ? 'Sorted A→Z (click for Z→A)'
+                      : entrySort === 'desc'
+                        ? 'Sorted Z→A (click to reset)'
+                        : 'Sort alphabetically'
+                  }}</v-tooltip>
                 </v-btn>
               </div>
               <div v-for="entry in visibleEntries" :key="entry.id" :data-entry-id="entry.id" class="mb-6">
@@ -228,10 +229,16 @@
                           </template>
                         </v-tooltip>
                       </div>
-                      <div v-if="entry.description" class="text-body-2 mt-1" v-html="renderTextWithLinks(entry.description)"></div>
+                      <!-- eslint-disable vue/no-v-html -- renderTextWithLinks() escapes all input via escapeHtml() before building link markup, see workspaceStore.js -->
+                      <div
+                        v-if="entry.description"
+                        class="text-body-2 mt-1"
+                        v-html="renderTextWithLinks(entry.description)"
+                      ></div>
+                      <!-- eslint-enable vue/no-v-html -->
                       <EntryExamples v-if="entry.examples" :examples="entry.examples" :entry-id="entry.id" />
                     </div>
-                    <div class="ml-4" style="min-width: 190px;">
+                    <div class="ml-4" style="min-width: 190px">
                       <v-select
                         v-model="entry.applicability"
                         :items="applicabilityItems"
@@ -256,12 +263,12 @@
                     <v-textarea
                       label="General Comment"
                       :model-value="entry.entryComment"
-                      @blur="entry.entryComment = $event.target.value"
                       rows="2"
                       density="compact"
                       variant="outlined"
                       placeholder="Add a general comment for this subcategory..."
                       class="resizable-textarea"
+                      @blur="entry.entryComment = $event.target.value"
                     />
                   </div>
 
@@ -275,8 +282,8 @@
                       <v-row dense>
                         <v-col cols="12" md="2">
                           <v-select
-                            label="Type"
                             v-model="answer.answerType"
+                            label="Type"
                             :items="answerTypeOptions"
                             item-title="label"
                             item-value="value"
@@ -293,8 +300,8 @@
 
                         <v-col cols="12" md="7">
                           <v-combobox
-                            label="Solution"
                             v-model="answer.technology"
+                            label="Solution"
                             :items="getSuggestions(entry)"
                             clearable
                             hide-details
@@ -304,11 +311,11 @@
                         <v-col cols="12" md="3">
                           <div class="d-flex align-center gap-2">
                             <v-select
+                              v-model="answer.status"
                               label="Status"
                               :items="statusOptions"
                               item-title="label"
                               item-value="label"
-                              v-model="answer.status"
                               class="flex-grow-1"
                               hide-details
                             >
@@ -319,12 +326,12 @@
                               </template>
                             </v-select>
                             <v-btn
+                              v-if="entry.answers.length > 1"
                               size="small"
                               color="error"
                               variant="text"
                               icon
                               @click="deleteAnswer(entry.id, aIdx)"
-                              v-if="entry.answers.length > 1"
                             >
                               <v-icon>mdi-delete</v-icon>
                             </v-btn>
@@ -335,9 +342,9 @@
                           <v-textarea
                             label="Comment"
                             :model-value="answer.comments"
-                            @blur="answer.comments = $event.target.value"
                             rows="2"
                             class="resizable-textarea"
+                            @blur="answer.comments = $event.target.value"
                           />
                         </v-col>
                       </v-row>
@@ -345,9 +352,7 @@
 
                     <!-- Button fuer neue Antwort -->
                     <div class="mt-3">
-                      <v-btn size="small" color="secondary" @click="addAnswer(entry.id)">
-                        + Add Answer
-                      </v-btn>
+                      <v-btn size="small" color="secondary" @click="addAnswer(entry.id)"> + Add Answer </v-btn>
                     </div>
                   </div>
                 </v-sheet>
@@ -355,11 +360,11 @@
             </div>
           </v-card-text>
           <v-card-actions>
-            <v-btn icon color="primary" @click="prevCategory" :disabled="!hasPrev">
+            <v-btn icon color="primary" :disabled="!hasPrev" @click="prevCategory">
               <v-icon>mdi-chevron-left</v-icon>
             </v-btn>
             <v-spacer />
-            <v-btn icon color="primary" @click="nextCategory" :disabled="!hasNext">
+            <v-btn icon color="primary" :disabled="!hasNext" @click="nextCategory">
               <v-icon>mdi-chevron-right</v-icon>
             </v-btn>
           </v-card-actions>
@@ -387,14 +392,14 @@ export default {
     }
   },
   emits: ['update-categories', 'open-config'],
-  setup (props) {
+  setup(props) {
     const store = useWorkspaceStore()
 
     const parentProject = computed(() => {
       if (!props.questionnaireId) return null
-      return (store.workspace.projects || []).find((p) =>
-        (p.questionnaireIds || []).includes(props.questionnaireId)
-      ) || null
+      return (
+        (store.workspace.projects || []).find((p) => (p.questionnaireIds || []).includes(props.questionnaireId)) || null
+      )
     })
 
     const isReference = computed(() => {
@@ -410,7 +415,7 @@ export default {
       'not applicable': 'Entry does not apply to this solution.',
       unknown: 'Applicability is not known yet.'
     }
-    
+
     // Static options - don't need to be recomputed
     const applicabilityFilterOptions = [
       { title: 'All', value: 'all' },
@@ -419,12 +424,12 @@ export default {
         value: label
       }))
     ]
-    
+
     const applicabilityItems = store.applicabilityOptions.map((label) => ({
       label,
       description: applicabilityDescriptions[label] || ''
     }))
-    
+
     const metadataCategory = computed(() => props.categories.find((category) => category.isMetadata) || null)
     const metadataValue = computed(() => metadataCategory.value?.metadata || null)
     const architecturalRoleValue = computed(() => metadataValue.value?.architecturalRole || '')
@@ -484,23 +489,29 @@ export default {
       })
     })
 
-    watch(visibleCategories, (value) => {
-      if (!value.length) {
-        activeCategoryId.value = ''
-        return
-      }
-      if (!value.find((category) => category.id === activeCategoryId.value)) {
-        activeCategoryId.value = value[0].id
-      }
-    }, { immediate: true })
+    watch(
+      visibleCategories,
+      (value) => {
+        if (!value.length) {
+          activeCategoryId.value = ''
+          return
+        }
+        if (!value.find((category) => category.id === activeCategoryId.value)) {
+          activeCategoryId.value = value[0].id
+        }
+      },
+      { immediate: true }
+    )
 
     const currentCategory = computed(() => {
-      return visibleCategories.value.find((category) => category.id === activeCategoryId.value) || {
-        title: '',
-        desc: '',
-        isMetadata: false,
-        entries: []
-      }
+      return (
+        visibleCategories.value.find((category) => category.id === activeCategoryId.value) || {
+          title: '',
+          desc: '',
+          isMetadata: false,
+          entries: []
+        }
+      )
     })
 
     const visibleEntries = computed(() => {
@@ -516,9 +527,9 @@ export default {
 
       if (entrySearch.value && entrySearch.value.trim()) {
         const q = entrySearch.value.trim().toLowerCase()
-        result = result.filter((entry) =>
-          (entry.aspect || '').toLowerCase().includes(q) ||
-          (entry.description || '').toLowerCase().includes(q)
+        result = result.filter(
+          (entry) =>
+            (entry.aspect || '').toLowerCase().includes(q) || (entry.description || '').toLowerCase().includes(q)
         )
       }
 
@@ -543,18 +554,18 @@ export default {
     // Cache for category visibility to avoid recalculating on every render
     const categoryVisibilityCache = computed(() => {
       const cache = new Map()
-      visibleCategories.value.forEach(cat => {
+      visibleCategories.value.forEach((cat) => {
         if (cat.isMetadata) {
           cache.set(cat.id, true)
         } else {
           const entries = Array.isArray(cat.entries) ? cat.entries : []
           const filtered = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
-          
+
           if (applicabilityFilter.value === 'all') {
             cache.set(cat.id, filtered.length > 0)
           } else {
-            const withApplicability = filtered.filter((entry) => 
-              (entry.applicability || 'applicable') === applicabilityFilter.value
+            const withApplicability = filtered.filter(
+              (entry) => (entry.applicability || 'applicable') === applicabilityFilter.value
             )
             cache.set(cat.id, withApplicability.length > 0)
           }
@@ -568,7 +579,10 @@ export default {
     }
 
     const hasNext = computed(() => {
-      return visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value) < visibleCategories.value.length - 1
+      return (
+        visibleCategories.value.findIndex((category) => category.id === activeCategoryId.value) <
+        visibleCategories.value.length - 1
+      )
     })
 
     const hasPrev = computed(() => {
@@ -636,10 +650,10 @@ export default {
 
     function setAllApplicability(value) {
       if (!value || currentCategory.value.isMetadata) return
-      
+
       const entries = Array.isArray(currentCategory.value.entries) ? currentCategory.value.entries : []
       const entriesToUpdate = entries.filter((entry) => appliesToMatches(entry.appliesTo, metadataValue.value))
-      
+
       entriesToUpdate.forEach((entry) => {
         store.setApplicability(entry, value)
       })
@@ -651,13 +665,13 @@ export default {
       }
 
       const suggestions = []
-      
+
       entry.examples.forEach((example) => {
         // Add the example label
         if (example.label) {
           suggestions.push(example.label)
         }
-        
+
         // Add all tools from the example
         if (Array.isArray(example.tools)) {
           example.tools.forEach((tool) => {
@@ -667,7 +681,7 @@ export default {
           })
         }
       })
-      
+
       return suggestions.sort()
     }
 
@@ -677,7 +691,6 @@ export default {
     ]
 
     return {
-      categories: props.categories,
       visibleCategories,
       currentCategory,
       visibleEntries,
@@ -716,7 +729,9 @@ export default {
 </script>
 
 <style scoped>
-.font-weight-medium { font-weight: 500; }
+.font-weight-medium {
+  font-weight: 500;
+}
 
 .resizable-textarea :deep(textarea) {
   resize: vertical;
@@ -754,8 +769,17 @@ export default {
 }
 
 @keyframes entry-flash {
-  0%   { outline: 2px solid rgba(var(--v-theme-primary), 0.9); background: rgba(var(--v-theme-primary), 0.08); }
-  60%  { outline: 2px solid rgba(var(--v-theme-primary), 0.4); background: rgba(var(--v-theme-primary), 0.04); }
-  100% { outline: 2px solid transparent; background: transparent; }
+  0% {
+    outline: 2px solid rgba(var(--v-theme-primary), 0.9);
+    background: rgba(var(--v-theme-primary), 0.08);
+  }
+  60% {
+    outline: 2px solid rgba(var(--v-theme-primary), 0.4);
+    background: rgba(var(--v-theme-primary), 0.04);
+  }
+  100% {
+    outline: 2px solid transparent;
+    background: transparent;
+  }
 }
 </style>

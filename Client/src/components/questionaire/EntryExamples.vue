@@ -3,7 +3,7 @@
     <strong>Examples: </strong>
     <span v-for="(example, eIdx) in items" :key="`ex-${eIdx}`">
       <v-tooltip v-if="example.description" :text="example.description" location="top">
-        <template v-slot:activator="{ props }">
+        <template #activator="{ props }">
           <span v-bind="props" class="example-item">{{ example.label }}</span>
         </template>
       </v-tooltip>
@@ -41,9 +41,9 @@ const items = computed(() => {
         if (example && typeof example === 'object') {
           const label = String(example.label || '').trim()
           if (!label) return null
-          
+
           let description = example.description || ''
-          
+
           // Append tools in parentheses if tools array exists and has items
           if (Array.isArray(example.tools) && example.tools.length > 0) {
             const toolsText = example.tools.join(', ')
@@ -54,7 +54,7 @@ const items = computed(() => {
             }
             description = `${description} (${toolsText}).`
           }
-          
+
           return { label, description }
         }
         return null

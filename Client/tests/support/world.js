@@ -30,7 +30,7 @@ Before(async function () {
   this.context = await this.browser.newContext({
     baseURL: BASE_URL,
     // Give Playwright assertions up to 10 s to find elements
-    actionTimeout: 10_000,
+    actionTimeout: 10_000
   })
   this.page = await this.context.newPage()
 

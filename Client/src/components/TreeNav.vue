@@ -49,14 +49,7 @@
       <template #append="{ item }">
         <v-menu v-if="item.type === 'project'" location="bottom end">
           <template #activator="{ props: menuProps }">
-            <v-btn
-              icon
-              size="x-small"
-              variant="text"
-              class="item-menu"
-              v-bind="menuProps"
-              @click.stop
-            >
+            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
               <v-icon size="16">mdi-dots-vertical</v-icon>
             </v-btn>
           </template>
@@ -98,14 +91,7 @@
 
         <v-menu v-else location="bottom end">
           <template #activator="{ props: menuProps }">
-            <v-btn
-              icon
-              size="x-small"
-              variant="text"
-              class="item-menu"
-              v-bind="menuProps"
-              @click.stop
-            >
+            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
               <v-icon size="16">mdi-dots-vertical</v-icon>
             </v-btn>
           </template>
@@ -155,63 +141,63 @@
 
     <!-- Standalone / Unassigned Questionnaires -->
     <template v-if="standaloneQuestionnaires.length || isDragging">
-    <div class="tree-header mt-3">
-      <div class="tree-title">Unassigned</div>
-    </div>
-    <div
-      class="standalone-list"
-      :class="{ 'drop-target': unassignDropTarget }"
-      @dragover.prevent="onDragOverUnassigned"
-      @dragleave="onDragLeaveUnassigned"
-      @drop.prevent="onDropUnassigned"
-    >
-      <div
-        v-if="!standaloneQuestionnaires.length"
-        class="text-caption px-2 py-2"
-        :class="isDragging ? 'drop-hint-text' : 'text-medium-emphasis'"
-      >
-        {{ isDragging ? 'Drop to unassign from project' : 'No questionnaires' }}
+      <div class="tree-header mt-3">
+        <div class="tree-title">Unassigned</div>
       </div>
+      <div
+        class="standalone-list"
+        :class="{ 'drop-target': unassignDropTarget }"
+        @dragover.prevent="onDragOverUnassigned"
+        @dragleave="onDragLeaveUnassigned"
+        @drop.prevent="onDropUnassigned"
+      >
+        <div
+          v-if="!standaloneQuestionnaires.length"
+          class="text-caption px-2 py-2"
+          :class="isDragging ? 'drop-hint-text' : 'text-medium-emphasis'"
+        >
+          {{ isDragging ? 'Drop to unassign from project' : 'No questionnaires' }}
+        </div>
 
-      <div
-        v-for="q in standaloneQuestionnaires"
-        :key="q.id"
-        class="standalone-item"
-        :class="{ 'reorder-target': isReorderTarget(q.id) }"
-        draggable="true"
-        @click="openQuestionnaire(q.id)"
-        @dragstart.stop="onDragStart(null, q.id)"
-        @dragend="onDragEnd()"
-        @dragover.prevent.stop="onDragOverQuestionnaire(null, q.id)"
-        @dragleave="onDragLeaveQuestionnaire(q.id)"
-        @drop.prevent.stop="onDropOnStandaloneItem(q.id)"
-      >
-        <v-icon size="16" class="mr-1">mdi-file-document-outline</v-icon>
-        <span class="standalone-title">{{ q.name }}</span>
-        <v-menu location="bottom end">
-          <template #activator="{ props: menuProps }">
-            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
-              <v-icon size="16">mdi-dots-vertical</v-icon>
-            </v-btn>
-          </template>
-          <v-list density="compact">
-            <v-list-item @click.stop="downloadQuestionnaire(q.id)">
-              <template #prepend><v-icon size="16">mdi-download</v-icon></template>
-              <v-list-item-title>Download</v-list-item-title>
-            </v-list-item>
-            <v-divider />
-            <v-list-item @click.stop="openRenameQuestionnaireDialog(q)">
-              <template #prepend><v-icon size="16">mdi-pencil</v-icon></template>
-              <v-list-item-title>Rename</v-list-item-title>
-            </v-list-item>
-            <v-list-item @click.stop="deleteQuestionnaire(q)">
-              <template #prepend><v-icon size="16" color="error">mdi-delete</v-icon></template>
-              <v-list-item-title>Delete</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
+        <div
+          v-for="q in standaloneQuestionnaires"
+          :key="q.id"
+          class="standalone-item"
+          :class="{ 'reorder-target': isReorderTarget(q.id) }"
+          draggable="true"
+          @click="openQuestionnaire(q.id)"
+          @dragstart.stop="onDragStart(null, q.id)"
+          @dragend="onDragEnd()"
+          @dragover.prevent.stop="onDragOverQuestionnaire(null, q.id)"
+          @dragleave="onDragLeaveQuestionnaire(q.id)"
+          @drop.prevent.stop="onDropOnStandaloneItem(q.id)"
+        >
+          <v-icon size="16" class="mr-1">mdi-file-document-outline</v-icon>
+          <span class="standalone-title">{{ q.name }}</span>
+          <v-menu location="bottom end">
+            <template #activator="{ props: menuProps }">
+              <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
+                <v-icon size="16">mdi-dots-vertical</v-icon>
+              </v-btn>
+            </template>
+            <v-list density="compact">
+              <v-list-item @click.stop="downloadQuestionnaire(q.id)">
+                <template #prepend><v-icon size="16">mdi-download</v-icon></template>
+                <v-list-item-title>Download</v-list-item-title>
+              </v-list-item>
+              <v-divider />
+              <v-list-item @click.stop="openRenameQuestionnaireDialog(q)">
+                <template #prepend><v-icon size="16">mdi-pencil</v-icon></template>
+                <v-list-item-title>Rename</v-list-item-title>
+              </v-list-item>
+              <v-list-item @click.stop="deleteQuestionnaire(q)">
+                <template #prepend><v-icon size="16" color="error">mdi-delete</v-icon></template>
+                <v-list-item-title>Delete</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
       </div>
-    </div>
     </template>
 
     <v-dialog v-model="projectDialogOpen" max-width="420">
@@ -379,9 +365,7 @@
     <v-dialog v-model="deleteQuestionnaireDialogOpen" max-width="420">
       <v-card>
         <v-card-title>Delete questionnaire</v-card-title>
-        <v-card-text>
-          Are you sure you want to delete this questionnaire?
-        </v-card-text>
+        <v-card-text> Are you sure you want to delete this questionnaire? </v-card-text>
         <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeDeleteQuestionnaireDialog">Cancel</v-btn>
@@ -714,8 +698,8 @@ export default {
     }
 
     function proceedToNameDialog() {
-      const file = Array.isArray(questionnaireImportFile.value) 
-        ? questionnaireImportFile.value[0] 
+      const file = Array.isArray(questionnaireImportFile.value)
+        ? questionnaireImportFile.value[0]
         : questionnaireImportFile.value
       if (!file) return
 
@@ -748,11 +732,7 @@ export default {
       const name = questionnaireImportName.value.trim()
       if (!name || !questionnaireImportData.value) return
 
-      store.addQuestionnaire(
-        name,
-        questionnaireImportData.value.categories,
-        questionnaireImportProjectId.value
-      )
+      store.addQuestionnaire(name, questionnaireImportData.value.categories, questionnaireImportProjectId.value)
 
       closeQuestionnaireNameDialog()
     }
@@ -765,8 +745,14 @@ export default {
     }
 
     function onDragEnd() {
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       dragState.value = null
       activeDropTarget.value = ''
       reorderTarget.value = ''
@@ -775,7 +761,10 @@ export default {
 
     function onDragOver(projectId) {
       if (!dragState.value) return
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       activeDropTarget.value = projectId
     }
 
@@ -787,7 +776,10 @@ export default {
     }
 
     function onDrop(projectId) {
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (fromProjectId === null) {
@@ -802,7 +794,10 @@ export default {
 
     function onDragOverQuestionnaire(projectId, questionnaireId) {
       if (!dragState.value) return
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       // Clear project-level highlight – we're over a sibling, not the folder
       activeDropTarget.value = ''
       reorderTarget.value = questionnaireId
@@ -816,7 +811,10 @@ export default {
     }
 
     function onDropOnQuestionnaire(projectId, beforeQuestionnaireId) {
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (draggedId === beforeQuestionnaireId) {
@@ -842,7 +840,10 @@ export default {
 
     function onDragOverUnassigned() {
       if (!dragState.value) return
-      if (unassignDragLeaveTimer) { clearTimeout(unassignDragLeaveTimer); unassignDragLeaveTimer = null }
+      if (unassignDragLeaveTimer) {
+        clearTimeout(unassignDragLeaveTimer)
+        unassignDragLeaveTimer = null
+      }
       activeDropTarget.value = ''
       unassignDropTarget.value = true
     }
@@ -855,7 +856,10 @@ export default {
     }
 
     function onDropUnassigned() {
-      if (unassignDragLeaveTimer) { clearTimeout(unassignDragLeaveTimer); unassignDragLeaveTimer = null }
+      if (unassignDragLeaveTimer) {
+        clearTimeout(unassignDragLeaveTimer)
+        unassignDragLeaveTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (fromProjectId !== null) {
@@ -867,7 +871,10 @@ export default {
     }
 
     function onDropOnStandaloneItem(beforeId) {
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (draggedId !== beforeId && fromProjectId !== null) {
@@ -1018,7 +1025,7 @@ export default {
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #78909C;
+  color: #78909c;
 }
 
 .tree-list {
@@ -1072,7 +1079,9 @@ export default {
   min-height: 32px;
   border-radius: 4px;
   padding: 2px 0;
-  transition: background 0.15s, outline 0.15s;
+  transition:
+    background 0.15s,
+    outline 0.15s;
   margin-bottom: 8px;
 }
 

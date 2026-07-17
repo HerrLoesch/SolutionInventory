@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { exportRadarHtml, generateCustomRadarHtml, downloadCustomRadarHtml } from '../../src/utils/techRadarExport'
 
-function makeBlip (overrides = {}) {
+function makeBlip(overrides = {}) {
   return {
     key: 'e1||Vue',
     name: 'Vue',
@@ -31,7 +31,7 @@ beforeEach(() => {
   capturedContents = []
   OriginalBlob = global.Blob
   global.Blob = class MockBlob extends OriginalBlob {
-    constructor (parts, opts) {
+    constructor(parts, opts) {
       super(parts, opts)
       capturedContents.push(parts.join(''))
     }
@@ -54,7 +54,11 @@ describe('exportRadarHtml', () => {
       visibleRingIndices: [0, 3], // Adopt + Hold only
       effectiveQuadrantLabels: { 0: 'Frontend', 1: '', 2: '', 3: '' },
       blipsByQuadrant: [
-        { quadrant: 0, label: 'Frontend', statusGroups: [{ ring: 0, statusLabel: 'Adopt', color: '#4caf50', blips: [makeBlip()] }] }
+        {
+          quadrant: 0,
+          label: 'Frontend',
+          statusGroups: [{ ring: 0, statusLabel: 'Adopt', color: '#4caf50', blips: [makeBlip()] }]
+        }
       ]
     })
 
@@ -129,10 +133,7 @@ describe('generateCustomRadarHtml', () => {
       makeBlip({ key: 'b', name: 'WrongCategory', categoryTitle: 'Other', ring: 0 }), // Adopt, wrong category
       makeBlip({ key: 'c', name: 'WrongStatus', categoryTitle: 'Architecture', ring: 1 }) // Trial, right category
     ]
-    const html = generateCustomRadarHtml(
-      { title: 'T', blips },
-      { ...baseOptions(), includedStatuses: ['adopt'] }
-    )
+    const html = generateCustomRadarHtml({ title: 'T', blips }, { ...baseOptions(), includedStatuses: ['adopt'] })
     expect(html).toContain('Included')
     expect(html).not.toContain('WrongCategory')
     expect(html).not.toContain('WrongStatus')
@@ -179,10 +180,7 @@ describe('generateCustomRadarHtml', () => {
 
   it('omits the binding badge markup entirely when showBindingLevel is false', () => {
     const blips = [makeBlip({ categoryTitle: 'Architecture', mandatory: true })]
-    const html = generateCustomRadarHtml(
-      { title: 'T', blips },
-      { ...baseOptions(), showBindingLevel: false }
-    )
+    const html = generateCustomRadarHtml({ title: 'T', blips }, { ...baseOptions(), showBindingLevel: false })
     // The stylesheet still defines the .blip-binding rules unconditionally,
     // but no card should render the <span class="blip-binding..."> element.
     expect(html).not.toMatch(/<span class="blip-binding/)
