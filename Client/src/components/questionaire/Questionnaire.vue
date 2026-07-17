@@ -43,10 +43,6 @@
                   <v-icon start size="12">mdi-eye-off-outline</v-icon>
                   {{ currentCategoryHiddenCount }} hidden
                 </v-chip>
-                <v-btn v-if="currentCategory.isMetadata" icon size="small" variant="text" @click="$emit('open-config')">
-                  <v-icon>mdi-cog</v-icon>
-                  <v-tooltip activator="parent" location="bottom">Configuration</v-tooltip>
-                </v-btn>
               </div>
               <v-select
                 v-if="!currentCategory.isMetadata && visibleEntries.length > 0"
@@ -391,7 +387,7 @@ export default {
       default: ''
     }
   },
-  emits: ['update-categories', 'open-config'],
+  emits: ['update-categories'],
   setup(props) {
     const store = useWorkspaceStore()
 

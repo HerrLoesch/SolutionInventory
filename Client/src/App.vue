@@ -145,6 +145,9 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <ConfirmDialog />
+    <UndoSnackbar />
   </v-app>
 </template>
 
@@ -154,10 +157,12 @@ import { storeToRefs } from 'pinia'
 import Workspace from './components/workspace/Workspace.vue'
 import TreeNav from './components/TreeNav.vue'
 import WorkspaceConfig from './components/workspace/WorkspaceConfig.vue'
+import ConfirmDialog from './components/common/ConfirmDialog.vue'
+import UndoSnackbar from './components/common/UndoSnackbar.vue'
 import { useWorkspaceStore } from './stores/workspaceStore'
 
 export default {
-  components: { Workspace, TreeNav, WorkspaceConfig },
+  components: { Workspace, TreeNav, WorkspaceConfig, ConfirmDialog, UndoSnackbar },
   setup() {
     const activeTab = ref('questionnaire')
     const drawerOpen = ref(true)

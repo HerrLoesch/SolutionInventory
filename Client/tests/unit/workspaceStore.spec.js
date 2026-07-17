@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { useWorkspaceStore } from '../../src/stores/workspaceStore'
 
@@ -237,6 +238,124 @@ describe('catalog CRUD', () => {
     expect(result.ok).toBe(false)
     expect(result.referencingProjects).toEqual(['Payments'])
     expect(store.getCatalogById(catalogId)).not.toBeNull()
+  })
+})
+
+describe('catalog editor drafts', () => {
+  it('openCatalogEditor opens a tab and creates a draft that mirrors the saved catalog', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+
+    store.openCatalogEditor(catalogId)
+
+    expect(store.openCatalogEditorIds).toEqual([catalogId])
+    expect(store.activeWorkspaceTabId).toBe(store.toCatalogTabId(catalogId))
+    const draft = store.getCatalogDraft(catalogId)
+    expect(draft.name).toBe('Backend Assessment')
+    expect(store.isCatalogDraftDirty(catalogId)).toBe(false)
+  })
+
+  it('re-opening an already-open catalog keeps the existing draft (does not discard edits)', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+    store.getCatalogDraft(catalogId).name = 'Edited name'
+
+    store.openCatalogEditor(catalogId)
+
+    expect(store.getCatalogDraft(catalogId).name).toBe('Edited name')
+  })
+
+  it('mutating the draft marks it dirty', async () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+    expect(store.isCatalogDraftDirty(catalogId)).toBe(false)
+
+    store.getCatalogDraft(catalogId).name = 'Renamed'
+    await nextTick()
+
+    expect(store.isCatalogDraftDirty(catalogId)).toBe(true)
+  })
+
+  it('saveCatalogDraft blocks on validation errors and leaves the saved catalog untouched', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+    const draft = store.getCatalogDraft(catalogId)
+    draft.categories.push({ id: draft.categories[0].id, title: 'Duplicate id category', entries: [] })
+
+    const result = store.saveCatalogDraft(catalogId)
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.length).toBeGreaterThan(0)
+    expect(store.getCatalogById(catalogId).categories).toHaveLength(1)
+  })
+
+  it('saveCatalogDraft persists the draft, bumps version and clears dirty', async () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+    store.getCatalogDraft(catalogId).name = 'Renamed'
+    await nextTick()
+
+    const result = store.saveCatalogDraft(catalogId)
+
+    expect(result.ok).toBe(true)
+    expect(store.getCatalogById(catalogId).name).toBe('Renamed')
+    expect(store.getCatalogById(catalogId).version).toBe(2)
+    expect(store.isCatalogDraftDirty(catalogId)).toBe(false)
+  })
+
+  it('discardCatalogDraft resets the draft back to the last saved catalog', async () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+    store.getCatalogDraft(catalogId).name = 'Renamed'
+    await nextTick()
+
+    store.discardCatalogDraft(catalogId)
+
+    expect(store.getCatalogDraft(catalogId).name).toBe('Backend Assessment')
+    expect(store.isCatalogDraftDirty(catalogId)).toBe(false)
+  })
+
+  it('closeCatalogEditor removes the tab and the draft', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+
+    store.closeCatalogEditor(catalogId)
+
+    expect(store.openCatalogEditorIds).toEqual([])
+    expect(store.getCatalogDraft(catalogId)).toBeNull()
+  })
+
+  it('workspaceTabs includes open catalog editors with their draft name and dirty flag', async () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+
+    const tab = store.workspaceTabs.find((t) => t.type === 'catalog-editor')
+    expect(tab).toMatchObject({ catalogId, label: 'Backend Assessment', dirty: false })
+
+    store.getCatalogDraft(catalogId).name = 'Renamed'
+    await nextTick()
+    const dirtyTab = store.workspaceTabs.find((t) => t.type === 'catalog-editor')
+    expect(dirtyTab.dirty).toBe(true)
+  })
+
+  it('setActiveWorkspaceTab and closeWorkspaceTab handle catalog tabs', () => {
+    const store = useWorkspaceStore()
+    const catalogId = store.addCatalog('Backend Assessment')
+    store.openCatalogEditor(catalogId)
+    const tabId = store.toCatalogTabId(catalogId)
+
+    store.setActiveWorkspaceTab('not-a-real-tab')
+    expect(store.activeWorkspaceTabId).toBe(tabId) // unknown tab id is ignored
+
+    store.closeWorkspaceTab(tabId)
+    expect(store.openCatalogEditorIds).toEqual([])
   })
 })
 

@@ -30,3 +30,24 @@ export function createQuestionnaire(name, categories = []) {
     categories: Array.isArray(categories) ? categories : []
   }
 }
+
+/**
+ * Slugifies `text` into an id, disambiguating collisions with a numeric
+ * suffix (-2, -3, …). Used for stable, human-readable catalog/category/entry
+ * ids that only change when the editor's explicit "regenerate id" action is
+ * used — not automatically on every title edit (see docs/spec-fragenkataloge.md §4.5).
+ */
+export function generateSlugId(text, existingIds = []) {
+  const base =
+    String(text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .substring(0, 50) || 'item'
+  const taken = new Set(existingIds)
+  if (!taken.has(base)) return base
+  let suffix = 2
+  while (taken.has(`${base}-${suffix}`)) suffix++
+  return `${base}-${suffix}`
+}

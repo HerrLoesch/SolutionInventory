@@ -15,7 +15,7 @@
     </div>
 
     <div v-else class="catalog-list tree-list">
-      <div v-for="catalog in catalogs" :key="catalog.id" class="catalog-item">
+      <div v-for="catalog in catalogs" :key="catalog.id" class="catalog-item" @click="openCatalog(catalog.id)">
         <v-icon size="16" class="mr-1">mdi-file-tree-outline</v-icon>
         <span class="catalog-title">{{ catalog.name }}</span>
         <span class="catalog-summary text-caption text-medium-emphasis">{{ catalogSummaryText(catalog) }}</span>
@@ -26,6 +26,12 @@
             </v-btn>
           </template>
           <v-list density="compact">
+            <v-list-item @click.stop="openCatalog(catalog.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-pencil-box-outline</v-icon>
+              </template>
+              <v-list-item-title>Open</v-list-item-title>
+            </v-list-item>
             <v-list-item @click.stop="duplicateCatalogAction(catalog.id)">
               <template #prepend>
                 <v-icon size="16">mdi-content-copy</v-icon>
@@ -519,10 +525,12 @@
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import { summarizeCatalog } from '../services/catalogService'
+import { useWorkspaceTabGuard } from '../composables/useWorkspaceTabGuard'
 
 export default {
   setup() {
     const store = useWorkspaceStore()
+    const { canLeaveActiveTab } = useWorkspaceTabGuard()
     const projects = computed(() => store.workspace.projects || [])
     const catalogs = computed(() => store.workspace.catalogs || [])
 
@@ -618,6 +626,11 @@ export default {
     function openCatalogDialog() {
       newCatalogName.value = ''
       catalogDialogOpen.value = true
+    }
+
+    async function openCatalog(catalogId) {
+      if (store.toCatalogTabId(catalogId) !== store.activeWorkspaceTabId && !(await canLeaveActiveTab())) return
+      store.openCatalogEditor(catalogId)
     }
 
     function closeCatalogDialog() {
@@ -848,11 +861,13 @@ export default {
       questionnaireDialogOpen.value = false
     }
 
-    function openQuestionnaire(questionnaireId) {
+    async function openQuestionnaire(questionnaireId) {
+      if (!(await canLeaveActiveTab())) return
       store.openQuestionnaire(questionnaireId)
     }
 
-    function openProjectSummary(projectId) {
+    async function openProjectSummary(projectId) {
+      if (!(await canLeaveActiveTab())) return
       store.openProjectSummary(projectId)
     }
 
@@ -1160,6 +1175,7 @@ export default {
       catalogDialogOpen,
       newCatalogName,
       openCatalogDialog,
+      openCatalog,
       closeCatalogDialog,
       createCatalog,
       duplicateCatalogAction,
@@ -1390,6 +1406,7 @@ export default {
   padding: 3px 8px;
   border-radius: 3px;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .catalog-item:hover {

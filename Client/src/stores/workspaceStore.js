@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { getCategoriesData } from '../services/categoriesService'
 import {
   buildStandardCatalogFromSeed,
@@ -7,6 +7,7 @@ import {
   createBlankCatalog,
   duplicateCatalogTemplate
 } from '../services/catalogService'
+import { validateCatalog } from '../schema/catalogValidation'
 import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
 import { migrateProjectRadar, buildWorkspaceFromLegacyCategoriesFormat, migrateWorkspaceToV2 } from './migrations'
@@ -28,6 +29,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const openQuestionnaireIds = ref([])
   const activeWorkspaceTabId = ref('')
   const openProjectSummaryIds = ref([])
+  const openCatalogEditorIds = ref([])
+  // Draft state for open catalog editors, keyed by catalog id — session-only
+  // (not persisted): { [catalogId]: { draft: Catalog, dirty: boolean } }.
+  // Lets an edit survive switching workspace tabs without saving (§5.2).
+  const catalogDrafts = reactive({})
   const lastSaved = ref('')
   const autoSaveStarted = ref(false)
   const autoSaveEnabled = ref(true)
@@ -79,6 +85,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         projectId: project.id
       }))
 
+    const catalogEditorTabs = openCatalogEditorIds.value
+      .map((catalogId) => catalogDrafts[catalogId] && { catalogId, entry: catalogDrafts[catalogId] })
+      .filter(Boolean)
+      .map(({ catalogId, entry }) => ({
+        id: toCatalogTabId(catalogId),
+        type: 'catalog-editor',
+        label: entry.draft.name,
+        catalogId,
+        dirty: entry.dirty
+      }))
+
     const questionnaireTabs = openQuestionnaireIds.value
       .map((id) => workspace.value.questionnaires.find((item) => item.id === id))
       .filter(Boolean)
@@ -89,7 +106,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         categories: questionnaire.categories
       }))
 
-    return [...projectTabs, ...questionnaireTabs]
+    return [...projectTabs, ...catalogEditorTabs, ...questionnaireTabs]
   })
 
   // Versions this app can load. Tolerant loading (§3.3.1): any of these are
@@ -431,6 +448,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       activeWorkspaceTabId.value = tabId
       return
     }
+    if (isCatalogTabId(tabId)) {
+      const catalogId = fromCatalogTabId(tabId)
+      if (!openCatalogEditorIds.value.includes(catalogId)) return
+      activeWorkspaceTabId.value = tabId
+      return
+    }
 
     // questionnaire tab
     if (!openQuestionnaireIds.value.includes(tabId)) return
@@ -438,6 +461,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeWorkspaceTabId.value = tabId
   }
 
+  // Closes a tab immediately, with no dirty-check — callers that need the
+  // "unsaved changes?" guard (§4.5) must check isCatalogDraftDirty() and
+  // confirm with the user themselves before calling this (a UI concern, see
+  // Workspace.vue).
   function closeWorkspaceTab(tabId) {
     if (!tabId) return
 
@@ -447,6 +474,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       if (activeWorkspaceTabId.value !== tabId) return
       const nextTab = workspaceTabs.value[0]
       activeWorkspaceTabId.value = nextTab?.id || ''
+      return
+    }
+    if (isCatalogTabId(tabId)) {
+      closeCatalogEditor(fromCatalogTabId(tabId))
       return
     }
 
@@ -707,6 +738,99 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function fromProjectTabId(tabId) {
     return String(tabId || '').slice('project:'.length)
+  }
+
+  function toCatalogTabId(catalogId) {
+    return `catalog:${catalogId}`
+  }
+
+  function isCatalogTabId(tabId) {
+    return String(tabId || '').startsWith('catalog:')
+  }
+
+  function fromCatalogTabId(tabId) {
+    return String(tabId || '').slice('catalog:'.length)
+  }
+
+  /**
+   * Opens a catalog as its own workspace tab (§4.3), creating a session-only
+   * edit draft the first time. Re-opening an already-open catalog just
+   * switches to its existing tab/draft rather than discarding unsaved edits.
+   */
+  function openCatalogEditor(catalogId) {
+    const catalog = getCatalogById(catalogId)
+    if (!catalog) return
+    if (!openCatalogEditorIds.value.includes(catalogId)) {
+      openCatalogEditorIds.value.push(catalogId)
+    }
+    if (!catalogDrafts[catalogId]) {
+      catalogDrafts[catalogId] = { draft: JSON.parse(JSON.stringify(catalog)), dirty: false }
+      // flush: 'sync' matters here — save/discard replace `.draft` wholesale
+      // and then clear `.dirty` in the same synchronous call. With the
+      // default (batched) flush timing this watcher would fire *after* that
+      // clear and flip dirty back to true. Sync flush makes it fire
+      // immediately on the draft reassignment, so the explicit `dirty =
+      // false` that follows it in program order is genuinely the last write.
+      watch(
+        () => catalogDrafts[catalogId]?.draft,
+        () => {
+          if (catalogDrafts[catalogId]) catalogDrafts[catalogId].dirty = true
+        },
+        { deep: true, flush: 'sync' }
+      )
+    }
+    activeWorkspaceTabId.value = toCatalogTabId(catalogId)
+  }
+
+  function getCatalogDraft(catalogId) {
+    return catalogDrafts[catalogId]?.draft || null
+  }
+
+  function isCatalogDraftDirty(catalogId) {
+    return !!catalogDrafts[catalogId]?.dirty
+  }
+
+  /**
+   * Validates and persists a catalog draft (§4.5): blocked by errors,
+   * allowed with only warnings. On success the draft becomes the new saved
+   * baseline (version bumped) and dirty is cleared.
+   */
+  function saveCatalogDraft(catalogId) {
+    const entry = catalogDrafts[catalogId]
+    if (!entry) return { ok: false, errors: [{ path: '', message: 'No draft open for this catalog.' }], warnings: [] }
+    const { errors, warnings } = validateCatalog(entry.draft)
+    if (errors.length > 0) {
+      return { ok: false, errors, warnings }
+    }
+    const saved = JSON.parse(JSON.stringify(entry.draft))
+    saved.version = (saved.version || 0) + 1
+    const index = workspace.value.catalogs.findIndex((c) => c.id === catalogId)
+    if (index !== -1) {
+      workspace.value.catalogs.splice(index, 1, saved)
+    } else {
+      workspace.value.catalogs.push(saved)
+    }
+    entry.draft = JSON.parse(JSON.stringify(saved))
+    entry.dirty = false
+    return { ok: true, warnings }
+  }
+
+  /** Resets a draft back to the last saved version of its catalog (§4.3 "Rückgängig"). */
+  function discardCatalogDraft(catalogId) {
+    const catalog = getCatalogById(catalogId)
+    const entry = catalogDrafts[catalogId]
+    if (!entry || !catalog) return
+    entry.draft = JSON.parse(JSON.stringify(catalog))
+    entry.dirty = false
+  }
+
+  function closeCatalogEditor(catalogId) {
+    openCatalogEditorIds.value = openCatalogEditorIds.value.filter((id) => id !== catalogId)
+    delete catalogDrafts[catalogId]
+    if (activeWorkspaceTabId.value === toCatalogTabId(catalogId)) {
+      const nextTab = workspaceTabs.value[0]
+      activeWorkspaceTabId.value = nextTab?.id || ''
+    }
   }
 
   function saveQuestionnaire(questionnaireId) {
@@ -1146,6 +1270,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     duplicateCatalog,
     deleteCatalog,
     exportCatalog,
+    openCatalogEditorIds,
+    catalogDrafts,
+    openCatalogEditor,
+    getCatalogDraft,
+    isCatalogDraftDirty,
+    saveCatalogDraft,
+    discardCatalogDraft,
+    closeCatalogEditor,
+    isCatalogTabId,
+    toCatalogTabId,
+    fromCatalogTabId,
     getProjectQuestionnaires,
     deleteQuestionnaire,
     renameQuestionnaire,

@@ -436,19 +436,24 @@ statischen Info-Text (`QuestionnaireConfig.vue:143-148`).
 
 ```
 Client/src/components/catalog/
-├─ CatalogLibrary.vue          Bibliotheks-Ansicht / Einbindung in TreeNav
-├─ CatalogEditor.vue           Container: Kopfzeile, Dirty-State, Save/Undo, Layout
-├─ EditorTree.vue              Strukturbaum: Suche, Drag & Drop, Kontextmenüs
-├─ CategoryForm.vue            Kategorie-Stammdaten + Entry-Kurzliste
-├─ EntryForm.vue               Aspekt, ID, Beschreibung + eingebettete Editoren
-├─ ExamplesEditor.vue          sortierbare Beispiel-Zeilen inkl. Tools-Chips
-├─ AppliesToEditor.vue         Bedingungs-Editor (Kategorie + Entry)
-├─ MetadataOptionsForm.vue     Editor für metadataOptions der Metadaten-Kategorie
-└─ ValidationPanel.vue         Live-Validierungsergebnisse
+├─ CatalogLibrary.vue          ✅ realisiert direkt in TreeNav.vue statt als eigene Komponente
+├─ CatalogEditor.vue           ✅ Container: Kopfzeile, Dirty-State, Save/Undo, Layout
+├─ EditorTree.vue              ✅ Strukturbaum: Suche, Kontextmenüs, Auf/Ab (Drag & Drop folgt Phase 5)
+├─ CategoryForm.vue            ✅ Kategorie-Stammdaten + Entry-Kurzliste
+├─ EntryForm.vue               ✅ Aspekt, ID, Beispiele (label+desc) — description/tools/appliesTo: Phase 4
+├─ ExamplesEditor.vue          ⬜ Phase 4 (Tools-Chips) — bis dahin inline in EntryForm.vue
+├─ AppliesToEditor.vue         ⬜ Phase 4
+├─ MetadataOptionsForm.vue     ⬜ Phase 4 — bis dahin schreibgeschützte Übersicht in CategoryForm.vue
+└─ ValidationPanel.vue         ⬜ Phase 4 (Live-Panel) — bis dahin On-Demand-Bericht im Editor-Menü
+
+Client/src/composables/
+├─ useConfirm.js               ✅ Promise-basiert, Singleton-State
+├─ useUndoSnackbar.js          ✅ Singleton-State
+└─ useWorkspaceTabGuard.js     ✅ gemeinsamer Dirty-Guard für Tableiste UND Seitenbaum
 
 Client/src/components/common/
-├─ ConfirmDialog.vue           Promise-basiert (useConfirm()), ersetzt window.confirm
-└─ UndoSnackbar.vue            Snackbar mit Undo-Aktion, ersetzt alert()
+├─ ConfirmDialog.vue           ✅ ersetzt window.confirm, einmal in App.vue gemountet
+└─ UndoSnackbar.vue            ✅ ersetzt alert(), einmal in App.vue gemountet
 ```
 
 ### 5.2 Store-Änderungen (`workspaceStore.js`)
@@ -572,11 +577,47 @@ Standardkatalog aufgerufen (§6.4).
     Behoben durch `aria-label`s auf beiden Buttons und `getByRole('button', { name })`
     in den Steps statt positionsbasierter Selektoren.
 
-**Phase 3 — Editor als eigener Arbeitsbereich**
-11. `CatalogEditor` + `EditorTree`, Modal in `Workspace.vue` entfernen, Katalog-Editor-Tab (P1/P11).
-12. `catalogDrafts` im Store, Dirty-Guard bei Tab-Wechsel/-Schließen (P2).
-13. `alert()`/`confirm()` durch `ConfirmDialog` + `UndoSnackbar` ersetzen (P3/P10).
-14. Automatische ID-Regeneration entfernen, expliziter „⟳ ID neu"-Button (P6).
+**Phase 3 — Editor als eigener Arbeitsbereich — ✅ abgeschlossen (2026-07-17)**
+11. ✅ `CatalogEditor.vue` + `EditorTree.vue` als eigener Workspace-Tab (`Client/src/components/catalog/`).
+    Master-Detail wie in §4.3 skizziert: Suchbarer Strukturbaum links (Kategorien aufklappbar,
+    Entries als Kinder, Knotenmenü mit Duplizieren/Verschieben/Löschen), Detailformular rechts
+    (`CategoryForm.vue`/`EntryForm.vue`). Kopfzeile mit Name, Version, Dirty-Chip,
+    Speichern/Rückgängig, Sekundärmenü (JSON ansehen, Exportieren, Validierungsbericht,
+    Alles zurücksetzen). Das `v-dialog`-Modal in `Workspace.vue` (`configOpen`/`openConfig`/
+    `updateCategories`) ist entfernt; `QuestionnaireConfig.vue` gelöscht; Zahnrad-Button +
+    `open-config`-Emit aus `Questionnaire.vue` entfernt (P1/P11 gelöst).
+12. ✅ `catalogDrafts` (reaktive Map Katalog-ID → `{ draft, dirty }`) im Store, `openCatalogEditor`/
+    `saveCatalogDraft`/`discardCatalogDraft`/`closeCatalogEditor`. Dirty-Tracking per Deep-Watch
+    mit `flush: 'sync'` (Store schreibt beim Speichern/Verwerfen den Draft neu und löscht das
+    Dirty-Flag in derselben Anweisung — mit dem default-batched Flush hätte der eigene Watcher
+    das Flag sofort wieder gesetzt; siehe Kommentar in `workspaceStore.js`).
+    Dirty-Guard (Speichern/Verwerfen/Abbrechen) über gemeinsames Composable
+    `useWorkspaceTabGuard.js`, verwendet von **beiden** Navigationspfaden — Tableiste
+    (`Workspace.vue`) **und** Seitenbaum (`TreeNav.vue`, `openProjectSummary`/`openQuestionnaire`/
+    `openCatalog`). Der zweite Pfad fehlte im ersten Entwurf und wurde erst beim manuellen
+    Browser-Test gefunden (Klick auf ein Projekt im Baum wechselte den Tab ohne Rückfrage,
+    obwohl der Katalog-Tab ungespeicherte Änderungen hatte).
+13. ✅ `ConfirmDialog.vue`/`UndoSnackbar.vue` (`Client/src/components/common/`) mit
+    Promise-basierten Composables `useConfirm.js`/`useUndoSnackbar.js`, einmal in `App.vue`
+    gemountet. Löschen (Kategorie/Entry) läuft sofort mit 5s-Undo-Snackbar statt `confirm()`.
+    `QuestionnaireConfig.vue` war die einzige Datei mit `window.alert`/`window.confirm` im
+    Client — mit ihrer Löschung ist das Client-weite Akzeptanzkriterium „kein `window.alert`/
+    `window.confirm` mehr" bereits erfüllt.
+14. ✅ Automatische ID-Regeneration entfernt; expliziter „New ID"-Button pro Kategorie/Entry mit
+    Warn-Dialog („Referenzen/Instanzen können brechen") vor der Regenerierung.
+
+    **Bewusst zurückgestellt auf Phase 4:** `appliesTo`-Editor, `tools`-Chips im
+    Beispiel-Editor, editierbare `metadataOptions`, Live-`ValidationPanel` (P7/P8) — die
+    Metadaten-Kategorie zeigt bis dahin nur eine schreibgeschützte Übersicht der
+    `metadataOptions`-Felder; ein Validierungsbericht ist über das Sekundärmenü abrufbar
+    (on-demand, nicht live).
+
+    **Beim manuellen Browser-Test gefunden und behoben** (2 Bugs, keiner davon von den
+    Unit-/E2E-Tests erkannt, da diese den Katalog-Editor bislang nicht abdeckten):
+    - Neu hinzugefügte/ausgewählte Entries blieben im Baum unsichtbar, wenn ihre Kategorie
+      eingeklappt war (Formular zeigte sie korrekt, der Baum nicht) — behoben durch
+      automatisches Aufklappen der Kategorie der aktuellen Auswahl (`EditorTree.vue`).
+    - Sidebar-Navigation (s. Punkt 12) umging den Dirty-Guard komplett.
 
 **Phase 4 — Vollständigkeit des Datenmodells**
 15. `EntryForm` mit `description`; `ExamplesEditor` mit `tools`-Chips (P7).
@@ -647,13 +688,13 @@ Funktional:
 
 - [x] Mehrere Kataloge lassen sich in der Bibliothek anlegen, umbenennen, duplizieren, löschen; ein referenzierter Katalog kann nicht gelöscht werden. *(Phase 2, 2026-07-17)*
 - [x] Beim Anlegen eines Projekts wird ein Default-Katalog gewählt; der erste Fragebogen wird daraus instanziiert und im Projekt gespeichert. *(Phase 2, 2026-07-17)*
-- [ ] Ein Katalog wird beim Speichern und beim Import gegen `catalog.schema.json` validiert; Fehler blockieren das Speichern.
-- [ ] Schließen des Editors mit ungespeicherten Änderungen zeigt immer den Speichern/Verwerfen-Dialog.
-- [ ] Kein `window.alert` / `window.confirm` mehr im Client-Code.
-- [ ] Umbenennen einer Kategorie/eines Entries ändert dessen ID nicht; ausgeblendete Entries bleiben ausgeblendet.
-- [ ] `entry.description`, `example.tools`, `appliesTo` und `metadataOptions` sind ohne JSON-Export editierbar.
-- [ ] Ein Katalog mit 10 Kategorien à 20 Entries ist ohne Volltext-Scrolling navigierbar (Baum + Suche).
-- [ ] Löschen einer Kategorie ist 5 Sekunden per Undo rücknehmbar.
+- [x] Ein Katalog wird beim Speichern gegen `catalog.schema.json` validiert; Fehler blockieren das Speichern. *(Phase 3, 2026-07-17 — Import-Validierung fehlt noch, da es noch keinen Katalog-Import gibt.)*
+- [x] Schließen **und** Verlassen des Editors (Tableiste **und** Seitenbaum) mit ungespeicherten Änderungen zeigt immer den Speichern/Verwerfen-Dialog. *(Phase 3, 2026-07-17)*
+- [x] Kein `window.alert` / `window.confirm` mehr im Client-Code. *(Phase 3, 2026-07-17)*
+- [x] Umbenennen einer Kategorie/eines Entries ändert dessen ID nicht mehr automatisch; ID-Änderung nur noch über expliziten „New ID"-Button. *(Phase 3, 2026-07-17)*
+- [ ] `entry.description`, `example.tools`, `appliesTo` und `metadataOptions` sind ohne JSON-Export editierbar. *(Phase 4)*
+- [ ] Ein Katalog mit 10 Kategorien à 20 Entries ist ohne Volltext-Scrolling navigierbar (Baum + Suche). *(Baum+Suche vorhanden, aber nicht mit dieser Datenmenge stichprobenartig geprüft.)*
+- [x] Löschen einer Kategorie ist 5 Sekunden per Undo rücknehmbar. *(Phase 3, 2026-07-17 — auch für Entries.)*
 
 Abwärtskompatibilität (verbindlich, Nachweis über §6.2):
 
