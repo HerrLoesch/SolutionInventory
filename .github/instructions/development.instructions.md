@@ -155,7 +155,7 @@ store.addQuestionnaire('New Questionnaire', null, projectId)
 
 - **Services**: Use relative imports from appropriate depth
   ```javascript
-  import { getDefaultCategories } from '../services/categoriesService'
+  import { getCategoriesData } from '../services/categoriesService'
   ```
 
 - **Store**: Import from stores directory
@@ -171,7 +171,7 @@ store.addQuestionnaire('New Questionnaire', null, projectId)
 
 - **Presentation Components**: Focus on rendering (ProjectMatrix, ProjectSuggestions)
 - **Container Components**: Handle interaction and state (ProjectSummary, Workspace)
-- **Configuration Components**: UI for editing settings (CategorySettings, QuestionnaireConfig)
+- **Configuration/Editor Components**: UI for editing settings and catalog structure (CategorySettings, `catalog/CatalogEditor` and its sub-forms). Note: the old `QuestionnaireConfig.vue` dialog was replaced by the dedicated Catalog Editor (`src/components/catalog/`).
 
 ---
 

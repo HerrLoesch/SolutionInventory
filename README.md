@@ -21,16 +21,18 @@ The collected data feeds into cross-project analysis views such as a **Project S
 
 ### Core Workflow
 
-1. **Create Projects** — Each project represents a software solution to be assessed.
-2. **Add Questionnaires** — Each project can contain multiple questionnaires (e.g. one per team, component, or assessment cycle).
-3. **Answer Questions** — Questions are organized in categories (Architecture, Security, DevOps, etc.). Each entry offers predefined answer options with status levels (Adopt / Trial / Assess / Hold / Retire) and an applicability toggle.
-4. **Analyze** — Use the Project Summary, Tech Radar, and Deviation Analysis to compare answers across questionnaires and identify patterns.
-5. **Export** — Export project data as JSON or Excel, or export the Tech Radar as a ThoughtWorks-compatible JSON or PNG image.
+1. **(Optional) Prepare a Catalog** — Pick one of the built-in catalogs or create/edit your own in the Catalog Editor. A catalog is a reusable template (categories, entries, examples, visibility rules) with no answers.
+2. **Create Projects** — Each project represents a software solution to be assessed and selects a default catalog.
+3. **Add Questionnaires** — Each project can contain multiple questionnaires (e.g. one per team, component, or assessment cycle). Each is instantiated from a catalog and keeps a provenance link to it.
+4. **Answer Questions** — Questions are organized in categories (Architecture, Security, DevOps, etc.). Each entry offers predefined example answers with status levels (Adopt / Trial / Assess / Hold / Retire) and an applicability toggle; irrelevant entries are hidden based on the solution's execution type and architectural role.
+5. **Analyze** — Use the Project Summary, Tech Radar, and Deviation Analysis to compare answers across questionnaires and identify patterns.
+6. **Export** — Export project data as JSON or Excel, or export the Tech Radar as a ThoughtWorks-compatible JSON or PNG image.
 
 ### Data Storage
 
 - **Web App (PWA):** All data is stored exclusively in the browser's Local Storage. There is no server-side storage, accounts, or synchronization. Clearing browser data removes everything.
 - **Electron App (Windows & Linux):** All data is stored locally on the device in a user-chosen directory as a single JSON file (`solution-inventory-data.json`). No data is sent to any server or cloud service.
+- **Backward compatibility & versioning:** Stored data carries a `version` (storage format) and the exact `appVersion` that wrote it. Older workspaces are migrated forward tolerantly on load (never discarded — an unreadable or unknown-version file surfaces an error instead of being overwritten). Built-in catalogs you have **not** customized are refreshed to their latest shipped content automatically; edited or renamed ones are left untouched.
 
 ## Features
 
@@ -40,12 +42,26 @@ The collected data feeds into cross-project analysis views such as a **Project S
 - Reference questionnaire: designate one questionnaire per project as the baseline for comparison
 - Project import/export (JSON and Excel)
 
+### Question Catalogs (Templates)
+- **Catalog library:** manage multiple reusable question catalogs (templates) — create, rename, duplicate, delete; a catalog that is still referenced by a project cannot be deleted
+- **Two built-in catalogs ship out of the box:**
+  - **Standard Catalog** — the exhaustive, encyclopedic question set (Architecture, Frontend, Backend, Infrastructure & Data, Ops, Security, Hardware & IO, QA)
+  - **Software System Interview** — a curated, interview-optimized catalog that separates **Practices** (patterns → reference architectures) from **Tools** (technologies → toolchains), ordered as a natural conversation and including dedicated coverage for machine control / HMI / SCADA systems
+- **Catalog Editor** (its own workspace tab): a master-detail structure tree + detail form to edit categories and entries, with
+  - Drag & drop reordering of categories, entries (incl. moving entries between categories) and examples — plus up/down buttons as an accessible alternative
+  - Undo/redo history and keyboard shortcuts (Ctrl/Cmd+Z / +Shift+Z, Ctrl/Cmd+S to save)
+  - Live validation panel (blocking errors vs. advisory warnings) against the catalog schema
+  - Editable typed examples, per-entry `description`, `appliesTo` visibility conditions, and metadata options
+  - Unsaved-changes guard on every navigation path, 5-second undo on deletions
+- Projects choose a **default catalog** on creation; each questionnaire is instantiated from a catalog and keeps a provenance link (`catalogId` / `catalogVersion`)
+
 ### Questionnaire Editing
 - Category-based questionnaire with multi-answer entries and entry-level comments
 - Solution metadata: product name, company, department, contact person, execution type, and architectural role
+- Answers can be typed as **Tool** or **Practice**, with suggestions drawn from the matching example type
 - Status selects (Adopt / Trial / Assess / Hold / Retire) and applicability toggles with descriptions
+- `appliesTo` visibility: entries/categories are shown or hidden based on the solution's execution type and architectural role
 - Entries can be hidden per questionnaire to reduce noise
-- Configuration editor (dialog) for categories and entries
 - Sample data loader in the app bar
 
 ### Tech Radar
@@ -78,9 +94,10 @@ The client application lives in `Client/` and is built with **Vue 3** (Compositi
 User Interaction (Component)  →  Component Handler  →  Store Action  →  State Update  →  Reactive Re-render
 ```
 
-- **Components** (`src/components/`) handle UI logic and presentation only.
-- **Store** (`src/stores/workspaceStore.js`) owns all workspace state and mutation logic — project CRUD, questionnaire management, import/export, auto-save, and cross-component state synchronization.
-- **Services** (`src/services/categoriesService.js`) provide the default questionnaire template (categories, entries, status options, metadata options).
+- **Components** (`src/components/`) handle UI logic and presentation only. The Catalog Editor lives under `src/components/catalog/`; shared dialogs/snackbars under `src/components/common/`, backed by composables in `src/composables/` (confirm dialog, undo snackbar, tab dirty-guard).
+- **Store** (`src/stores/workspaceStore.js`) owns all workspace state and mutation logic — project/questionnaire/catalog CRUD, catalog editor drafts, import/export, auto-save, and cross-component state synchronization. Persistence, migrations and factory helpers are extracted into focused modules (`persistence.js`, `migrations.js`, `workspaceFactories.js`, `normalizeCategories.js`).
+- **Services** (`src/services/`) provide the built-in catalog seeds: `categoriesService.js` seeds the **Standard Catalog**, `interviewCatalogData.js` provides the **Software System Interview** catalog, and `catalogService.js` builds, instantiates and migrates catalogs.
+- **Schema** (`src/schema/`) holds the catalog JSON schema (`catalog.schema.json`) and the runtime validator (`catalogValidation.js`) used by the live validation panel and the fixture tests.
 
 ### Electron Shell
 
@@ -102,9 +119,11 @@ Available MCP tools:
 
 The MCP server includes a browser-based management UI at `http://localhost:5100` for loading workspace data and monitoring sessions.
 
-### E2E Tests
+### Tests
 
-End-to-end tests use **Cucumber.js** with **Playwright** for browser automation. Feature files in `Client/tests/features/` describe scenarios in Gherkin syntax (project CRUD, questionnaire management, import/export). Step definitions in `Client/tests/step_definitions/` implement the browser interactions.
+- **Unit tests** use **Vitest** with **@vue/test-utils** (`Client/tests/unit/`). They cover the store, catalog build/instantiate/migrate logic, the catalog validator, the catalog editor components, and — as the backbone of backward compatibility — Golden-Master storage-compatibility fixtures (`Client/tests/data/storage/`) that are frozen real payload shapes and must never be edited to make a test pass.
+- **End-to-end tests** use **Cucumber.js** with **Playwright** for browser automation. Feature files in `Client/tests/features/` describe scenarios in Gherkin syntax (project CRUD, questionnaire management, import/export). Step definitions in `Client/tests/step_definitions/` implement the browser interactions.
+- **Quality gates:** ESLint (flat config, `eslint-plugin-vue`) and Prettier enforce style; `npm run test:unit` runs in CI before the E2E suite.
 
 ## Quick Start
 
@@ -156,6 +175,18 @@ dotnet run
 ```
 The server starts at `http://localhost:5100`. Open this URL to access the management UI for loading workspace data.
 
+### Unit Tests
+```bash
+npm run test:unit
+```
+
+### Lint & Format
+```bash
+npm run lint          # ESLint
+npm run format        # Prettier (write)
+npm run format:check  # Prettier (check only)
+```
+
 ### E2E Tests
 ```bash
 npm run test:e2e
@@ -171,35 +202,64 @@ npm run test:e2e:report
 Client/                         # Frontend application
 ├── src/
 │   ├── main.js                 # App entry point (Vue + Vuetify + Pinia setup)
-│   ├── App.vue                 # Root component (app bar, sidebar, workspace)
+│   ├── App.vue                 # Root component (app bar, sidebar, workspace, global dialogs)
 │   ├── components/
-│   │   ├── TreeNav.vue         # Project & questionnaire tree navigation
+│   │   ├── TreeNav.vue         # Projects, questionnaires & catalog library navigation
 │   │   ├── workspace/
-│   │   │   ├── Workspace.vue          # Tab container for questionnaires & summaries
+│   │   │   ├── Workspace.vue          # Tab container (questionnaires, summaries, catalog editor)
 │   │   │   └── WorkspaceConfig.vue    # Workspace management dialog
+│   │   ├── catalog/                   # Catalog Editor (own workspace tab)
+│   │   │   ├── CatalogEditor.vue      # Container: header, dirty state, save/undo/redo, layout
+│   │   │   ├── EditorTree.vue         # Structure tree: search, context menus, drag & drop
+│   │   │   ├── CategoryForm.vue       # Category detail form
+│   │   │   ├── EntryForm.vue          # Entry detail form (aspect, id, description, examples)
+│   │   │   ├── ExamplesEditor.vue     # Typed Practice/Tool examples editor
+│   │   │   ├── AppliesToEditor.vue    # appliesTo visibility condition editor
+│   │   │   ├── MetadataOptionsForm.vue# Metadata-category option lists
+│   │   │   └── ValidationPanel.vue    # Live validation findings (errors/warnings)
+│   │   ├── common/
+│   │   │   ├── ConfirmDialog.vue      # Promise-based confirm dialog (replaces window.confirm)
+│   │   │   └── UndoSnackbar.vue       # Undo snackbar (replaces alert)
 │   │   ├── questionaire/
 │   │   │   ├── Questionnaire.vue      # Category-based questionnaire editor
-│   │   │   ├── QuestionnaireConfig.vue # Category & entry configuration
 │   │   │   └── EntryExamples.vue      # Example answers for entries
 │   │   └── projects/
 │   │       ├── ProjectSummary.vue     # Cross-questionnaire summary & analysis
 │   │       ├── ProjectMatrix.vue      # Aspect × questionnaire comparison matrix
 │   │       ├── ProjectSuggestions.vue # Aggregated answer view with radar toggles
 │   │       ├── CategorySettings.vue   # Deviation analysis rule editor
+│   │       ├── CustomHtmlExportDialog.vue # Custom HTML export options
 │   │       └── TechRadar.vue          # Interactive Tech Radar visualization
+│   ├── composables/
+│   │   ├── useConfirm.js              # Confirm-dialog state (singleton)
+│   │   ├── useUndoSnackbar.js         # Undo-snackbar state (singleton)
+│   │   └── useWorkspaceTabGuard.js    # Shared unsaved-changes tab guard
 │   ├── services/
-│   │   └── categoriesService.js       # Default questionnaire template data
+│   │   ├── categoriesService.js       # Standard Catalog seed data
+│   │   ├── interviewCatalogData.js    # "Software System Interview" catalog seed data
+│   │   └── catalogService.js          # Build / instantiate / migrate catalogs
+│   ├── schema/
+│   │   ├── catalog.schema.json        # Catalog JSON schema (documentation + contract)
+│   │   └── catalogValidation.js       # Runtime catalog validator (errors/warnings)
 │   ├── stores/
-│   │   └── workspaceStore.js          # Pinia store (state, actions, persistence)
+│   │   ├── workspaceStore.js          # Pinia store (state, actions, orchestration)
+│   │   ├── persistence.js             # localStorage / Electron-file I/O
+│   │   ├── migrations.js              # Storage-format migrations (v1→v2→v3)
+│   │   ├── workspaceFactories.js      # Workspace/project/questionnaire factories
+│   │   └── normalizeCategories.js     # Instance-field normalization
 │   └── utils/
 │       └── techRadarExport.js         # Tech Radar export helpers
 ├── electron/
 │   ├── main.js                 # Electron main process
 │   └── preload.js              # Electron preload script (IPC bridge)
-├── tests/                      # E2E tests (Cucumber + Playwright)
-│   ├── features/               # Gherkin feature files
+├── tests/
+│   ├── unit/                   # Unit tests (Vitest + @vue/test-utils)
+│   ├── data/storage/           # Golden-Master storage-compatibility fixtures
+│   ├── features/               # Gherkin feature files (Cucumber + Playwright)
 │   ├── step_definitions/       # Step implementation
 │   └── support/                # Test world configuration
+├── vitest.config.js            # Vitest config
+├── eslint.config.js            # ESLint flat config
 ├── vite.config.js              # Vite config (PWA + Electron modes)
 └── package.json
 
@@ -221,10 +281,26 @@ MCP/                            # MCP Server (.NET 9)
 
 ## Data Model
 
+A **Catalog** is a reusable template (structure only, no answers); a **Questionnaire** is an instance of a catalog with answers filled in. The persisted snapshot carries a storage-format `version` and the `appVersion` that wrote it.
+
 ```
 Workspace
+├── catalogs[]                    # Reusable question catalogs (templates)
+│   ├── id, name, description
+│   ├── version                   # Bumped on structural revision
+│   ├── schemaVersion             # Catalog schema version
+│   ├── statusOptions[], applicabilityOptions[]
+│   └── categories[]
+│       ├── id, title, desc, isMetadata, appliesTo?
+│       ├── metadataOptions{}         # Only on the metadata category
+│       └── entries[]
+│           ├── id, aspect, description?, appliesTo?
+│           └── examples[]            # Typed examples:
+│               └── { type: 'practice' | 'tool', label, description }
+│                   # legacy { label, description, tools[] } still read tolerantly
 ├── projects[]
 │   ├── id, name
+│   ├── defaultCatalogId           # Catalog chosen when creating the project
 │   ├── questionnaireIds[]         # References to questionnaires
 │   ├── radar[]                    # Tech Radar blips
 │   │   ├── entryId, option        # Which technology
@@ -235,17 +311,19 @@ Workspace
 │   └── referenceQuestionnaireId   # Baseline questionnaire
 └── questionnaires[]
     ├── id, name
-    └── categories[]
+    ├── catalogId?, catalogVersion?   # Provenance of the source catalog (optional)
+    └── categories[]                  # Deep copy incl. answers, applicability, metadata
         ├── id, title, desc
         ├── isMetadata             # Metadata category (solution description)
-        ├── metadata{}             # Product name, company, contact, etc.
+        ├── metadata{}             # Product name, company, contact, execution type, role
         └── entries[]
-            ├── id, label, desc
-            ├── answers[]          # Selected options with status
-            └── comment            # Entry-level notes
+            ├── id, aspect, examples[]
+            ├── answers[]          # Selected options with status and answer type
+            ├── applicability      # applicable / not applicable / unknown
+            └── entryComment       # Entry-level notes
 ```
 
-Solution metadata includes **execution type** (Web App, Desktop, Mobile, Headless Service, etc.) and **architectural role** (Standalone, Microservice, Plugin, AI/ML Engine, etc.) which control the applicability of questionnaire entries.
+Solution metadata includes **execution type** (Web App, Desktop, Mobile, Headless Service, etc.) and **architectural role** (Standalone, Microservice, Plugin, AI/ML Engine, etc.), which drive the `appliesTo` visibility of catalog categories and entries.
 
 ## Tech Radar Usage
 
@@ -292,15 +370,18 @@ Produces platform-specific installers in `Client/release/`.
 - [Vuetify 3](https://vuetifyjs.com/) — Material Design component library
 - [Pinia](https://pinia.vuejs.org/) — State management
 - [Vite](https://vitejs.dev/) — Build tool with HMR
+- [vuedraggable](https://github.com/SortableJS/vue.draggable.next) — Drag & drop for the catalog editor (tree & examples)
 - [markdown-it](https://github.com/markdown-it/markdown-it) / [md-editor-v3](https://github.com/imzbf/md-editor-v3) — Markdown rendering and editing
 - [html-to-image](https://github.com/nicbarker/html-to-image) — PNG export for Tech Radar
 
 ### Desktop
 - [Electron](https://www.electronjs.org/) — Cross-platform desktop shell
 
-### Testing
+### Testing & Quality
+- [Vitest](https://vitest.dev/) + [@vue/test-utils](https://test-utils.vuejs.org/) — Unit tests
 - [Playwright](https://playwright.dev/) — Browser automation
 - [Cucumber.js](https://cucumber.io/) — BDD test framework
+- [ESLint](https://eslint.org/) + [eslint-plugin-vue](https://eslint.vuejs.org/) / [Prettier](https://prettier.io/) — Linting & formatting
 
 ### MCP Server
 - [.NET 9](https://dotnet.microsoft.com/) — Backend runtime
