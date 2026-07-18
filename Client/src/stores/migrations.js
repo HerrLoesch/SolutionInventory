@@ -17,6 +17,9 @@
 //        the actual release once this ships). Adds `workspace.catalogs[]`
 //        and `project.defaultCatalogId` (§3.3.2); migrated from 1 via
 //        migrateWorkspaceToV2 below.
+//   - 3: Adds the built-in "Software System Interview" catalog to the library
+//        (Phase 6). Purely additive — no existing field changes shape; migrated
+//        from 1/2 via migrateWorkspaceToV3 below (idempotent add-if-missing).
 
 import { createWorkspace, createQuestionnaire } from './workspaceFactories'
 
@@ -78,5 +81,23 @@ export function migrateWorkspaceToV2(workspace, standardCatalog) {
       project.defaultCatalogId = standardCatalog.id
     }
   })
+  return workspace
+}
+
+/**
+ * Adds the built-in interview catalog to the workspace library in place, if it
+ * isn't already there (Phase 6). Additive and idempotent — matched by id, so a
+ * workspace that already contains it (or where the user renamed/edited it) is
+ * left untouched. Deliberately runs only while upgrading a pre-v3 workspace
+ * (see workspaceStore.applyStoredData): once a workspace is stored as v3 the
+ * migration no longer runs, so a user who deletes this catalog keeps it deleted
+ * rather than having it reappear on every load.
+ */
+export function migrateWorkspaceToV3(workspace, interviewCatalog) {
+  if (!Array.isArray(workspace.catalogs)) workspace.catalogs = []
+  const hasInterviewCatalog = workspace.catalogs.some((catalog) => catalog.id === interviewCatalog.id)
+  if (!hasInterviewCatalog) {
+    workspace.catalogs.push(interviewCatalog)
+  }
   return workspace
 }

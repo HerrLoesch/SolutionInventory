@@ -3,6 +3,7 @@ import { getCategoriesData } from '../../src/services/categoriesService'
 import {
   stripAnswersFromCategories,
   buildStandardCatalogFromSeed,
+  buildInterviewCatalog,
   instantiateCatalog,
   expandExampleToTyped,
   expandExamplesToTyped,
@@ -59,6 +60,56 @@ describe('buildStandardCatalogFromSeed', () => {
   it('carries the seed status options', () => {
     const catalog = buildStandardCatalogFromSeed(getCategoriesData())
     expect(catalog.statusOptions).toEqual(getCategoriesData().statusOptions)
+  })
+})
+
+describe('buildInterviewCatalog', () => {
+  it('builds the interview catalog with the fixed id, name and version', () => {
+    const catalog = buildInterviewCatalog()
+    expect(catalog.id).toBe('catalog-interview')
+    expect(catalog.name).toBe('Software System Interview')
+    expect(catalog.version).toBe(1)
+    expect(catalog.schemaVersion).toBeGreaterThanOrEqual(1)
+    expect(catalog.categories.length).toBeGreaterThan(0)
+  })
+
+  it('has exactly one metadata category exposing executionType and architecturalRole options', () => {
+    const catalog = buildInterviewCatalog()
+    const metaCategories = catalog.categories.filter((c) => c.isMetadata)
+    expect(metaCategories).toHaveLength(1)
+    expect(Object.keys(metaCategories[0].metadataOptions)).toEqual(['executionType', 'architecturalRole'])
+  })
+
+  it('every example is already in the typed shape (type practice|tool, no legacy tools[])', () => {
+    const catalog = buildInterviewCatalog()
+    const examples = catalog.categories.flatMap((c) => (c.entries || []).flatMap((e) => e.examples || []))
+    expect(examples.length).toBeGreaterThan(0)
+    examples.forEach((example) => {
+      expect(['practice', 'tool']).toContain(example.type)
+      expect(typeof example.label).toBe('string')
+      expect(example.label.length).toBeGreaterThan(0)
+      expect(example.tools).toBeUndefined()
+    })
+  })
+
+  it('has no answers on any entry (it is a template, not an instance)', () => {
+    const catalog = buildInterviewCatalog()
+    const entries = catalog.categories.flatMap((c) => c.entries || [])
+    entries.forEach((entry) => expect(entry.answers).toBeUndefined())
+  })
+
+  it('returns an independent clone on each call — mutating one must not affect the next', () => {
+    const first = buildInterviewCatalog()
+    first.categories[1].entries[0].aspect = 'Mutated'
+    const second = buildInterviewCatalog()
+    expect(second.categories[1].entries[0].aspect).not.toBe('Mutated')
+  })
+
+  it('separates practices from tools so both roll-ups (reference architecture / toolchain) are populated', () => {
+    const catalog = buildInterviewCatalog()
+    const examples = catalog.categories.flatMap((c) => (c.entries || []).flatMap((e) => e.examples || []))
+    expect(examples.some((e) => e.type === 'practice')).toBe(true)
+    expect(examples.some((e) => e.type === 'tool')).toBe(true)
   })
 })
 

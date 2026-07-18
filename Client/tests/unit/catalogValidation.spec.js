@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getCategoriesData } from '../../src/services/categoriesService'
-import { buildStandardCatalogFromSeed } from '../../src/services/catalogService'
+import { buildStandardCatalogFromSeed, buildInterviewCatalog } from '../../src/services/catalogService'
 import { validateCatalog } from '../../src/schema/catalogValidation'
 
 function baseCatalog(overrides = {}) {
@@ -26,6 +26,17 @@ describe('validateCatalog — fixture check (§3.2 point 3)', () => {
     const catalog = buildStandardCatalogFromSeed(getCategoriesData())
     const { errors } = validateCatalog(catalog)
     expect(errors).toEqual([])
+  })
+
+  it('the shipped interview catalog is schema-valid (no errors and no warnings)', () => {
+    const catalog = buildInterviewCatalog()
+    const { errors, warnings } = validateCatalog(catalog)
+    // No errors is the hard requirement; the interview catalog is also
+    // authored to raise zero warnings (every appliesTo field/value matches the
+    // metadata category's options), so guard that too — a warning here means a
+    // typo drifted an appliesTo away from the metadataOptions vocabulary.
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
   })
 })
 

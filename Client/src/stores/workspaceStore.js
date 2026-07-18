@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { getCategoriesData } from '../services/categoriesService'
 import {
   buildStandardCatalogFromSeed,
+  buildInterviewCatalog,
   instantiateCatalog,
   createBlankCatalog,
   duplicateCatalogTemplate,
@@ -11,7 +12,12 @@ import {
 import { validateCatalog } from '../schema/catalogValidation'
 import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
-import { migrateProjectRadar, buildWorkspaceFromLegacyCategoriesFormat, migrateWorkspaceToV2 } from './migrations'
+import {
+  migrateProjectRadar,
+  buildWorkspaceFromLegacyCategoriesFormat,
+  migrateWorkspaceToV2,
+  migrateWorkspaceToV3
+} from './migrations'
 import {
   buildSnapshot,
   readFromLocalStorage,
@@ -22,7 +28,7 @@ import {
 } from './persistence'
 
 const STORAGE_KEY = 'solution-inventory-data'
-const STORAGE_VERSION = 2
+const STORAGE_VERSION = 3
 
 export const useWorkspaceStore = defineStore('workspace', () => {
   const workspace = ref(createWorkspace())
@@ -114,18 +120,66 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // accepted and, if older than STORAGE_VERSION, migrated up in memory —
   // only a version outside this set (or malformed data) is "unsupported"
   // and surfaces workspaceLoadError instead of being silently discarded.
-  const SUPPORTED_STORAGE_VERSIONS = [1, STORAGE_VERSION]
+  // Must list EVERY still-loadable version explicitly: bumping STORAGE_VERSION
+  // without keeping older entries here would make previously-saved workspaces
+  // look "unsupported" and trip the B1 error path (§1.5) on real user data.
+  const SUPPORTED_STORAGE_VERSIONS = [1, 2, 3]
+
+  // Runs every add-if-missing migration whose target version is newer than the
+  // stored data's, in order. Each step is idempotent, so a v1 payload gets both
+  // the v2 (standard catalog + defaultCatalogId) and v3 (interview catalog)
+  // additions, a v2 payload gets only v3, and a v3 payload gets none. The steps
+  // never run again once the workspace is re-saved at STORAGE_VERSION, so a
+  // user's later deletion of a built-in catalog sticks.
+  function runWorkspaceMigrations(fromVersion) {
+    if (!Array.isArray(workspace.value.catalogs)) workspace.value.catalogs = []
+    if (fromVersion < 2) {
+      migrateWorkspaceToV2(workspace.value, buildStandardCatalogFromSeed(getCategoriesData()))
+    }
+    if (fromVersion < 3) {
+      migrateWorkspaceToV3(workspace.value, buildInterviewCatalog())
+    }
+  }
+
+  // Keeps the built-in catalogs' content current for users who have NOT taken
+  // ownership of them. Because the v2/v3 migrations only *add* a built-in
+  // catalog once (never overwrite it, so edits are never clobbered), a workspace
+  // that received an early version of a built-in catalog would otherwise be
+  // pinned to that stale content forever. A built-in is treated as "pristine"
+  // — and safe to refresh from the current seed — only when the stored copy
+  // still carries the shipped baseline `version` (editing via the catalog editor
+  // bumps it, see saveCatalogDraft) AND the shipped name (renaming in the library
+  // changes it). If either differs, the user has customized it and it is left
+  // untouched. Deleted built-ins stay deleted (this only refreshes ones present).
+  // Set by refreshBuiltInCatalogs() when it actually rewrites a stale built-in
+  // catalog, so initFromStorage can persist the healed content once (autosave
+  // is set up only after load, so it would otherwise miss this mutation and the
+  // stored file would stay stale until the user's next unrelated edit).
+  let builtInsRefreshedThisLoad = false
+
+  function refreshBuiltInCatalogs() {
+    const seeds = [buildStandardCatalogFromSeed(getCategoriesData()), buildInterviewCatalog()]
+    seeds.forEach((seed) => {
+      const stored = (workspace.value.catalogs || []).find((catalog) => catalog.id === seed.id)
+      if (!stored) return
+      if (stored.version !== seed.version || stored.name !== seed.name) return
+      if (JSON.stringify(stored.categories) === JSON.stringify(seed.categories)) return
+      stored.categories = seed.categories
+      stored.statusOptions = seed.statusOptions
+      stored.applicabilityOptions = seed.applicabilityOptions
+      stored.description = seed.description
+      builtInsRefreshedThisLoad = true
+    })
+  }
 
   function applyStoredData(data) {
+    builtInsRefreshedThisLoad = false
     if (SUPPORTED_STORAGE_VERSIONS.includes(data.version) && data.workspace) {
       workspace.value = data.workspace
       // Migrate any projects still using the legacy two-array radar format
       ;(workspace.value.projects || []).forEach(migrateProjectRadar)
-      if (data.version === 1) {
-        migrateWorkspaceToV2(workspace.value, buildStandardCatalogFromSeed(getCategoriesData()))
-      } else if (!Array.isArray(workspace.value.catalogs)) {
-        workspace.value.catalogs = []
-      }
+      runWorkspaceMigrations(data.version)
+      refreshBuiltInCatalogs()
       // Restore open tabs and active state, filtering out IDs that no longer exist
       const existingIds = new Set(data.workspace.questionnaires?.map((q) => q.id) || [])
       const restoredOpen = (data.openQuestionnaireIds || []).filter((id) => existingIds.has(id))
@@ -142,7 +196,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
     if (SUPPORTED_STORAGE_VERSIONS.includes(data.version) && data.categories) {
       workspace.value = buildWorkspaceFromLegacyCategoriesFormat(data.categories)
-      migrateWorkspaceToV2(workspace.value, buildStandardCatalogFromSeed(getCategoriesData()))
+      // Oldest bare-categories format predates the catalog concept entirely,
+      // so it needs the full v1→current chain.
+      runWorkspaceMigrations(1)
+      refreshBuiltInCatalogs()
       activeQuestionnaireId.value = ''
       openQuestionnaireIds.value = []
       activeWorkspaceTabId.value = ''
@@ -186,6 +243,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             reason: 'unsupported-version',
             message: 'Workspace data was created by a different app version and could not be loaded.'
           }
+        } else if (builtInsRefreshedThisLoad) {
+          await persist()
         }
       } catch (error) {
         console.error('Error applying stored data:', error)
@@ -216,6 +275,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         reason: 'unsupported-version',
         message: 'Stored workspace data was created by a different app version and could not be loaded.'
       }
+    } else if (builtInsRefreshedThisLoad) {
+      await persist()
     }
   }
 
@@ -266,7 +327,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const standardCatalog = buildStandardCatalogFromSeed(getCategoriesData())
     const initialQuestionnaire = instantiateCatalog(standardCatalog, 'Current questionnaire')
     workspace.value = createWorkspace([], [initialQuestionnaire])
-    workspace.value.catalogs = [standardCatalog]
+    // Both built-in catalogs ship in a fresh library; the first questionnaire
+    // is still instantiated from the standard one to preserve existing behavior.
+    workspace.value.catalogs = [standardCatalog, buildInterviewCatalog()]
     activeQuestionnaireId.value = ''
     openQuestionnaireIds.value = []
     activeWorkspaceTabId.value = ''

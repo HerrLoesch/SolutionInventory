@@ -12,10 +12,47 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useWorkspaceStore } from '../../src/stores/workspaceStore'
+import { buildInterviewCatalog } from '../../src/services/catalogService'
 import v1WorkspaceFull from '../data/storage/v1-workspace-full.json'
 import v1WorkspaceLegacyRadar from '../data/storage/v1-workspace-legacy-radar.json'
 import v1CategoriesOnly from '../data/storage/v1-categories-only.json'
 import pkg from '../../package.json'
+
+// Builds a v3 payload whose stored interview catalog is an intentionally stale,
+// pristine (unedited, version 1, unrenamed) copy — the exact situation of a
+// workspace that received an early version of the built-in catalog before its
+// content grew.
+function v3PayloadWithStaleInterviewCatalog(overrides = {}) {
+  return {
+    version: 3,
+    workspace: {
+      id: 'ws1',
+      projects: [],
+      questionnaires: [],
+      catalogs: [
+        {
+          id: 'catalog-standard',
+          name: 'Standard Catalog',
+          version: 1,
+          schemaVersion: 1,
+          categories: [{ id: 'meta', title: 'Metadata', isMetadata: true }]
+        },
+        {
+          id: 'catalog-interview',
+          name: 'Software System Interview',
+          version: 1,
+          schemaVersion: 1,
+          // Only two categories — far fewer than the current shipped seed.
+          categories: [
+            { id: 'context', title: 'System Context', isMetadata: true },
+            { id: 'domain', title: 'Business & Domain Context', entries: [{ id: 'x', aspect: 'X' }] }
+          ],
+          ...overrides
+        }
+      ]
+    }
+  }
+}
 
 const STORAGE_KEY = 'solution-inventory-data'
 
@@ -157,16 +194,19 @@ describe('storage compatibility (Golden Master)', () => {
     })
   })
 
-  describe('v1→v2 catalog migration (docs/spec-fragenkataloge.md §3.3.2)', () => {
-    it('loading a v1 payload adds the standard catalog and stamps defaultCatalogId on projects, without touching existing data', () => {
+  describe('catalog migration (docs/spec-fragenkataloge.md §3.3.2 / Phase 6)', () => {
+    it('loading a v1 payload adds both built-in catalogs and stamps defaultCatalogId on projects, without touching existing data', () => {
       const store = useWorkspaceStore()
       const ok = store.loadFromData(clone(v1WorkspaceFull))
       expect(ok).toBe(true)
 
-      expect(store.workspace.catalogs).toHaveLength(1)
-      expect(store.workspace.catalogs[0].id).toBe('catalog-standard')
+      // v1 predates the catalog concept entirely, so it runs the full chain:
+      // v2 adds the standard catalog, v3 adds the interview catalog.
+      expect(store.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard', 'catalog-interview'])
 
       const project = store.workspace.projects.find((p) => p.id === 'project-p1')
+      // defaultCatalogId is set by the v2 step and stays the standard catalog —
+      // the interview catalog is offered in the library, not forced as default.
       expect(project.defaultCatalogId).toBe('catalog-standard')
 
       // Existing questionnaires are left as pure legacy instances — no
@@ -180,29 +220,82 @@ describe('storage compatibility (Golden Master)', () => {
       expect(archCategory.entries.find((e) => e.id === 'arch-hlp').answers[0].technology).toBe('Clean Arch')
     })
 
-    it('is idempotent — loading the same v1 payload twice does not duplicate the standard catalog', () => {
+    it('is idempotent — loading the same v1 payload twice does not duplicate either built-in catalog', () => {
       const store = useWorkspaceStore()
       store.loadFromData(clone(v1WorkspaceFull))
       store.loadFromData(clone(v1WorkspaceFull))
 
-      expect(store.workspace.catalogs).toHaveLength(1)
+      expect(store.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard', 'catalog-interview'])
     })
 
-    it('the oldest categories-only format also ends up with a catalog library after migration', () => {
+    it('adds the interview catalog to a v2 workspace (that already has the standard catalog), idempotently', () => {
+      const v2Payload = {
+        version: 2,
+        workspace: {
+          id: 'ws1',
+          projects: [],
+          questionnaires: [],
+          catalogs: [
+            {
+              id: 'catalog-standard',
+              name: 'Standard Catalog',
+              version: 1,
+              schemaVersion: 1,
+              categories: [{ id: 'meta', title: 'Metadata', isMetadata: true }]
+            }
+          ]
+        }
+      }
+
+      const store = useWorkspaceStore()
+      store.loadFromData(clone(v2Payload))
+      expect(store.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard', 'catalog-interview'])
+
+      // Re-loading the same v2 payload must not add a second copy.
+      store.loadFromData(clone(v2Payload))
+      expect(store.workspace.catalogs.filter((c) => c.id === 'catalog-interview')).toHaveLength(1)
+    })
+
+    it('does not re-add the interview catalog to a v3 workspace where the user deleted it', () => {
+      const v3PayloadWithoutInterview = {
+        version: 3,
+        workspace: {
+          id: 'ws1',
+          projects: [],
+          questionnaires: [],
+          catalogs: [
+            {
+              id: 'catalog-standard',
+              name: 'Standard Catalog',
+              version: 1,
+              schemaVersion: 1,
+              categories: [{ id: 'meta', title: 'Metadata', isMetadata: true }]
+            }
+          ]
+        }
+      }
+
+      const store = useWorkspaceStore()
+      store.loadFromData(clone(v3PayloadWithoutInterview))
+
+      // Already v3 → no migration runs → a deliberate deletion sticks.
+      expect(store.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard'])
+    })
+
+    it('the oldest categories-only format also ends up with both built-in catalogs after migration', () => {
       const store = useWorkspaceStore()
       const ok = store.loadFromData(clone(v1CategoriesOnly))
       expect(ok).toBe(true)
-      expect(store.workspace.catalogs).toHaveLength(1)
-      expect(store.workspace.catalogs[0].id).toBe('catalog-standard')
+      expect(store.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard', 'catalog-interview'])
     })
 
-    it('round-trips through persist() (now writing v2) and a fresh store reload without losing the catalog', async () => {
+    it('round-trips through persist() (now writing v3) and a fresh store reload without losing either catalog', async () => {
       const store = useWorkspaceStore()
       store.loadFromData(clone(v1WorkspaceFull))
       await store.persist()
 
       const persistedRaw = JSON.parse(localStorage.getItem(STORAGE_KEY))
-      expect(persistedRaw.version).toBe(2)
+      expect(persistedRaw.version).toBe(3)
       // Records which app release wrote this file (see docs/spec-fragenkataloge.md §3.3.3).
       expect(persistedRaw.appVersion).toBe(pkg.version)
 
@@ -210,7 +303,7 @@ describe('storage compatibility (Golden Master)', () => {
       const restored = useWorkspaceStore()
       await restored.initFromStorage()
 
-      expect(restored.workspace.catalogs).toHaveLength(1)
+      expect(restored.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard', 'catalog-interview'])
       expect(restored.workspace.projects.find((p) => p.id === 'project-p1').defaultCatalogId).toBe('catalog-standard')
     })
 
@@ -221,6 +314,49 @@ describe('storage compatibility (Golden Master)', () => {
       const store = useWorkspaceStore()
       const ok = store.loadFromData(clone(v1WorkspaceFull))
       expect(ok).toBe(true)
+    })
+  })
+
+  describe('built-in catalog refresh (pristine copies track the shipped seed)', () => {
+    it('refreshes a pristine but stale built-in catalog to the current shipped content on load', () => {
+      const store = useWorkspaceStore()
+      store.loadFromData(v3PayloadWithStaleInterviewCatalog())
+
+      const stored = store.workspace.catalogs.find((c) => c.id === 'catalog-interview')
+      const seed = buildInterviewCatalog()
+      // The two-category stale copy is replaced by the full current seed.
+      expect(stored.categories.map((c) => c.id)).toEqual(seed.categories.map((c) => c.id))
+      expect(stored.categories.length).toBeGreaterThan(2)
+    })
+
+    it('does NOT refresh a built-in catalog the user edited (version bumped past the baseline)', () => {
+      const store = useWorkspaceStore()
+      store.loadFromData(v3PayloadWithStaleInterviewCatalog({ version: 2 }))
+
+      const stored = store.workspace.catalogs.find((c) => c.id === 'catalog-interview')
+      // Edited → left exactly as stored (its own two categories), never clobbered.
+      expect(stored.categories.map((c) => c.id)).toEqual(['context', 'domain'])
+    })
+
+    it('does NOT refresh a built-in catalog the user renamed in the library', () => {
+      const store = useWorkspaceStore()
+      store.loadFromData(v3PayloadWithStaleInterviewCatalog({ name: 'My Interview Guide' }))
+
+      const stored = store.workspace.catalogs.find((c) => c.id === 'catalog-interview')
+      expect(stored.name).toBe('My Interview Guide')
+      expect(stored.categories.map((c) => c.id)).toEqual(['context', 'domain'])
+    })
+
+    it('leaves an already-current pristine built-in catalog untouched (no needless rewrite)', () => {
+      const store = useWorkspaceStore()
+      const current = buildInterviewCatalog()
+      store.loadFromData({
+        version: 3,
+        workspace: { id: 'ws1', projects: [], questionnaires: [], catalogs: [current] }
+      })
+
+      const stored = store.workspace.catalogs.find((c) => c.id === 'catalog-interview')
+      expect(stored.categories.length).toBe(current.categories.length)
     })
   })
 

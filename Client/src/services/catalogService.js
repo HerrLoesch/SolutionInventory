@@ -4,8 +4,10 @@
 
 import { createId, createQuestionnaire } from '../stores/workspaceFactories'
 import { normalizeCategories } from '../stores/normalizeCategories'
+import { getInterviewCatalogData } from './interviewCatalogData'
 
 const STANDARD_CATALOG_ID = 'catalog-standard'
+const INTERVIEW_CATALOG_ID = 'catalog-interview'
 
 /**
  * Strips instance-only fields (answers, applicability, entryComment) from a
@@ -40,6 +42,29 @@ export function buildStandardCatalogFromSeed(categoriesData) {
     statusOptions: categoriesData.statusOptions,
     applicabilityOptions: ['applicable', 'not applicable', 'unknown'],
     categories: stripAnswersFromCategories(categoriesData.categories)
+  }
+}
+
+/**
+ * Builds the additional, interview-optimized catalog shipped alongside the
+ * Standard Catalog (see docs/spec-fragenkataloge.md Phase 6). Its seed is
+ * already in catalog shape with typed examples (interviewCatalogData.js), so
+ * unlike the standard catalog there are no answers to strip. A fresh clone is
+ * returned on every call so callers can freely mutate it (e.g. as an editor
+ * draft) without touching the module-level seed.
+ */
+export function buildInterviewCatalog() {
+  const seed = getInterviewCatalogData()
+  return {
+    id: INTERVIEW_CATALOG_ID,
+    name: 'Software System Interview',
+    description:
+      'Interview guide for software systems — separates Practices (patterns) from Tools (technologies) to inform reference architectures and toolchains.',
+    version: 1,
+    schemaVersion: 1,
+    statusOptions: seed.statusOptions,
+    applicabilityOptions: seed.applicabilityOptions,
+    categories: JSON.parse(JSON.stringify(seed.categories))
   }
 }
 

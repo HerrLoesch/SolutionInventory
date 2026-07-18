@@ -903,6 +903,18 @@ describe('persistence round-trip (localStorage)', () => {
     expect(store.workspace.projects).toHaveLength(0)
   })
 
+  it('a freshly seeded workspace ships both built-in catalogs, with the first questionnaire from the standard one', async () => {
+    const store = useWorkspaceStore()
+    await store.initFromStorage()
+
+    expect(store.workspace.catalogs.map((c) => c.id)).toEqual(['catalog-standard', 'catalog-interview'])
+    // The auto-created first questionnaire is still instantiated from the
+    // standard catalog (unchanged behavior) — the interview catalog is offered
+    // in the library, not auto-instantiated.
+    const questionnaire = store.workspace.questionnaires[0]
+    expect(questionnaire.categories.length).toBeGreaterThan(0)
+  })
+
   it('initFromStorage does NOT seed over invalid JSON — it surfaces workspaceLoadError instead (see storageCompat.spec.js for the full B1 fix coverage)', async () => {
     localStorage.setItem('solution-inventory-data', '{not valid json')
     const store = useWorkspaceStore()
