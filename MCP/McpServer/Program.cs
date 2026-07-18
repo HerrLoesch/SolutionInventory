@@ -10,6 +10,9 @@ builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<LogBroadcaster>();
 builder.Services.AddSingleton<ProjectRepository>();
 builder.Services.AddSingleton<QuestionnaireEvaluator>();
+builder.Services.AddSingleton<DataConsistencyAnalyzer>();
+builder.Services.AddSingleton<TechRadarStatusValidator>();
+builder.Services.AddSingleton<CleanedDataExporter>();
 builder.Services.AddSingleton<McpSessionManager>();
 
 var app = builder.Build();

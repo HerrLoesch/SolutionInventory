@@ -62,3 +62,6 @@ coverage-report/
 appsettings.*.json
 !appsettings.Development.json
 secrets.json
+
+# MCP server: cleaned-data exports written at runtime by export_cleaned_data
+MCP/McpServer/exports/
