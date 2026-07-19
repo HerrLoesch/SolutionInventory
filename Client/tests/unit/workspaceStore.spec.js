@@ -174,6 +174,51 @@ describe('workspace/project/questionnaire CRUD', () => {
   })
 })
 
+describe('radar custom-export settings persistence', () => {
+  it('stores and returns a deep copy of the export settings per project', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('P')
+    const settings = { exportMode: 'json', gridColumns: 4, labels: { mandatory: 'Pflicht' } }
+
+    store.setProjectRadarExportSettings(projectId, settings)
+    const back = store.getProjectRadarExportSettings(projectId)
+
+    expect(back).toEqual(settings)
+    // Returned object must be an independent copy, not the stored reference
+    back.gridColumns = 99
+    expect(store.getProjectRadarExportSettings(projectId).gridColumns).toBe(4)
+    // Mutating the caller's original must not leak into the store either
+    settings.labels.mandatory = 'changed'
+    expect(store.getProjectRadarExportSettings(projectId).labels.mandatory).toBe('Pflicht')
+  })
+
+  it('returns null when nothing is saved and clears on null', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('P')
+    expect(store.getProjectRadarExportSettings(projectId)).toBeNull()
+
+    store.setProjectRadarExportSettings(projectId, { gridColumns: 2 })
+    expect(store.getProjectRadarExportSettings(projectId)).not.toBeNull()
+
+    store.setProjectRadarExportSettings(projectId, null)
+    expect(store.getProjectRadarExportSettings(projectId)).toBeNull()
+  })
+
+  it('duplicateProject copies export settings independently', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('P')
+    store.setProjectRadarExportSettings(projectId, { gridColumns: 5, statusColors: { adopt: '#000' } })
+
+    const copyId = store.duplicateProject(projectId)
+    const copy = store.getProjectRadarExportSettings(copyId)
+    expect(copy).toEqual({ gridColumns: 5, statusColors: { adopt: '#000' } })
+
+    // Editing the copy must not affect the original
+    store.setProjectRadarExportSettings(copyId, { gridColumns: 1 })
+    expect(store.getProjectRadarExportSettings(projectId).gridColumns).toBe(5)
+  })
+})
+
 describe('catalog CRUD', () => {
   it('addCatalog creates a catalog with a metadata-only category and a generated id', () => {
     const store = useWorkspaceStore()

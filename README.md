@@ -26,7 +26,7 @@ The collected data feeds into cross-project analysis views such as a **Project S
 3. **Add Questionnaires** — Each project can contain multiple questionnaires (e.g. one per team, component, or assessment cycle). Each is instantiated from a catalog and keeps a provenance link to it.
 4. **Answer Questions** — Questions are organized in categories (Architecture, Security, DevOps, etc.). Each entry offers predefined example answers with status levels (Adopt / Trial / Assess / Hold / Retire) and an applicability toggle; irrelevant entries are hidden based on the solution's execution type and architectural role.
 5. **Analyze** — Use the Project Summary, Tech Radar, and Deviation Analysis to compare answers across questionnaires and identify patterns.
-6. **Export** — Export project data as JSON or Excel, or export the Tech Radar as a ThoughtWorks-compatible JSON or PNG image.
+6. **Export** — Export project data as JSON or Excel, or export the Tech Radar as a ThoughtWorks-compatible JSON, a PNG image, or a self-contained **Custom HTML** page (a no-JavaScript static variant or an editable-JSON variant) for embedding in wikis and intranet pages.
 
 ### Data Storage
 
@@ -72,7 +72,8 @@ Interactive technology radar visualization inspired by the [ThoughtWorks Technol
 - Search and filter by answer type (Tools / Practices) and by category
 - Per-blip overrides: custom status, category assignment, and radar-specific comments
 - Interactive legends with hover sync and detail dialogs
-- Export as ThoughtWorks Build-Your-Own-Radar JSON or download as PNG
+- Export as ThoughtWorks Build-Your-Own-Radar JSON, download as PNG, or generate a self-contained **Custom HTML** page — a static no-JavaScript variant for locked-down wikis, or a JSON-data-island variant whose blip list stays hand-editable in the HTML
+- Custom HTML Export settings (layout, columns, labels, status colors, category grouping/order, export mode) are **saved with the project**
 
 ### Project Summary & Analysis
 - **Project Summary Matrix:** cross-questionnaire matrix (aspect × questionnaire) with colored status chips, comment tooltips, search filter, and collapsible categories
@@ -116,6 +117,9 @@ Available MCP tools:
 | `get_tech_radar` | Get Tech Radar entries and overrides |
 | `evaluate_responses` | Evaluate response consistency and completeness |
 | `get_json_schema` | Get JSON schema for workspace or questionnaire export |
+| `detect_naming_inconsistencies` | Scan the workspace for case/whitespace variants, near-duplicate typos, and non-canonical identifiers, each with a suggested correction |
+| `validate_tech_radar_status` | Validate all status values against the canonical whitelist (Adopt / Trial / Assess / Hold / Retire) and report violations with corrections |
+| `export_cleaned_data` | Export a questionnaire in cleaned form (unified technology names, canonical status values, trimmed whitespace) |
 
 The MCP server includes a browser-based management UI at `http://localhost:5100` for loading workspace data and monitoring sessions.
 
@@ -305,8 +309,11 @@ Workspace
 │   ├── radar[]                    # Tech Radar blips
 │   │   ├── entryId, option        # Which technology
 │   │   ├── status, category       # Overrides
-│   │   └── shortComment, description, link
-│   ├── radarCategoryOrder[]       # Quadrant assignment order
+│   │   └── shortComment, description, link, mandatory
+│   ├── radarCategoryOrder[]       # Category display order on the radar
+│   ├── radarCategoryQuadrants{}   # Category → quadrant assignment
+│   ├── radarQuadrantLabels{}      # Custom quadrant labels
+│   ├── radarExportSettings{}      # Saved Custom HTML Export dialog settings
 │   ├── deviationSettings{}        # Deviation analysis rules
 │   └── referenceQuestionnaireId   # Baseline questionnaire
 └── questionnaires[]
@@ -350,6 +357,15 @@ Click the menu (⋮) next to any blip in the legend to:
 Use the menu (⋮) in the toolbar to:
 - Export as ThoughtWorks Build-Your-Own-Radar JSON format
 - Download radar visualization as PNG image
+- Open the **Custom HTML Export** dialog to generate a self-contained, styled HTML page
+
+#### Custom HTML Export
+The Custom HTML Export produces a standalone HTML page (blip cards grouped by status or category) tailored for embedding in wikis or intranet pages. All dialog settings — layout, columns, labels, status colors, category grouping/order, included statuses, and the export mode — are **saved with the project** and restored the next time you open the dialog. Two output modes are available:
+
+- **Static (no JS):** pure HTML + CSS with no `<script>`; renders on pages that forbid JavaScript. Change the content by editing it in the app and re-exporting.
+- **JSON + JS:** embeds the blip list as an editable JSON data island plus a small inline renderer, so the data stays hand-editable directly in the HTML. Requires JavaScript on the target page.
+
+See [docs/tech-radar-custom-export.md](docs/tech-radar-custom-export.md) for the embedding and JSON-editing guide.
 
 ## Deployment
 

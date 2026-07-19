@@ -567,6 +567,7 @@ function _buildGridContent(blips, gridColumns, groupBy, statusLabels, displayOpt
 export function generateCustomRadarHtml(params, options) {
   const { title, blips } = params
   const {
+    exportMode = 'static',
     categoryGroups,
     includedCategories = [],
     statusLabels = {},
@@ -582,14 +583,19 @@ export function generateCustomRadarHtml(params, options) {
     statusColors = {}
   } = options
 
-  // Build category → group-label map from whichever format is provided
+  // Build category → group-label map (+ ordered group list) from whichever format is provided
   const catToGroupLabel = {}
+  const groupOrder = []
   if (categoryGroups && categoryGroups.length > 0) {
     for (const g of categoryGroups.filter((g) => g.included !== false)) {
+      if (!groupOrder.includes(g.label)) groupOrder.push(g.label)
       for (const cat of g.categories) catToGroupLabel[cat] = g.label
     }
   } else {
-    for (const cat of includedCategories) catToGroupLabel[cat] = cat
+    for (const cat of includedCategories) {
+      catToGroupLabel[cat] = cat
+      if (!groupOrder.includes(cat)) groupOrder.push(cat)
+    }
   }
 
   const statusSet = new Set(includedStatuses.map((s) => s.toLowerCase()))
@@ -663,6 +669,28 @@ export function generateCustomRadarHtml(params, options) {
     '.blip-card-comment a{color:#1565c0;text-decoration:none;}.blip-card-comment a:hover{text-decoration:underline;}'
   ].join('\n')
 
+  // JSON data-island mode: emit editable data + a small inline renderer instead
+  // of server-rendered cards. Needs JavaScript on the target page.
+  if (exportMode === 'json') {
+    return _assembleJsonDocument({
+      title,
+      css,
+      filteredBlips,
+      groupOrder,
+      statusLabels,
+      statusColors,
+      includedStatuses,
+      gridColumns,
+      showGroupToggle,
+      showSearch,
+      defaultGrouping,
+      groupToggleLabels,
+      showBindingLevel,
+      showBlipIndex,
+      labels
+    })
+  }
+
   // ── Assemble document ────────────────────────────────────────────────────
   return [
     '<!DOCTYPE html>',
@@ -724,6 +752,212 @@ export function generateCustomRadarHtml(params, options) {
           '  </script>'
         ]
       : []),
+    '</body>',
+    '</html>'
+  ].join('\n')
+}
+
+// ── JSON data-island mode ─────────────────────────────────────────────────────
+
+/** Build the serialisable { config, blips } payload embedded as the data island. */
+function _radarDataPayload(cfg) {
+  const {
+    filteredBlips,
+    groupOrder,
+    statusLabels = {},
+    statusColors = {},
+    includedStatuses = [],
+    gridColumns,
+    defaultGrouping,
+    showGroupToggle,
+    showSearch,
+    groupToggleLabels = {},
+    showBindingLevel,
+    showBlipIndex,
+    labels = {}
+  } = cfg
+
+  const includedSet = new Set(includedStatuses.map((s) => s.toLowerCase()))
+  const RING_LABELS_LC = RING_META.map((r) => r.label.toLowerCase())
+
+  // Included statuses in ring order (defines both colour + sort order for the renderer)
+  const statuses = RING_META.map((m, ri) => ({ ri, key: m.label.toLowerCase() }))
+    .filter((s) => includedSet.has(s.key))
+    .map((s) => ({
+      key: s.key,
+      label: statusLabels[s.key] || RING_META[s.ri].label,
+      color: statusColors[s.key] || RING_META[s.ri].color
+    }))
+
+  const blips = filteredBlips.map((b) => ({
+    name: b.name,
+    status: RING_LABELS_LC[b.ring] || '',
+    category: b.groupLabel || b.categoryTitle || '',
+    mandatory: b.mandatory === true,
+    comment: getCommentMarkdown(b),
+    link: normalizeLink(b.infoUrl)
+  }))
+
+  return {
+    config: {
+      columns: Math.max(1, Math.min(6, parseInt(gridColumns) || 3)),
+      grouping: defaultGrouping === 'category' ? 'category' : 'status',
+      showGroupToggle: showGroupToggle !== false,
+      showSearch: showSearch === true,
+      showBindingLevel: showBindingLevel !== false,
+      showBlipIndex: showBlipIndex !== false,
+      labels: {
+        recommendation: labels.recommendation || 'Recommendation',
+        mandatory: labels.mandatory || 'Mandatory',
+        furtherInfo: labels.furtherInfo || 'Further information'
+      },
+      groupToggleLabels: {
+        status: groupToggleLabels.status || 'By Status',
+        category: groupToggleLabels.category || 'By Category'
+      },
+      statuses,
+      categoryOrder: groupOrder
+    },
+    blips
+  }
+}
+
+/**
+ * Self-contained inline renderer for the JSON data-island mode. Reads the
+ * `#radar-data` JSON island and rebuilds the same card layout the static mode
+ * produces server-side. Written in ES5 to run on legacy embedding pages.
+ */
+function _radarRendererScript() {
+  return [
+    '(function(){',
+    "  var el=document.getElementById('radar-data');if(!el)return;",
+    '  var data;try{data=JSON.parse(el.textContent);}catch(e){return;}',
+    '  var cfg=data.config||{},blips=(data.blips||[]).slice();',
+    '  blips.forEach(function(b,i){b._i=i+1;});',
+    '  var cols=Math.max(1,Math.min(6,parseInt(cfg.columns,10)||3));',
+    '  var statuses=cfg.statuses||[],sByKey={},sOrder={};',
+    '  statuses.forEach(function(s,i){sByKey[s.key]=s;sOrder[s.key]=i;});',
+    '  var showBinding=cfg.showBindingLevel!==false,showIndex=cfg.showBlipIndex!==false;',
+    "  var L=cfg.labels||{},recTxt=L.recommendation||'Recommendation',manTxt=L.mandatory||'Mandatory',infoTxt=L.furtherInfo||'Further information';",
+    "  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}",
+    "  function normLink(v){v=String(v||'').trim();if(!v)return '';if(!/^[a-z][a-z\\d+.-]*:/i.test(v))v='https://'+v;return /^https?:/i.test(v)?v:'';}",
+    '  function md(src){',
+    "    var s=esc(String(src||'').trim());if(!s)return '';",
+    "    s=s.replace(/`([^`]+)`/g,function(m,c){return '<code>'+c+'</code>';});",
+    '    s=s.replace(/\\[([^\\]]+)\\]\\((https?:[^\\s)]+)\\)/g,function(m,t,u){return \'<a href="\'+u+\'" target="_blank" rel="noopener noreferrer">\'+t+\'</a>\';});',
+    "    s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<strong>$1</strong>').replace(/\\*([^*]+)\\*/g,'<em>$1</em>');",
+    "    var lines=s.split(/\\n/),out='',inList=false;",
+    '    for(var i=0;i<lines.length;i++){var ln=lines[i],m=ln.match(/^\\s*[-*]\\s+(.*)$/);',
+    "      if(m){if(!inList){out+='<ul>';inList=true;}out+='<li>'+m[1]+'</li>';}",
+    "      else{if(inList){out+='</ul>';inList=false;}if(ln.trim())out+='<p>'+ln+'</p>';}}",
+    "    if(inList)out+='</ul>';return out;",
+    '  }',
+    '  function card(b,sub){',
+    "    var st=sByKey[b.status]||{color:'#9e9e9e',label:b.status||''};",
+    '    var mand=showBinding&&b.mandatory;',
+    "    var badge=showIndex?b._i:'';",
+    "    var bStyle='background:'+st.color+(mand?';border-radius:3px;':'');",
+    "    var bind=showBinding?'<span class=\"blip-binding'+(mand?' blip-binding--mandatory':'')+'\">'+(mand?esc(manTxt):esc(recTxt))+'</span>':'';",
+    '    var link=normLink(b.link);',
+    "    var cmt=b.comment?'<div class=\"blip-card-comment\">'+md(b.comment)+'</div>':'';",
+    '    var lnk=link?\'<a class="blip-card-link-btn" href="\'+esc(link)+\'" target="_blank" rel="noopener noreferrer">\'+esc(infoTxt)+\' \\u2197</a>\':\'\';',
+    '    return \'<div class="blip-card"><div class="blip-card-header"><span class="blip-badge" style="\'+bStyle+\'">\'+badge+\'</span><div class="blip-card-meta"><div class="blip-card-title-row"><div class="blip-card-name">\'+esc(b.name)+\'</div>\'+bind+\'</div><div class="blip-card-cat">\'+esc(sub||\'\')+\'</div></div></div>\'+cmt+lnk+\'</div>\';',
+    '  }',
+    "  function grid(cards){return '<div class=\"blip-grid\" style=\"grid-template-columns:repeat('+cols+',1fr)\">'+cards.join('')+'</div>';}",
+    "  function section(id,label,color,inner){return '<section class=\"ring-section\" id=\"'+id+'\"><div class=\"ring-section-header\" style=\"border-color:'+color+';color:'+color+'\">'+esc(label)+'</div>'+inner+'</section>';}",
+    "  function slug(s){return 'grp-'+String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}",
+    "  function byName(a,b){return String(a.name||'').localeCompare(String(b.name||''));}",
+    '  function byMand(a,b){return a.mandatory!==b.mandatory?(a.mandatory?-1:1):byName(a,b);}',
+    '  function statusView(){',
+    "    var out='';",
+    '    for(var i=0;i<statuses.length;i++){var s=statuses[i];',
+    '      var rows=blips.filter(function(b){return b.status===s.key;}).sort(byMand);',
+    '      if(!rows.length)continue;',
+    '      var cards=rows.map(function(b){return card(b,b.category);});',
+    '      out+=section(slug(s.key),s.label,s.color,grid(cards));}',
+    '    return out;',
+    '  }',
+    '  function catView(){',
+    '    var order=(cfg.categoryOrder||[]).slice();',
+    '    blips.forEach(function(b){if(order.indexOf(b.category)<0)order.push(b.category);});',
+    "    var out='';",
+    '    for(var i=0;i<order.length;i++){var cat=order[i];',
+    '      var rows=blips.filter(function(b){return b.category===cat;}).sort(function(a,b){var oa=sOrder[a.status],ob=sOrder[b.status];oa=oa==null?99:oa;ob=ob==null?99:ob;return oa!==ob?oa-ob:byMand(a,b);});',
+    '      if(!rows.length)continue;',
+    '      var cards=rows.map(function(b){var st=sByKey[b.status]||{label:b.status};return card(b,st.label);});',
+    "      out+=section(slug(cat),cat,'#1565c0',grid(cards));}",
+    '    return out;',
+    '  }',
+    "  var vs=document.querySelector('.view-status'),vc=document.querySelector('.view-category'),root=document.getElementById('radar-root');",
+    '  if(vs&&vc){vs.innerHTML=statusView();vc.innerHTML=catView();}',
+    "  else if(root){root.innerHTML=(cfg.grouping==='category')?catView():statusView();}",
+    "  if(cfg.showSearch){var si=document.getElementById('si');if(si)si.addEventListener('input',function(){var q=this.value.toLowerCase().trim();var all=document.querySelectorAll('.blip-card');for(var i=0;i<all.length;i++){var c=all[i];c.style.display=(q&&c.textContent.toLowerCase().indexOf(q)<0)?'none':'';}var secs=document.querySelectorAll('.ring-section');for(var j=0;j<secs.length;j++){var vis=secs[j].querySelectorAll('.blip-card'),shown=0;for(var k=0;k<vis.length;k++){if(vis[k].style.display!=='none')shown++;}secs[j].style.display=(q&&shown===0)?'none':'';}});}",
+    '})();'
+  ].join('\n')
+}
+
+/** Assemble the JSON data-island HTML document. */
+function _assembleJsonDocument(cfg) {
+  const { title, css, showGroupToggle, showSearch, defaultGrouping, groupToggleLabels = {} } = cfg
+  const payload = _radarDataPayload(cfg)
+  // Escape any literal </script that could prematurely close the JSON island.
+  const json = JSON.stringify(payload, null, 2).replace(/<\/(script)/gi, '<\\/$1')
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '  <meta charset="utf-8"/>',
+    '  <meta name="viewport" content="width=device-width,initial-scale=1"/>',
+    '  <title>' + esc(title) + ' – Tech Radar</title>',
+    '  <style>' + css + '</style>',
+    '</head>',
+    '<body>',
+    '  <div class="page">',
+    ...(showGroupToggle
+      ? [
+          '    <input type="radio" name="grp" id="grp-status"' +
+            (defaultGrouping !== 'category' ? ' checked' : '') +
+            '>',
+          '    <input type="radio" name="grp" id="grp-category"' +
+            (defaultGrouping === 'category' ? ' checked' : '') +
+            '>'
+        ]
+      : []),
+    ...(showGroupToggle || showSearch
+      ? [
+          '    <div class="toolbar">',
+          ...(showSearch
+            ? ['      <input id="si" class="search-input" type="search" placeholder="Search…" autocomplete="off">']
+            : []),
+          ...(showGroupToggle
+            ? [
+                '      <div class="view-toggle">',
+                '        <label for="grp-status">' + esc(groupToggleLabels.status || 'By Status') + '</label>',
+                '        <label for="grp-category">' + esc(groupToggleLabels.category || 'By Category') + '</label>',
+                '      </div>'
+              ]
+            : []),
+          '    </div>'
+        ]
+      : []),
+    ...(showGroupToggle
+      ? ['    <div class="view-status"></div>', '    <div class="view-category"></div>']
+      : ['    <div id="radar-root"></div>']),
+    '',
+    '    <!-- ============================================================ -->',
+    '    <!-- RADAR DATA – edit the JSON below; the page re-renders on   -->',
+    '    <!-- reload. "status" must match a key in config.statuses;         -->',
+    '    <!-- "category" a label in config.categoryOrder. "comment" takes   -->',
+    '    <!-- basic markdown (**bold**, *italic*, `code`, links, - lists).  -->',
+    '    <!-- ============================================================ -->',
+    '    <script type="application/json" id="radar-data">',
+    json,
+    '    </script>',
+    '  </div>',
+    '  <script>',
+    _radarRendererScript(),
+    '  </script>',
     '</body>',
     '</html>'
   ].join('\n')

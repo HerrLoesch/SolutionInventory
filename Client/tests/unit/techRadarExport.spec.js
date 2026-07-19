@@ -210,6 +210,97 @@ describe('generateCustomRadarHtml', () => {
     const html = generateCustomRadarHtml({ title: 'T', blips }, baseOptions())
     expect(html).toContain('<strong>bold</strong>')
   })
+
+  it('static mode with search off contains no <script> tag (no-JS guarantee)', () => {
+    const blips = [makeBlip({ categoryTitle: 'Architecture' })]
+    const html = generateCustomRadarHtml(
+      { title: 'T', blips },
+      { ...baseOptions(), exportMode: 'static', showSearch: false }
+    )
+    expect(html).not.toContain('<script')
+  })
+})
+
+describe('generateCustomRadarHtml – JSON data-island mode', () => {
+  const jsonOptions = () => ({
+    exportMode: 'json',
+    categoryGroups: [
+      { key: 'g1', categories: ['Architecture'], label: 'Architecture', included: true },
+      { key: 'g2', categories: ['Data'], label: 'Data', included: true }
+    ],
+    statusLabels: { adopt: 'Adopt', trial: 'Trial', assess: 'Assess', hold: 'Hold', retire: 'Retire' },
+    statusColors: { adopt: '#4caf50', trial: '#2196f3', assess: '#ff9800', hold: '#9e9e9e', retire: '#f44336' },
+    includedStatuses: ['adopt', 'trial'],
+    gridColumns: 3,
+    showGroupToggle: true,
+    showSearch: false
+  })
+
+  function extractIsland(html) {
+    const m = html.match(/<script type="application\/json" id="radar-data">\n([\s\S]*?)\n {4}<\/script>/)
+    if (!m) throw new Error('data island not found')
+    return JSON.parse(m[1])
+  }
+
+  it('embeds an editable JSON data island plus an inline renderer', () => {
+    const blips = [makeBlip({ name: 'Vue', categoryTitle: 'Architecture', ring: 0 })]
+    const html = generateCustomRadarHtml({ title: 'T', blips }, jsonOptions())
+    expect(html).toContain('id="radar-data"')
+    expect(html).toContain('function statusView')
+    expect(html).toContain("document.getElementById('radar-data')")
+  })
+
+  it('serialises filtered blips with status key + group label into the island', () => {
+    const blips = [
+      makeBlip({ name: 'Vue', categoryTitle: 'Architecture', ring: 0 }), // adopt, included
+      makeBlip({ name: 'Nuxt', categoryTitle: 'Architecture', ring: 1 }), // trial, included
+      makeBlip({ name: 'Old', categoryTitle: 'Architecture', ring: 3 }) // hold, excluded
+    ]
+    const data = extractIsland(generateCustomRadarHtml({ title: 'T', blips }, jsonOptions()))
+    expect(data.blips.map((b) => b.name)).toEqual(['Vue', 'Nuxt'])
+    expect(data.blips[0]).toMatchObject({ name: 'Vue', status: 'adopt', category: 'Architecture' })
+    expect(data.config.statuses.map((s) => s.key)).toEqual(['adopt', 'trial'])
+    expect(data.config.categoryOrder).toEqual(['Architecture', 'Data'])
+  })
+
+  it('escapes a closing script tag that appears inside blip data', () => {
+    const blips = [makeBlip({ categoryTitle: 'Architecture', shortComment: 'x </script> y' })]
+    const html = generateCustomRadarHtml({ title: 'T', blips }, jsonOptions())
+    // The island body (up to its own closing tag) must not contain a raw
+    // </script> that would break out of the data island early.
+    const start = html.indexOf('id="radar-data"')
+    const island = html.slice(start, html.indexOf('</script>', start))
+    expect(island).not.toContain('</script>')
+    expect(island).toContain('<\\/script>')
+  })
+
+  it('respects showSearch in JSON mode by emitting the search input + config flag', () => {
+    const blips = [makeBlip({ categoryTitle: 'Architecture' })]
+    const html = generateCustomRadarHtml({ title: 'T', blips }, { ...jsonOptions(), showSearch: true })
+    expect(html).toContain('class="search-input"')
+    expect(extractIsland(html).config.showSearch).toBe(true)
+  })
+
+  it('inline renderer rebuilds the cards in the DOM from the data island', () => {
+    const blips = [
+      makeBlip({ name: 'Vue', categoryTitle: 'Architecture', ring: 0 }),
+      makeBlip({ name: 'Nuxt', categoryTitle: 'Data', ring: 1 })
+    ]
+    const html = generateCustomRadarHtml({ title: 'T', blips }, jsonOptions())
+    const islandText = html.match(/<script type="application\/json" id="radar-data">\n([\s\S]*?)\n {4}<\/script>/)[1]
+    const rendererBody = html.match(/ {2}<script>\n([\s\S]*?)\n {2}<\/script>\n<\/body>/)[1]
+
+    document.body.innerHTML =
+      '<div class="view-status"></div><div class="view-category"></div>' +
+      '<script type="application/json" id="radar-data"></script>'
+    document.getElementById('radar-data').textContent = islandText
+    new Function(rendererBody)()
+
+    expect(document.querySelectorAll('.view-status .blip-card').length).toBe(2)
+    expect(document.querySelector('.view-status').textContent).toContain('Vue')
+    // Two categories => two sections in the by-category view
+    expect(document.querySelectorAll('.view-category .ring-section').length).toBe(2)
+  })
 })
 
 describe('downloadCustomRadarHtml', () => {

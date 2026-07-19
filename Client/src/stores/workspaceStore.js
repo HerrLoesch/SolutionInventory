@@ -587,6 +587,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     })
     if (Array.isArray(source.radar)) newProject.radar = JSON.parse(JSON.stringify(source.radar))
     if (Array.isArray(source.radarCategoryOrder)) newProject.radarCategoryOrder = [...source.radarCategoryOrder]
+    if (source.radarExportSettings && typeof source.radarExportSettings === 'object') {
+      newProject.radarExportSettings = JSON.parse(JSON.stringify(source.radarExportSettings))
+    }
     return newProjectId
   }
 
@@ -709,6 +712,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       migrateProjectRadar(project)
     }
     if (Array.isArray(radarData.radarCategoryOrder)) project.radarCategoryOrder = radarData.radarCategoryOrder
+    if (radarData.radarExportSettings && typeof radarData.radarExportSettings === 'object') {
+      project.radarExportSettings = JSON.parse(JSON.stringify(radarData.radarExportSettings))
+    }
   }
 
   function duplicateQuestionnaire(questionnaireId) {
@@ -933,7 +939,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         id: project.id,
         name: project.name,
         radar: Array.isArray(project.radar) ? project.radar : [],
-        radarCategoryOrder: Array.isArray(project.radarCategoryOrder) ? project.radarCategoryOrder : []
+        radarCategoryOrder: Array.isArray(project.radarCategoryOrder) ? project.radarCategoryOrder : [],
+        ...(project.radarExportSettings && typeof project.radarExportSettings === 'object'
+          ? { radarExportSettings: project.radarExportSettings }
+          : {})
       },
       questionnaires
     }
@@ -1130,6 +1139,21 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return { ...project.radarQuadrantLabels }
   }
 
+  // Persisted configuration of the Custom HTML Export dialog (per project).
+  // Holds everything the export dialog can configure: layout, labels, colors,
+  // category grouping/order, included statuses, export mode, etc.
+  function setProjectRadarExportSettings(projectId, settings) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project) return
+    project.radarExportSettings = settings && typeof settings === 'object' ? JSON.parse(JSON.stringify(settings)) : null
+  }
+
+  function getProjectRadarExportSettings(projectId) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project || !project.radarExportSettings || typeof project.radarExportSettings !== 'object') return null
+    return JSON.parse(JSON.stringify(project.radarExportSettings))
+  }
+
   function setApplicability(entry, value) {
     if (!applicabilityOptions.includes(value)) {
       entry.applicability = 'applicable'
@@ -1318,6 +1342,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     getProjectRadarCategoryQuadrants,
     setProjectRadarQuadrantLabels,
     getProjectRadarQuadrantLabels,
+    setProjectRadarExportSettings,
+    getProjectRadarExportSettings,
     setApplicability,
     isEntryApplicable,
     getStatusTooltip,

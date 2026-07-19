@@ -780,6 +780,7 @@
       <!-- Custom HTML Export Dialog -->
       <CustomHtmlExportDialog
         v-model="customExportDialog"
+        :project-id="projectId"
         :positioned-blips="positionedBlips"
         :available-categories="availableCategories"
         :title="project?.name || 'Tech Radar'"

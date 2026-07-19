@@ -20,6 +20,21 @@
             gap: 6px;
           "
         >
+          <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis">Export mode</div>
+          <v-btn-toggle v-model="options.exportMode" mandatory density="compact" color="primary" style="width: 100%">
+            <v-btn value="static" size="small" style="flex: 1; font-size: 11px">Static (no JS)</v-btn>
+            <v-btn value="json" size="small" style="flex: 1; font-size: 11px">JSON + JS</v-btn>
+          </v-btn-toggle>
+          <div class="text-caption text-medium-emphasis" style="font-size: 10px; line-height: 1.3; margin-top: 2px">
+            {{
+              options.exportMode === 'json'
+                ? 'Data lives in an editable JSON list inside the HTML. Requires JavaScript on the target page.'
+                : 'Pure HTML + CSS, no scripts. Works on pages that forbid JavaScript.'
+            }}
+          </div>
+
+          <v-divider class="my-1" />
+
           <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis">Layout</div>
           <v-switch
             v-model="options.showGroupToggle"
@@ -60,7 +75,14 @@
               />
             </div>
           </template>
-          <v-switch v-model="options.showSearch" color="primary" density="compact" hide-details label="Show search" />
+          <v-switch
+            v-model="options.showSearch"
+            color="primary"
+            density="compact"
+            hide-details
+            :disabled="options.exportMode === 'static'"
+            :label="options.exportMode === 'static' ? 'Show search (JSON mode only)' : 'Show search'"
+          />
           <v-switch
             v-model="options.showBindingLevel"
             color="primary"
@@ -275,8 +297,13 @@
         <span class="text-caption text-medium-emphasis"
           >{{ filteredCount }} blip{{ filteredCount !== 1 ? 's' : '' }}</span
         >
+        <v-icon size="14" class="ml-3 text-medium-emphasis" title="Settings are saved with this project"
+          >mdi-content-save-check-outline</v-icon
+        >
+        <span class="text-caption text-medium-emphasis ml-1">Saved with project</span>
+        <v-btn size="small" variant="text" class="ml-2" @click="resetToDefaults">Reset to defaults</v-btn>
         <v-spacer />
-        <v-btn variant="text" @click="dialogOpen = false">Cancel</v-btn>
+        <v-btn variant="text" @click="dialogOpen = false">Close</v-btn>
         <v-btn color="primary" variant="tonal" :disabled="!filteredCount" @click="download">
           <v-icon start size="16">mdi-download</v-icon>
           Download HTML
@@ -289,6 +316,7 @@
 <script>
 import { computed, ref, watch } from 'vue'
 import { generateCustomRadarHtml, downloadCustomRadarHtml } from '../../utils/techRadarExport'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 const RING_META = [
   { label: 'Adopt', color: '#4caf50' },
@@ -306,11 +334,64 @@ function defaultStatusColors() {
   return Object.fromEntries(RING_META.map((r) => [r.label.toLowerCase(), r.color]))
 }
 
+/** Full default option set for a given list of available category titles. */
+function buildDefaultOptions(categories) {
+  return {
+    exportMode: 'static',
+    categoryGroups: (categories || []).map((cat) => ({
+      key: 'g-' + cat,
+      categories: [cat],
+      label: cat,
+      included: true
+    })),
+    statusLabels: defaultStatusLabels(),
+    statusColors: defaultStatusColors(),
+    includedStatuses: RING_META.map((r) => r.label.toLowerCase()),
+    gridColumns: 3,
+    showGroupToggle: true,
+    showSearch: false,
+    defaultGrouping: 'status',
+    groupToggleLabels: { status: 'By Status', category: 'By Category' },
+    showBindingLevel: true,
+    showBlipIndex: true,
+    labels: { recommendation: 'Recommendation', mandatory: 'Mandatory', furtherInfo: 'Further information' }
+  }
+}
+
+/**
+ * Reconcile persisted category groups with the categories that currently exist:
+ * drop categories that vanished, drop emptied groups, and append any brand-new
+ * category as its own single-category group. Preserves user merges/labels/order.
+ */
+function reconcileCategoryGroups(savedGroups, categories) {
+  const catSet = new Set(categories || [])
+  const covered = new Set()
+  const result = []
+  for (const g of Array.isArray(savedGroups) ? savedGroups : []) {
+    const kept = (g.categories || []).filter((c) => catSet.has(c) && !covered.has(c))
+    if (!kept.length) continue
+    kept.forEach((c) => covered.add(c))
+    result.push({
+      key: g.key || 'g-' + kept[0],
+      categories: kept,
+      label: g.label != null ? g.label : kept.join(' & '),
+      included: g.included !== false
+    })
+  }
+  for (const c of categories || []) {
+    if (covered.has(c)) continue
+    covered.add(c)
+    result.push({ key: 'g-' + c, categories: [c], label: c, included: true })
+  }
+  return result
+}
+
 export default {
   name: 'CustomHtmlExportDialog',
 
   props: {
     modelValue: { type: Boolean, default: false },
+    projectId: { type: String, default: '' },
     positionedBlips: { type: Array, default: () => [] },
     availableCategories: { type: Array, default: () => [] },
     title: { type: String, default: 'Tech Radar' }
@@ -319,6 +400,8 @@ export default {
   emits: ['update:modelValue'],
 
   setup(props, { emit }) {
+    const store = useWorkspaceStore()
+
     // ── Dialog open state ───────────────────────────────────────────────────
     const dialogOpen = computed({
       get: () => props.modelValue,
@@ -326,46 +409,57 @@ export default {
     })
 
     // ── Export options ──────────────────────────────────────────────────────
-    const options = ref({
-      categoryGroups: [],
-      statusLabels: defaultStatusLabels(),
-      statusColors: defaultStatusColors(),
-      includedStatuses: RING_META.map((r) => r.label.toLowerCase()),
-      gridColumns: 3,
-      showGroupToggle: true,
-      showSearch: false,
-      defaultGrouping: 'status',
-      groupToggleLabels: { status: 'By Status', category: 'By Category' },
-      showBindingLevel: true,
-      showBlipIndex: true,
-      labels: { recommendation: 'Recommendation', mandatory: 'Mandatory', furtherInfo: 'Further information' }
+    const options = ref(buildDefaultOptions([]))
+
+    // Load persisted settings (reconciled with the current categories), falling
+    // back to defaults when the project has none saved yet.
+    function loadOptions() {
+      const cats = props.availableCategories
+      const base = buildDefaultOptions(cats)
+      const saved = props.projectId ? store.getProjectRadarExportSettings(props.projectId) : null
+      if (!saved || typeof saved !== 'object') {
+        options.value = base
+        return
+      }
+      options.value = {
+        ...base,
+        ...saved,
+        exportMode: saved.exportMode === 'json' ? 'json' : 'static',
+        statusLabels: { ...base.statusLabels, ...(saved.statusLabels || {}) },
+        statusColors: { ...base.statusColors, ...(saved.statusColors || {}) },
+        groupToggleLabels: { ...base.groupToggleLabels, ...(saved.groupToggleLabels || {}) },
+        labels: { ...base.labels, ...(saved.labels || {}) },
+        includedStatuses: Array.isArray(saved.includedStatuses) ? [...saved.includedStatuses] : base.includedStatuses,
+        categoryGroups: reconcileCategoryGroups(saved.categoryGroups, cats)
+      }
+    }
+
+    function resetToDefaults() {
+      options.value = buildDefaultOptions(props.availableCategories)
+    }
+
+    // Re-load settings every time the dialog opens
+    watch(dialogOpen, (open) => {
+      if (open) loadOptions()
     })
 
-    // Re-initialise category groups every time the dialog opens
-    watch(dialogOpen, (open) => {
-      if (!open) return
-      options.value.categoryGroups = props.availableCategories.map((cat) => ({
-        key: 'g-' + cat,
-        categories: [cat],
-        label: cat,
-        included: true
-      }))
-      options.value.statusLabels = defaultStatusLabels()
-      options.value.statusColors = defaultStatusColors()
-      options.value.includedStatuses = RING_META.map((r) => r.label.toLowerCase())
-      options.value.gridColumns = 3
-      options.value.showGroupToggle = true
-      options.value.showSearch = false
-      options.value.defaultGrouping = 'status'
-      options.value.groupToggleLabels = { status: 'By Status', category: 'By Category' }
-      options.value.showBindingLevel = true
-      options.value.showBlipIndex = true
-      options.value.labels = {
-        recommendation: 'Recommendation',
-        mandatory: 'Mandatory',
-        furtherInfo: 'Further information'
+    // Persist any change back to the project (autosave debounces the disk write)
+    watch(
+      options,
+      () => {
+        if (!dialogOpen.value || !props.projectId) return
+        store.setProjectRadarExportSettings(props.projectId, options.value)
+      },
+      { deep: true }
+    )
+
+    // Search needs JavaScript, so it is only available in JSON mode.
+    watch(
+      () => options.value.exportMode,
+      (mode) => {
+        if (mode === 'static' && options.value.showSearch) options.value.showSearch = false
       }
-    })
+    )
 
     // ── Drag & drop for category groups ────────────────────────────────────
     const catDragKey = ref(null)
@@ -449,6 +543,7 @@ export default {
       mergeGroups,
       resetCategoryDrag,
       unmergeCategory,
+      resetToDefaults,
       download,
       RING_META
     }

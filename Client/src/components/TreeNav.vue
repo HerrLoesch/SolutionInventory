@@ -791,7 +791,11 @@ export default {
             radar: Array.isArray(data?.project?.radar) ? data.project.radar : [],
             radarRefs: Array.isArray(data?.project?.radarRefs) ? data.project.radarRefs : [],
             radarOverrides: Array.isArray(data?.project?.radarOverrides) ? data.project.radarOverrides : [],
-            radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : []
+            radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : [],
+            radarExportSettings:
+              data?.project?.radarExportSettings && typeof data.project.radarExportSettings === 'object'
+                ? data.project.radarExportSettings
+                : undefined
           }
           store.importProject(projectName, questionnaires, radarData)
           closeImportDialog()
