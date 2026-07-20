@@ -3,6 +3,28 @@
     <div class="tree-header">
       <div class="tree-title">Question Catalogs</div>
       <div class="tree-actions">
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn icon size="x-small" variant="text" aria-label="AI schema" v-bind="menuProps">
+              <v-icon>mdi-robot-outline</v-icon>
+              <v-tooltip activator="parent" location="bottom">AI schema for catalog authoring</v-tooltip>
+            </v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item @click.stop="copyAiSchema">
+              <template #prepend>
+                <v-icon size="16">mdi-clipboard-text-outline</v-icon>
+              </template>
+              <v-list-item-title>Copy to clipboard</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="downloadAiSchema">
+              <template #prepend>
+                <v-icon size="16">mdi-download</v-icon>
+              </template>
+              <v-list-item-title>Download as .md</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
         <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
           <v-icon>mdi-plus</v-icon>
           <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>
@@ -129,6 +151,12 @@
                 <v-icon size="16">mdi-file-upload</v-icon>
               </template>
               <v-list-item-title>Import Questionnaire</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="openCatalogImportDialog(item.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-robot-outline</v-icon>
+              </template>
+              <v-list-item-title>Import catalog (AI)</v-list-item-title>
             </v-list-item>
             <v-list-item @click.stop="downloadProject(item.id)">
               <template #prepend>
@@ -518,6 +546,15 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <CatalogImportDialog
+      v-model="catalogImportDialogOpen"
+      :project-id="catalogImportProjectId"
+      @imported="onCatalogImported"
+      @notify="showSnackbar"
+    />
+
+    <v-snackbar v-model="snackbar" :timeout="3000" location="bottom">{{ snackbarText }}</v-snackbar>
   </div>
 </template>
 
@@ -525,9 +562,12 @@
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import { summarizeCatalog } from '../services/catalogService'
+import { buildCatalogAuthoringPackage } from '../schema/catalogAiSchema'
 import { useWorkspaceTabGuard } from '../composables/useWorkspaceTabGuard'
+import CatalogImportDialog from './catalog/CatalogImportDialog.vue'
 
 export default {
+  components: { CatalogImportDialog },
   setup() {
     const store = useWorkspaceStore()
     const { canLeaveActiveTab } = useWorkspaceTabGuard()
@@ -597,6 +637,10 @@ export default {
     const activeDropTarget = ref('')
     const reorderTarget = ref('')
     const unassignDropTarget = ref(false)
+    const catalogImportDialogOpen = ref(false)
+    const catalogImportProjectId = ref('')
+    const snackbar = ref(false)
+    const snackbarText = ref('')
 
     const standaloneQuestionnaires = computed(() => {
       const assigned = new Set()
@@ -650,6 +694,43 @@ export default {
 
     function downloadCatalog(catalogId) {
       store.exportCatalog(catalogId)
+    }
+
+    function showSnackbar(text) {
+      snackbarText.value = text
+      snackbar.value = true
+    }
+
+    async function copyAiSchema() {
+      const pkg = buildCatalogAuthoringPackage()
+      try {
+        await navigator.clipboard.writeText(pkg)
+        showSnackbar('AI schema copied to clipboard.')
+      } catch {
+        downloadAiSchema()
+        showSnackbar('Clipboard unavailable — downloaded the schema instead.')
+      }
+    }
+
+    function downloadAiSchema() {
+      const blob = new Blob([buildCatalogAuthoringPackage()], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'question-catalog-ai-schema.md'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    }
+
+    function openCatalogImportDialog(projectId) {
+      catalogImportProjectId.value = projectId
+      catalogImportDialogOpen.value = true
+    }
+
+    function onCatalogImported() {
+      showSnackbar('Catalog imported and set as the project default.')
     }
 
     function openRenameCatalogDialog(catalog) {
@@ -1184,6 +1265,15 @@ export default {
       createCatalog,
       duplicateCatalogAction,
       downloadCatalog,
+      copyAiSchema,
+      downloadAiSchema,
+      openCatalogImportDialog,
+      onCatalogImported,
+      catalogImportDialogOpen,
+      catalogImportProjectId,
+      showSnackbar,
+      snackbar,
+      snackbarText,
       renameCatalogDialogOpen,
       renameCatalogName,
       openRenameCatalogDialog,

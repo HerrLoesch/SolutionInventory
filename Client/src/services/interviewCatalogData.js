@@ -1,4 +1,4 @@
-// Seed data for the "Software System Interview" catalog — an additional,
+// Seed data for the "Software System Interview" catalog: an additional,
 // built-in catalog shipped alongside the exhaustive Standard Catalog
 // (categoriesService.js). See docs/spec-fragenkataloge.md Phase 6.
 //
@@ -19,7 +19,7 @@
 // to the Standard Catalog so that `appliesTo` conditions reference valid values
 // and the (hardcoded) metadata fill-in form works the same way for both
 // catalogs. If one drifts, appliesTo stays self-consistent within this catalog
-// but instances made from different catalogs would diverge — keep them in sync.
+// but instances made from different catalogs would diverge, so keep them in sync.
 
 const EXECUTION_TYPE_OPTIONS = [
   { label: 'Not specified', description: 'Applicability is not yet determined. All questions will be shown.' },
@@ -101,10 +101,10 @@ export function getInterviewCatalogData() {
       {
         id: 'context',
         title: 'System Context',
-        desc: 'Identity and shape of the interviewed system — drives which later questions apply',
+        desc: 'Identity and shape of the interviewed system. Drives which later questions apply.',
         isMetadata: true,
         // Field keys match the (hardcoded) questionnaire metadata fill-in form
-        // in Questionnaire.vue exactly — same shape as the Standard Catalog —
+        // in Questionnaire.vue exactly (same shape as the Standard Catalog),
         // so every field renders and round-trips. executionType /
         // architecturalRole are the two that drive appliesTo visibility.
         metadata: {
@@ -124,7 +124,7 @@ export function getInterviewCatalogData() {
       {
         id: 'domain',
         title: 'Business & Domain Context',
-        desc: 'Why the system exists — the framing that makes a reference architecture meaningful',
+        desc: 'Why the system exists. This framing is what makes a reference architecture meaningful.',
         entries: [
           {
             id: 'dom-capability',
@@ -191,7 +191,7 @@ export function getInterviewCatalogData() {
       {
         id: 'architecture',
         title: 'Architecture & Patterns',
-        desc: 'Structural patterns — the primary source of candidate reference architectures',
+        desc: 'Structural patterns, the primary source of candidate reference architectures.',
         entries: [
           {
             id: 'arch-style',
@@ -273,7 +273,7 @@ export function getInterviewCatalogData() {
             aspect: 'Consistency Model',
             appliesTo: { architecturalRole: DISTRIBUTED_ROLES },
             description:
-              'The target data-consistency guarantee across nodes/services. Only meaningful once state is distributed — probe how staleness is tolerated.',
+              'The target data-consistency guarantee across nodes/services. Only meaningful once state is distributed, so probe how staleness is tolerated.',
             examples: [
               practice('Strong Consistency', 'Reads always reflect the latest write.'),
               practice('Eventual Consistency', 'State converges over time; stale reads possible.'),
@@ -330,7 +330,7 @@ export function getInterviewCatalogData() {
       {
         id: 'stack',
         title: 'Technology Stack',
-        desc: 'The concrete technologies in use — the primary source of candidate toolchains',
+        desc: 'The concrete technologies in use, the primary source of candidate toolchains.',
         entries: [
           {
             id: 'stack-backend',
@@ -388,7 +388,7 @@ export function getInterviewCatalogData() {
             aspect: 'Primary Data Store',
             appliesTo: { architecturalRole: SERVER_SIDE_ROLES },
             description:
-              'The main persistence technology and its family. Probe why it was chosen — the fit to the data shape matters more than the brand.',
+              'The main persistence technology and its family. Probe why it was chosen. The fit to the data shape matters more than the brand.',
             examples: [
               practice('Relational (RDBMS)', 'Structured, ACID-compliant tables.'),
               practice('Document Store', 'Semi-structured document-oriented data.'),
@@ -442,7 +442,7 @@ export function getInterviewCatalogData() {
       {
         id: 'backend',
         title: 'Backend Design & Internals',
-        desc: 'How the server-side is built — the patterns and libraries that make up its reference architecture and toolchain',
+        desc: 'How the server-side is built: the patterns and libraries that make up its reference architecture and toolchain',
         appliesTo: { architecturalRole: SERVER_SIDE_ROLES },
         entries: [
           {
@@ -559,7 +559,7 @@ export function getInterviewCatalogData() {
             id: 'be-error',
             aspect: 'Error-Handling Pattern',
             description:
-              'The structural approach to failures — exceptions vs. explicit result types. Shapes API and code style.',
+              'The structural approach to failures: exceptions vs. explicit result types. Shapes API and code style.',
             examples: [
               practice('Global Exception Middleware', 'Centralized handler mapping errors to responses.'),
               practice('Result / Either Pattern', 'Explicit success/failure objects, no throwing.'),
@@ -574,7 +574,7 @@ export function getInterviewCatalogData() {
             aspect: 'Schema & Migration Management',
             appliesTo: { architecturalRole: DISTRIBUTED_ROLES },
             description:
-              'How database schema changes are versioned and deployed without data loss — a core part of the delivery toolchain for stateful services.',
+              'How database schema changes are versioned and deployed without data loss. This is a core part of the delivery toolchain for stateful services.',
             examples: [
               practice('Code-First Migrations', 'Schema changes generated from code models.'),
               practice('SQL-Based Versioning', 'Versioned, hand-written SQL migration scripts.'),
@@ -590,7 +590,7 @@ export function getInterviewCatalogData() {
       {
         id: 'frontend',
         title: 'Frontend Design & Internals',
-        desc: 'How the client/UI is built — only for systems with a user interface',
+        desc: 'How the client/UI is built. Only for systems with a user interface.',
         appliesTo: { executionType: UI_EXECUTION_TYPES },
         entries: [
           {
@@ -695,7 +695,7 @@ export function getInterviewCatalogData() {
             id: 'fe-a11y',
             aspect: 'Accessibility (A11y)',
             description:
-              'The defined standard for making the UI usable by people with disabilities — often a hard requirement in regulated/public sectors.',
+              'The defined standard for making the UI usable by people with disabilities. Often a hard requirement in regulated/public sectors.',
             examples: [
               practice('WCAG Compliance', 'Adherence to a WCAG conformance level.'),
               practice('Screenreader / ARIA Support', 'ARIA semantics for assistive technology.'),
@@ -722,7 +722,7 @@ export function getInterviewCatalogData() {
             id: 'fe-logging',
             aspect: 'Client-Side Logging',
             description:
-              'How client events and errors are recorded in code (shipping telemetry to servers is separate — see Observability). Probe whether there is any abstraction over raw console output.',
+              'How client events and errors are recorded in code (shipping telemetry to servers is separate; see Observability). Probe whether there is any abstraction over raw console output.',
             examples: [
               practice('Browser Console', 'Console output, intended for debugging only.'),
               practice('Custom Logger Abstraction', 'Wrapper with log-level control and optional remote sink.'),
@@ -754,7 +754,7 @@ export function getInterviewCatalogData() {
       {
         id: 'crosscutting',
         title: 'Cross-Cutting Concerns',
-        desc: 'Security, observability and configuration — patterns and tools that span the whole system',
+        desc: 'Security, observability and configuration: patterns and tools that span the whole system',
         entries: [
           {
             id: 'cc-authn',
@@ -803,7 +803,7 @@ export function getInterviewCatalogData() {
             id: 'cc-network',
             aspect: 'Network Security & Segmentation',
             description:
-              'How the network around the system is secured and partitioned — perimeter, trust zones and, for industrial systems, IT/OT segmentation. A key control that the application-level auth questions do not capture.',
+              'How the network around the system is secured and partitioned: perimeter, trust zones and, for industrial systems, IT/OT segmentation. A key control that the application-level auth questions do not capture.',
             examples: [
               practice('Perimeter Firewall / DMZ', 'Classic edge firewalling with a demilitarized zone.'),
               practice('Zero-Trust Networking', 'No implicit trust; every request authenticated/authorized.'),
@@ -820,7 +820,7 @@ export function getInterviewCatalogData() {
             id: 'cc-observability',
             aspect: 'Observability',
             description:
-              'How the running system is understood: logging, metrics and tracing. Consolidate — one honest answer beats three shallow ones.',
+              'How the running system is understood: logging, metrics and tracing. Consolidate here. One honest answer beats three shallow ones.',
             examples: [
               practice('Structured Logging', 'Queryable, JSON-style log events.'),
               practice('Metrics & Alerting', 'Numeric time-series with thresholds.'),
@@ -894,7 +894,7 @@ export function getInterviewCatalogData() {
       {
         id: 'delivery',
         title: 'Quality & Delivery',
-        desc: 'How the system is tested, built and shipped — practices and toolchain',
+        desc: 'How the system is tested, built and shipped: practices and toolchain',
         entries: [
           {
             id: 'del-testing',
@@ -1133,7 +1133,7 @@ export function getInterviewCatalogData() {
       {
         id: 'hardware',
         title: 'Hardware, Edge & Industrial Control',
-        desc: 'Physical interfaces, real-time control and industrial systems — machine control, HMI/SCADA, edge & IIoT',
+        desc: 'Physical interfaces, real-time control and industrial systems: machine control, HMI/SCADA, edge & IIoT',
         appliesTo: { executionType: ['Embedded / IoT', 'Desktop Application', 'Background Worker / Daemon'] },
         entries: [
           {
@@ -1157,7 +1157,7 @@ export function getInterviewCatalogData() {
             id: 'hw-control-logic',
             aspect: 'Control Logic Programming Model',
             description:
-              'How the control logic itself is authored. Distinguishes standards-based PLC programming from high-level code on a controller — a strong signal for portability and the engineering toolchain.',
+              'How the control logic itself is authored. Distinguishes standards-based PLC programming from high-level code on a controller, a strong signal for portability and the engineering toolchain.',
             examples: [
               practice('IEC 61131-3 Languages', 'Ladder (LD), Function Block (FBD), Structured Text (ST), SFC, IL.'),
               practice('IEC 61499 Function Blocks', 'Distributed, event-driven control model.'),
@@ -1179,7 +1179,7 @@ export function getInterviewCatalogData() {
             id: 'hw-interface',
             aspect: 'Device Interface & I/O Access',
             description:
-              'How the software reaches sensors, actuators and I/O at the low level — the access mechanism, not the network protocol (that is the next question).',
+              'How the software reaches sensors, actuators and I/O at the low level: the access mechanism, not the network protocol (that is the next question).',
             examples: [
               practice('Polling', 'Software repeatedly queries device state.'),
               practice('Interrupt-Driven', 'Hardware signals the software when data is ready.'),
@@ -1194,7 +1194,7 @@ export function getInterviewCatalogData() {
             id: 'hw-fieldbus',
             aspect: 'Industrial Communication Protocols',
             description:
-              'The fieldbus and industrial-network protocols wiring controllers, I/O, drives and supervisory systems together. Capture every protocol in play — this is prime toolchain/interoperability signal.',
+              'The fieldbus and industrial-network protocols wiring controllers, I/O, drives and supervisory systems together. Capture every protocol in play. This is prime toolchain/interoperability signal.',
             examples: [
               practice('Real-Time Ethernet Fieldbus', 'Cyclic, deterministic industrial Ethernet.'),
               practice('Classic Fieldbus', 'Traditional serial/industrial buses.'),
@@ -1274,7 +1274,7 @@ export function getInterviewCatalogData() {
             id: 'hw-historian',
             aspect: 'Process Data & Historian',
             description:
-              'How process and telemetry data is captured, buffered and stored over time — the basis for later analytics and the data model of the plant.',
+              'How process and telemetry data is captured, buffered and stored over time. This is the basis for later analytics and the data model of the plant.',
             examples: [
               practice('Time-Series Historian', 'Purpose-built process historian with compression.'),
               practice('Relational / SQL Logging', 'Process data logged into a relational database.'),
@@ -1292,7 +1292,7 @@ export function getInterviewCatalogData() {
             id: 'hw-iiot-edge',
             aspect: 'Edge & IIoT Cloud Connectivity',
             description:
-              'How OT/edge data is bridged up to IT and cloud systems — the seam where the shop floor meets the enterprise. Probe protocol translation and resilience across that boundary.',
+              'How OT/edge data is bridged up to IT and cloud systems, the seam where the shop floor meets the enterprise. Probe protocol translation and resilience across that boundary.',
             examples: [
               practice('Edge Gateway', 'On-site device aggregating and normalizing field data.'),
               practice('Protocol Bridging', 'Translating OT protocols to IT (e.g. OPC UA → MQTT/REST).'),

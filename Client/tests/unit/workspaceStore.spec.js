@@ -970,3 +970,48 @@ describe('persistence round-trip (localStorage)', () => {
     spy.mockRestore()
   })
 })
+
+describe('importCatalogToProject', () => {
+  const rawCatalog = {
+    id: 'source-id',
+    name: 'AI Catalog',
+    categories: [
+      { id: 'context', title: 'Context', isMetadata: true },
+      { id: 'architecture', title: 'Architecture', entries: [{ id: 'arch-1', aspect: 'Style' }] }
+    ]
+  }
+
+  it('adds the catalog to the library with a fresh id and sets it as the project default', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('Project A')
+    const before = (store.workspace.catalogs || []).length
+
+    const result = store.importCatalogToProject(projectId, rawCatalog)
+
+    expect(result.catalogId).toBeTruthy()
+    expect(result.catalogId).not.toBe('source-id')
+    expect(store.workspace.catalogs.length).toBe(before + 1)
+
+    const project = store.workspace.projects.find((p) => p.id === projectId)
+    expect(project.defaultCatalogId).toBe(result.catalogId)
+
+    const imported = store.getCatalogById(result.catalogId)
+    expect(imported.name).toBe('AI Catalog')
+  })
+
+  it('returns null for an unknown project and does not add a catalog', () => {
+    const store = useWorkspaceStore()
+    const before = (store.workspace.catalogs || []).length
+    const result = store.importCatalogToProject('does-not-exist', rawCatalog)
+    expect(result).toBeNull()
+    expect((store.workspace.catalogs || []).length).toBe(before)
+  })
+
+  it('exposes the project default catalog for comparison', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('Project B')
+    const result = store.importCatalogToProject(projectId, rawCatalog)
+    const reference = store.getProjectDefaultCatalog(projectId)
+    expect(reference.id).toBe(result.catalogId)
+  })
+})
