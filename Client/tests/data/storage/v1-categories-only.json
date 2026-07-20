@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "timestamp": "2024-11-01T09:00:00.000Z",
+  "categories": [
+    {
+      "id": "solution-desc",
+      "title": "Solution Description",
+      "isMetadata": true,
+      "metadata": {
+        "productName": "Old App",
+        "company": "Acme",
+        "department": "",
+        "contactPerson": "",
+        "description": "",
+        "executionType": "",
+        "architecturalRole": ""
+      }
+    },
+    {
+      "id": "architecture",
+      "title": "Architecture",
+      "entries": [
+        {
+          "id": "arch-hlp",
+          "aspect": "High-Level Pattern",
+          "answers": [{ "technology": "Monolith", "status": "Adopt", "comments": "initial assessment" }],
+          "applicability": "applicable"
+        }
+      ]
+    }
+  ]
+}

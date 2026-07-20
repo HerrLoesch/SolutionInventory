@@ -6,8 +6,8 @@ import { readFileSync } from 'fs'
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 export default defineConfig(({ mode }) => {
-  const isElectron = mode === 'electron';
-  
+  const isElectron = mode === 'electron'
+
   return {
     base: isElectron ? './' : '/SolutionInventory/',
     define: {
@@ -16,19 +16,18 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       // Only include PWA plugin for web build
-      !isElectron && VitePWA({
-        registerType: 'autoUpdate',
-        manifest: {
-          name: 'Solution Inventory',
-          short_name: 'Inventory',
-          start_url: '/SolutionInventory/',
-          display: 'standalone',
-          background_color: '#ffffff',
-          icons: [
-            { src: '/SolutionInventory/Logo-Large.png', sizes: '512x512', type: 'image/png' }
-          ]
-        }
-      })
+      !isElectron &&
+        VitePWA({
+          registerType: 'autoUpdate',
+          manifest: {
+            name: 'Solution Inventory',
+            short_name: 'Inventory',
+            start_url: '/SolutionInventory/',
+            display: 'standalone',
+            background_color: '#ffffff',
+            icons: [{ src: '/SolutionInventory/Logo-Large.png', sizes: '512x512', type: 'image/png' }]
+          }
+        })
     ].filter(Boolean),
     // For Electron, we need to ensure proper paths
     build: {

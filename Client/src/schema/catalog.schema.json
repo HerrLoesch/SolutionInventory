@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solutioninventory.local/schema/catalog.schema.json",
+  "title": "Fragenkatalog (Catalog)",
+  "description": "Structure of a reusable question catalog template — the Vorlage in docs/spec-fragenkataloge.md §2.1/§3. Serves as documentation and as the basis for the runtime validator in catalogValidation.js; it is not interpreted at runtime.",
+  "type": "object",
+  "required": ["id", "name", "version", "schemaVersion", "categories"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "version": { "type": "integer", "minimum": 1 },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "statusOptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label"],
+        "properties": {
+          "label": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "applicabilityOptions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/category" }
+    }
+  },
+  "$defs": {
+    "category": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "title": { "type": "string", "minLength": 1 },
+        "desc": { "type": "string" },
+        "isMetadata": { "type": "boolean" },
+        "appliesTo": { "$ref": "#/$defs/appliesTo" },
+        "metadata": { "type": "object" },
+        "metadataOptions": { "type": "object" },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entry" }
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["id", "aspect"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "aspect": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "appliesTo": { "$ref": "#/$defs/appliesTo" },
+        "defaultApplicability": { "type": "string" },
+        "examples": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/example" }
+        }
+      }
+    },
+    "example": {
+      "type": "object",
+      "description": "A Practice or Tool example. New/edited examples always carry `type` (see docs/spec-fragenkataloge.md §3.1). Older catalogs may still have untyped examples with a nested `tools[]` array (pre-Phase-4.1 shape) — these remain valid and are tolerantly expanded at read/edit time (catalogService.js expandExamplesToTyped), never rejected.",
+      "required": ["label"],
+      "properties": {
+        "type": { "type": "string", "enum": ["practice", "tool"] },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Legacy-only: tools nested under a Practice example. New examples use standalone `type: 'tool'` examples instead."
+        }
+      }
+    },
+    "appliesTo": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+      }
+    }
+  }
+}

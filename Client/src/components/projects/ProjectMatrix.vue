@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Toolbar -->
-    <div class="d-flex align-center mb-3" style="gap: 8px;">
+    <div class="d-flex align-center mb-3" style="gap: 8px">
       <v-btn-toggle
         v-model="answerTypeFilter"
         density="compact"
@@ -10,7 +10,7 @@
         mandatory
         rounded="lg"
         class="mr-2"
-        style="white-space: nowrap;"
+        style="white-space: nowrap"
       >
         <v-btn value="all" size="small">All</v-btn>
         <v-btn value="Tool" size="small">
@@ -43,12 +43,14 @@
         variant="outlined"
         hide-details
         multiple
-        style="max-width:220px; flex-shrink:0;"
+        style="max-width: 220px; flex-shrink: 0"
       >
         <template #selection="{ index }">
           <span v-if="index === 0" class="text-caption text-truncate">
             <template v-if="selectedQuestionnaireIds.length === allQuestionnaires.length">All</template>
-            <template v-else-if="selectedQuestionnaireIds.length === 1">{{ allQuestionnaires.find(q => q.id === selectedQuestionnaireIds[0])?.name }}</template>
+            <template v-else-if="selectedQuestionnaireIds.length === 1">{{
+              allQuestionnaires.find((q) => q.id === selectedQuestionnaireIds[0])?.name
+            }}</template>
             <template v-else>{{ selectedQuestionnaireIds.length }} selected</template>
           </span>
         </template>
@@ -63,166 +65,107 @@
 
       <v-tooltip text="Expand all" location="top">
         <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            size="small"
-            variant="text"
-            icon="mdi-unfold-more-horizontal"
-            @click="expandAll"
-          />
+          <v-btn v-bind="props" size="small" variant="text" icon="mdi-unfold-more-horizontal" @click="expandAll" />
         </template>
       </v-tooltip>
       <v-tooltip text="Collapse all" location="top">
         <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            size="small"
-            variant="text"
-            icon="mdi-unfold-less-horizontal"
-            @click="collapseAll"
-          />
+          <v-btn v-bind="props" size="small" variant="text" icon="mdi-unfold-less-horizontal" @click="collapseAll" />
         </template>
       </v-tooltip>
     </div>
 
     <!-- Content -->
     <v-expansion-panels v-model="openPanels" variant="accordion" multiple>
-          <v-expansion-panel
-            v-for="group in visibleCategoryGroups"
-            :key="group.title"
-            :value="group.title"
+      <v-expansion-panel v-for="group in visibleCategoryGroups" :key="group.title" :value="group.title">
+        <v-expansion-panel-title>
+          <div class="d-flex align-center justify-space-between w-100">
+            <div class="d-flex align-center" style="gap: 6px">
+              <v-icon v-if="categoryHasViolation(group.title)" size="15" color="error">mdi-exclamation-thick</v-icon>
+              <span class="text-body-2 font-weight-bold">{{ group.title }}</span>
+              <v-tooltip v-if="hiddenCountForCategory(group.title) > 0" text="Open visibility settings" location="top">
+                <template #activator="{ props: tipProps }">
+                  <v-chip
+                    v-bind="tipProps"
+                    size="x-small"
+                    variant="tonal"
+                    class="hidden-count-chip"
+                    @click.stop="openSettingsForCategory(group.title)"
+                  >
+                    <v-icon start size="11">mdi-eye-off-outline</v-icon>
+                    {{ hiddenCountForCategory(group.title) }} hidden
+                  </v-chip>
+                </template>
+              </v-tooltip>
+            </div>
+            <v-chip size="x-small" variant="tonal">{{ group.count }}</v-chip>
+          </div>
+        </v-expansion-panel-title>
+
+        <v-expansion-panel-text>
+          <v-data-table
+            :headers="headers"
+            :items="itemsForCategory(group.title)"
+            :search="search"
+            item-key="id"
+            density="compact"
+            class="project-summary-table"
+            :items-per-page="-1"
+            hide-default-footer
           >
-            <v-expansion-panel-title>
-              <div class="d-flex align-center justify-space-between w-100">
-                <div class="d-flex align-center" style="gap: 6px;">
-                  <v-icon v-if="categoryHasViolation(group.title)" size="15" color="error">mdi-exclamation-thick</v-icon>
-                  <span class="text-body-2 font-weight-bold">{{ group.title }}</span>
-                  <v-tooltip v-if="hiddenCountForCategory(group.title) > 0" text="Open visibility settings" location="top">
-                    <template #activator="{ props: tipProps }">
-                      <v-chip
-                        v-bind="tipProps"
-                        size="x-small"
-                        variant="tonal"
-                        class="hidden-count-chip"
-                        @click.stop="openSettingsForCategory(group.title)"
-                      >
-                        <v-icon start size="11">mdi-eye-off-outline</v-icon>
-                        {{ hiddenCountForCategory(group.title) }} hidden
-                      </v-chip>
-                    </template>
-                  </v-tooltip>
-                </div>
-                <v-chip size="x-small" variant="tonal">{{ group.count }}</v-chip>
-              </div>
-            </v-expansion-panel-title>
-
-            <v-expansion-panel-text>
-              <v-data-table
-                :headers="headers"
-                :items="itemsForCategory(group.title)"
-                :search="search"
-                item-key="id"
-                density="compact"
-                class="project-summary-table"
-                :items-per-page="-1"
-                hide-default-footer
+            <template #item="{ item, columns }">
+              <tr
+                :class="{
+                  'row-muted': isUnanswered(rowFromItem(item).id),
+                  'row-violation': isViolation(rowFromItem(item))
+                }"
               >
-                <template #item="{ item, columns }">
-                  <tr :class="{ 'row-muted': isUnanswered(rowFromItem(item).id), 'row-violation': isViolation(rowFromItem(item)) }">
-                    <td
-                      v-for="col in columns"
-                      :key="col.key"
-                      :class="{ 'sticky-col': col.key === 'subcategory' }"
-                    >
-                      <template v-if="col.key === 'subcategory'">
-                        <div class="row-title">
-                          {{ rowFromItem(item).title }}
-                          <v-tooltip text="Hide this entry" location="top">
-                            <template #activator="{ props: hideTipProps }">
-                              <v-btn
-                                v-bind="hideTipProps"
-                                size="x-small"
-                                variant="text"
-                                icon
-                                class="entry-hide-btn"
-                                @click.stop="hideEntry(rowFromItem(item).id)"
-                              >
-                                <v-icon size="13">mdi-eye-off-outline</v-icon>
-                              </v-btn>
-                            </template>
-                          </v-tooltip>
-                        </div>
-                      </template>
-
-                      <template v-else>
-                        <div v-if="cellLinesByKey(col.key, rowFromItem(item).id).length" class="cell-lines">
-                          <template
-                            v-for="(line, idx) in cellLinesByKey(col.key, rowFromItem(item).id)"
-                            :key="idx"
+                <td v-for="col in columns" :key="col.key" :class="{ 'sticky-col': col.key === 'subcategory' }">
+                  <template v-if="col.key === 'subcategory'">
+                    <div class="row-title">
+                      {{ rowFromItem(item).title }}
+                      <v-tooltip text="Hide this entry" location="top">
+                        <template #activator="{ props: hideTipProps }">
+                          <v-btn
+                            v-bind="hideTipProps"
+                            size="x-small"
+                            variant="text"
+                            icon
+                            class="entry-hide-btn"
+                            @click.stop="hideEntry(rowFromItem(item).id)"
                           >
-                            <v-tooltip v-if="line.comment" :text="line.comment" location="top">
-                              <template #activator="{ props }">
-                                <div
-                                  class="cell-line"
-                                  :class="{ 'cell-line--radar': isProjectRadarRef(projectId, rowFromItem(item).id, line.option) }"
-                                  v-bind="props"
-                                >
-                                  <v-btn
-                                    size="x-small"
-                                    variant="text"
-                                    :color="isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'"
-                                    icon
-                                    class="cell-radar-btn"
-                                    @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option, col.key)"
-                                  >
-                                    <v-icon size="12">mdi-radar</v-icon>
-                                  </v-btn>
-                                  <v-tooltip text="Jump to entry in questionnaire" location="top">
-                                    <template #activator="{ props: navProps }">
-                                      <v-btn
-                                        v-bind="navProps"
-                                        size="x-small"
-                                        variant="text"
-                                        icon
-                                        class="cell-nav-btn"
-                                        @click.stop="navigateToCellEntry(col.key, rowFromItem(item).categoryId, rowFromItem(item).id)"
-                                      >
-                                        <v-icon size="12">mdi-open-in-new</v-icon>
-                                      </v-btn>
-                                    </template>
-                                  </v-tooltip>
-                                  <span class="cell-option">{{ line.option }}</span>
-                                  <v-chip
-                                    v-if="line.status"
-                                    size="x-small"
-                                    variant="tonal"
-                                    :color="statusChipColor(line.status)"
-                                    class="ml-2"
-                                  >
-                                    {{ line.status }}
-                                  </v-chip>
-                                  <v-icon
-                                    size="14"
-                                    class="ml-1 comment-indicator"
-                                    aria-label="Has comment"
-                                  >
-                                    mdi-comment-text-outline
-                                  </v-icon>
-                                </div>
-                              </template>
-                            </v-tooltip>
+                            <v-icon size="13">mdi-eye-off-outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <div v-if="cellLinesByKey(col.key, rowFromItem(item).id).length" class="cell-lines">
+                      <template v-for="(line, idx) in cellLinesByKey(col.key, rowFromItem(item).id)" :key="idx">
+                        <v-tooltip v-if="line.comment" :text="line.comment" location="top">
+                          <template #activator="{ props }">
                             <div
-                              v-else
                               class="cell-line"
-                              :class="{ 'cell-line--radar': isProjectRadarRef(projectId, rowFromItem(item).id, line.option) }"
+                              :class="{
+                                'cell-line--radar': isProjectRadarRef(projectId, rowFromItem(item).id, line.option)
+                              }"
+                              v-bind="props"
                             >
                               <v-btn
                                 size="x-small"
                                 variant="text"
-                                :color="isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'"
+                                :color="
+                                  isProjectRadarRef(projectId, rowFromItem(item).id, line.option)
+                                    ? 'primary'
+                                    : 'default'
+                                "
                                 icon
                                 class="cell-radar-btn"
-                              @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option, col.key)"
+                                @click.stop="
+                                  toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option, col.key)
+                                "
                               >
                                 <v-icon size="12">mdi-radar</v-icon>
                               </v-btn>
@@ -234,7 +177,9 @@
                                     variant="text"
                                     icon
                                     class="cell-nav-btn"
-                                    @click.stop="navigateToCellEntry(col.key, rowFromItem(item).categoryId, rowFromItem(item).id)"
+                                    @click.stop="
+                                      navigateToCellEntry(col.key, rowFromItem(item).categoryId, rowFromItem(item).id)
+                                    "
                                   >
                                     <v-icon size="12">mdi-open-in-new</v-icon>
                                   </v-btn>
@@ -250,18 +195,69 @@
                               >
                                 {{ line.status }}
                               </v-chip>
+                              <v-icon size="14" class="ml-1 comment-indicator" aria-label="Has comment">
+                                mdi-comment-text-outline
+                              </v-icon>
                             </div>
                           </template>
+                        </v-tooltip>
+                        <div
+                          v-else
+                          class="cell-line"
+                          :class="{
+                            'cell-line--radar': isProjectRadarRef(projectId, rowFromItem(item).id, line.option)
+                          }"
+                        >
+                          <v-btn
+                            size="x-small"
+                            variant="text"
+                            :color="
+                              isProjectRadarRef(projectId, rowFromItem(item).id, line.option) ? 'primary' : 'default'
+                            "
+                            icon
+                            class="cell-radar-btn"
+                            @click.stop="toggleProjectRadarRef(projectId, rowFromItem(item).id, line.option, col.key)"
+                          >
+                            <v-icon size="12">mdi-radar</v-icon>
+                          </v-btn>
+                          <v-tooltip text="Jump to entry in questionnaire" location="top">
+                            <template #activator="{ props: navProps }">
+                              <v-btn
+                                v-bind="navProps"
+                                size="x-small"
+                                variant="text"
+                                icon
+                                class="cell-nav-btn"
+                                @click.stop="
+                                  navigateToCellEntry(col.key, rowFromItem(item).categoryId, rowFromItem(item).id)
+                                "
+                              >
+                                <v-icon size="12">mdi-open-in-new</v-icon>
+                              </v-btn>
+                            </template>
+                          </v-tooltip>
+                          <span class="cell-option">{{ line.option }}</span>
+                          <v-chip
+                            v-if="line.status"
+                            size="x-small"
+                            variant="tonal"
+                            :color="statusChipColor(line.status)"
+                            class="ml-2"
+                          >
+                            {{ line.status }}
+                          </v-chip>
                         </div>
-                        <span v-else class="cell-empty">–</span>
                       </template>
-                    </td>
-                  </tr>
-                </template>
-              </v-data-table>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
+                    </div>
+                    <span v-else class="cell-empty">–</span>
+                  </template>
+                </td>
+              </tr>
+            </template>
+          </v-data-table>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
     <div v-if="!visibleCategoryGroups.length" class="text-body-2 text-medium-emphasis pa-4 text-center">
       No results match the current filter.
@@ -291,7 +287,6 @@
       </v-card>
     </v-dialog>
   </div>
-
 </template>
 
 <script>
@@ -301,7 +296,6 @@ import CategorySettings from './CategorySettings.vue'
 
 export default {
   components: { CategorySettings },
-  emits: ['update:visibilitySettings'],
   props: {
     projectId: {
       type: String,
@@ -316,7 +310,8 @@ export default {
       default: () => ({})
     }
   },
-  setup (props, { emit }) {
+  emits: ['update:visibilitySettings'],
+  setup(props, { emit }) {
     const store = useWorkspaceStore()
     const search = ref('')
     const openPanels = ref([])
@@ -325,47 +320,49 @@ export default {
     const settingsDialog = ref(false)
     const settingsCategory = ref('')
 
-    const project = computed(() =>
-      (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
-    )
+    const project = computed(() => (store.workspace.projects || []).find((p) => p.id === props.projectId) || null)
 
     const questionnaires = computed(() => {
       if (!project.value) return []
       return store.getProjectQuestionnaires(project.value)
     })
 
-    const allQuestionnaires = computed(() =>
-      questionnaires.value.map((q) => ({ id: q.id, name: q.name || q.id }))
-    )
+    const allQuestionnaires = computed(() => questionnaires.value.map((q) => ({ id: q.id, name: q.name || q.id })))
 
     // Keep selectedQuestionnaireIds in sync when questionnaires change
-    watch(allQuestionnaires, (qs) => {
-      const currentSet = new Set(selectedQuestionnaireIds.value)
-      qs.forEach((q) => { if (!currentSet.has(q.id)) selectedQuestionnaireIds.value.push(q.id) })
-      selectedQuestionnaireIds.value = selectedQuestionnaireIds.value.filter((id) => qs.some((q) => q.id === id))
-    }, { immediate: true })
+    watch(
+      allQuestionnaires,
+      (qs) => {
+        const currentSet = new Set(selectedQuestionnaireIds.value)
+        qs.forEach((q) => {
+          if (!currentSet.has(q.id)) selectedQuestionnaireIds.value.push(q.id)
+        })
+        selectedQuestionnaireIds.value = selectedQuestionnaireIds.value.filter((id) => qs.some((q) => q.id === id))
+      },
+      { immediate: true }
+    )
 
     const rows = computed(() => {
       const result = []
       const seen = new Set()
-      
+
       for (const questionnaire of questionnaires.value) {
         const categories = questionnaire?.categories
         if (!Array.isArray(categories)) continue
-        
+
         for (const category of categories) {
           if (category?.isMetadata) continue
-          
+
           const entries = category?.entries
           if (!Array.isArray(entries)) continue
-          
+
           const catTitle = String(category?.title || '').trim()
           const catId = String(category?.id || '').trim()
-          
+
           for (const entry of entries) {
             const id = String(entry?.id || '').trim()
             if (!id || seen.has(id)) continue
-            
+
             seen.add(id)
             result.push({
               id,
@@ -376,7 +373,7 @@ export default {
           }
         }
       }
-      
+
       result.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
       return result
     })
@@ -384,7 +381,7 @@ export default {
     const deviationSettings = computed(() => props.deviationSettings)
     const visibilitySettings = computed(() => props.visibilitySettings)
 
-    function isEntryVisible (row) {
+    function isEntryVisible(row) {
       const settings = visibilitySettings.value
       if (row.id in settings) return settings[row.id]
       if (row.categoryId in settings) return settings[row.categoryId]
@@ -395,33 +392,33 @@ export default {
 
     const matrix = computed(() => {
       const out = {}
-      
+
       for (const questionnaire of questionnaires.value) {
         const qId = questionnaire.id
         out[qId] = {}
-        
+
         const categories = questionnaire?.categories
         if (!Array.isArray(categories)) continue
-        
+
         for (const category of categories) {
           if (category?.isMetadata) continue
-          
+
           const entries = category?.entries
           if (!Array.isArray(entries)) continue
-          
+
           for (const entry of entries) {
             const entryId = String(entry?.id || '').trim()
             if (!entryId) continue
-            
+
             out[qId][entryId] = extractLines(entry)
           }
         }
       }
-      
+
       return out
     })
 
-    function extractLines (entry) {
+    function extractLines(entry) {
       const answers = Array.isArray(entry?.answers) ? entry.answers : []
       const lines = answers
         .map((answer) => ({
@@ -435,27 +432,27 @@ export default {
       return lines
     }
 
-    function cellLines (questionnaireId, entryId) {
+    function cellLines(questionnaireId, entryId) {
       const lines = matrix.value?.[questionnaireId]?.[entryId] || []
       if (answerTypeFilter.value === 'all') return lines
       return lines.filter((line) => line.answerType === answerTypeFilter.value)
     }
 
-    function toQuestionnaireKey (questionnaireId) {
+    function toQuestionnaireKey(questionnaireId) {
       return `q_${questionnaireId}`
     }
 
-    function fromQuestionnaireKey (key) {
+    function fromQuestionnaireKey(key) {
       return String(key || '').startsWith('q_') ? String(key).slice(2) : ''
     }
 
-    function cellLinesByKey (columnKey, entryId) {
+    function cellLinesByKey(columnKey, entryId) {
       const questionnaireId = fromQuestionnaireKey(columnKey)
       if (!questionnaireId) return []
       return cellLines(questionnaireId, entryId)
     }
 
-    function cellSearchText (questionnaireId, entryId) {
+    function cellSearchText(questionnaireId, entryId) {
       const lines = cellLines(questionnaireId, entryId)
       if (!lines.length) return ''
       return lines
@@ -500,22 +497,23 @@ export default {
       })
     })
 
-    function matchesSearch (item) {
+    function matchesSearch(item) {
       if (!search.value) return true
       const term = search.value.toLowerCase()
       return Object.values(item).some((v) => String(v).toLowerCase().includes(term))
     }
 
-    function entryHasFilteredAnswers (entryId) {
+    function entryHasFilteredAnswers(entryId) {
       // Filter by answer type
-      const typeFiltered = answerTypeFilter.value === 'all'
-        ? questionnaires.value
-        : questionnaires.value.filter((q) => cellLines(q.id, entryId).length > 0)
-      
+      const typeFiltered =
+        answerTypeFilter.value === 'all'
+          ? questionnaires.value
+          : questionnaires.value.filter((q) => cellLines(q.id, entryId).length > 0)
+
       // Filter by selected questionnaires
       const selSet = new Set(selectedQuestionnaireIds.value)
       const relevantQuestionnaires = typeFiltered.filter((q) => selSet.has(q.id))
-      
+
       return relevantQuestionnaires.some((q) => {
         const lines = cellLines(q.id, entryId)
         return lines.length > 0
@@ -541,7 +539,7 @@ export default {
         .sort((a, b) => a.title.localeCompare(b.title))
     })
 
-    function itemsForCategory (categoryTitle) {
+    function itemsForCategory(categoryTitle) {
       const key = String(categoryTitle || '').trim() || 'Other'
       return items.value
         .filter((item) => (String(item.category || '').trim() || 'Other') === key)
@@ -551,18 +549,18 @@ export default {
         .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' }))
     }
 
-    function rowFromItem (item) {
+    function rowFromItem(item) {
       return item?.raw || item
     }
 
-    function isDeviationAllowed (row) {
+    function isDeviationAllowed(row) {
       const settings = deviationSettings.value
       if (row.id in settings) return !settings[row.id]
       if (row.categoryId in settings) return !settings[row.categoryId]
       return true
     }
 
-    function hasDeviation (entryId) {
+    function hasDeviation(entryId) {
       const refId = project.value?.referenceQuestionnaireId
       const refQuestionnaire = refId ? questionnaires.value.find((q) => q.id === refId) : null
 
@@ -596,7 +594,7 @@ export default {
       return false
     }
 
-    function isViolation (row) {
+    function isViolation(row) {
       if (!row?.id) return false
       if (isDeviationAllowed(row)) return false
       return hasDeviation(row.id)
@@ -609,7 +607,7 @@ export default {
         .some((r) => isViolation(r))
     }
 
-    function isUnanswered (entryId) {
+    function isUnanswered(entryId) {
       if (!entryId) return true
       return questionnaires.value.every((q) => cellLines(q.id, entryId).length === 0)
     }
@@ -624,23 +622,25 @@ export default {
       }
     })
 
-    function expandAll () {
+    function expandAll() {
       openPanels.value = visibleCategoryGroups.value.map((g) => g.title)
     }
 
-    function collapseAll () {
+    function collapseAll() {
       openPanels.value = []
     }
 
-    function statusChipColor (status) {
-      const normalized = String(status || '').trim().toLowerCase()
+    function statusChipColor(status) {
+      const normalized = String(status || '')
+        .trim()
+        .toLowerCase()
       if (normalized === 'adopt') return 'success'
       if (normalized === 'retire') return 'error'
       if (!normalized) return undefined
       return 'warning'
     }
 
-    function navigateToCellEntry (columnKey, categoryId, entryId) {
+    function navigateToCellEntry(columnKey, categoryId, entryId) {
       const questionnaireId = fromQuestionnaireKey(columnKey)
       if (!questionnaireId) return
       store.navigateToEntry(questionnaireId, categoryId, entryId)
@@ -651,38 +651,38 @@ export default {
     // settings dialog and hidden-count badge.
     const allCategoryEntries = computed(() => {
       const map = new Map()
-      
+
       for (const q of questionnaires.value) {
         const cats = q?.categories
         if (!Array.isArray(cats)) continue
-        
+
         for (const cat of cats) {
           if (cat?.isMetadata) continue
-          
+
           const title = String(cat?.title || '').trim()
           const catId = String(cat?.id || '').trim()
           if (!title) continue
-          
+
           if (!map.has(title)) {
             map.set(title, { id: catId, title, entries: new Map() })
           }
-          
+
           const catData = map.get(title)
           const entries = cat?.entries
           if (!Array.isArray(entries)) continue
-          
+
           for (const entry of entries) {
             const id = String(entry?.id || '').trim()
             if (!id || catData.entries.has(id)) continue
-            
-            catData.entries.set(id, { 
-              id, 
+
+            catData.entries.set(id, {
+              id,
               aspect: String(entry?.aspect || entry?.title || id).trim()
             })
           }
         }
       }
-      
+
       return map
     })
 
@@ -696,20 +696,19 @@ export default {
       return [{ id: catData.id, title: catData.title, entries }]
     })
 
-    function hiddenCountForCategory (categoryTitle) {
+    function hiddenCountForCategory(categoryTitle) {
       const catData = allCategoryEntries.value.get(categoryTitle)
       if (!catData) return 0
-      return [...catData.entries.keys()].filter((entryId) =>
-        !isEntryVisible({ id: entryId, categoryId: catData.id })
-      ).length
+      return [...catData.entries.keys()].filter((entryId) => !isEntryVisible({ id: entryId, categoryId: catData.id }))
+        .length
     }
 
-    function openSettingsForCategory (categoryTitle) {
+    function openSettingsForCategory(categoryTitle) {
       settingsCategory.value = categoryTitle
       settingsDialog.value = true
     }
 
-    function hideEntry (entryId) {
+    function hideEntry(entryId) {
       emit('update:visibilitySettings', { ...props.visibilitySettings, [entryId]: false })
     }
 
@@ -831,7 +830,7 @@ export default {
 }
 
 .cell-empty {
-  color: #90A4AE;
+  color: #90a4ae;
 }
 
 .row-muted {
@@ -854,7 +853,9 @@ export default {
   cursor: pointer;
   background: transparent !important;
   opacity: 0.55;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
 .hidden-count-chip:hover {
   background: rgba(var(--v-theme-on-surface), 0.12) !important;

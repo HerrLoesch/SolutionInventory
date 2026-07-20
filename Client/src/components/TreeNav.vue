@@ -1,13 +1,77 @@
 <template>
   <div class="project-tree-nav">
     <div class="tree-header">
+      <div class="tree-title">Question Catalogs</div>
+      <div class="tree-actions">
+        <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
+          <v-icon>mdi-plus</v-icon>
+          <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>
+        </v-btn>
+      </div>
+    </div>
+
+    <div v-if="!catalogs.length" class="tree-list">
+      <div class="text-caption text--secondary px-2 py-2">No catalogs yet.</div>
+    </div>
+
+    <div v-else class="catalog-list tree-list">
+      <div v-for="catalog in catalogs" :key="catalog.id" class="catalog-item" @click="openCatalog(catalog.id)">
+        <v-icon size="16" class="mr-1">mdi-file-tree-outline</v-icon>
+        <span class="catalog-title">{{ catalog.name }}</span>
+        <span class="catalog-summary text-caption text-medium-emphasis">{{ catalogSummaryText(catalog) }}</span>
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
+              <v-icon size="16">mdi-dots-vertical</v-icon>
+            </v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item @click.stop="openCatalog(catalog.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-pencil-box-outline</v-icon>
+              </template>
+              <v-list-item-title>Open</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="duplicateCatalogAction(catalog.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-content-copy</v-icon>
+              </template>
+              <v-list-item-title>Duplicate</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="downloadCatalog(catalog.id)">
+              <template #prepend>
+                <v-icon size="16">mdi-download</v-icon>
+              </template>
+              <v-list-item-title>Export</v-list-item-title>
+            </v-list-item>
+            <v-divider></v-divider>
+            <v-list-item @click.stop="openRenameCatalogDialog(catalog)">
+              <template #prepend>
+                <v-icon size="16">mdi-pencil</v-icon>
+              </template>
+              <v-list-item-title>Rename</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click.stop="deleteCatalogAction(catalog.id)">
+              <template #prepend>
+                <v-icon size="16" color="error">mdi-delete</v-icon>
+              </template>
+              <v-list-item-title>Delete</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+      </div>
+    </div>
+
+    <v-divider class="nav-divider"></v-divider>
+
+    <div class="tree-header">
       <div class="tree-title">Projects</div>
       <div class="tree-actions">
-        <v-btn icon size="x-small" variant="text" @click="openProjectDialog">
+        <v-btn icon size="x-small" variant="text" aria-label="New project" @click="openProjectDialog">
           <v-icon>mdi-plus</v-icon>
           <v-tooltip activator="parent" location="bottom">New project</v-tooltip>
         </v-btn>
-        <v-btn icon size="x-small" variant="text" @click="openImportDialog">
+        <v-btn icon size="x-small" variant="text" aria-label="Import project" @click="openImportDialog">
           <v-icon>mdi-file-upload</v-icon>
           <v-tooltip activator="parent" location="bottom">Import project</v-tooltip>
         </v-btn>
@@ -49,14 +113,7 @@
       <template #append="{ item }">
         <v-menu v-if="item.type === 'project'" location="bottom end">
           <template #activator="{ props: menuProps }">
-            <v-btn
-              icon
-              size="x-small"
-              variant="text"
-              class="item-menu"
-              v-bind="menuProps"
-              @click.stop
-            >
+            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
               <v-icon size="16">mdi-dots-vertical</v-icon>
             </v-btn>
           </template>
@@ -98,14 +155,7 @@
 
         <v-menu v-else location="bottom end">
           <template #activator="{ props: menuProps }">
-            <v-btn
-              icon
-              size="x-small"
-              variant="text"
-              class="item-menu"
-              v-bind="menuProps"
-              @click.stop
-            >
+            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
               <v-icon size="16">mdi-dots-vertical</v-icon>
             </v-btn>
           </template>
@@ -155,63 +205,63 @@
 
     <!-- Standalone / Unassigned Questionnaires -->
     <template v-if="standaloneQuestionnaires.length || isDragging">
-    <div class="tree-header mt-3">
-      <div class="tree-title">Unassigned</div>
-    </div>
-    <div
-      class="standalone-list"
-      :class="{ 'drop-target': unassignDropTarget }"
-      @dragover.prevent="onDragOverUnassigned"
-      @dragleave="onDragLeaveUnassigned"
-      @drop.prevent="onDropUnassigned"
-    >
-      <div
-        v-if="!standaloneQuestionnaires.length"
-        class="text-caption px-2 py-2"
-        :class="isDragging ? 'drop-hint-text' : 'text-medium-emphasis'"
-      >
-        {{ isDragging ? 'Drop to unassign from project' : 'No questionnaires' }}
+      <div class="tree-header mt-3">
+        <div class="tree-title">Unassigned</div>
       </div>
+      <div
+        class="standalone-list"
+        :class="{ 'drop-target': unassignDropTarget }"
+        @dragover.prevent="onDragOverUnassigned"
+        @dragleave="onDragLeaveUnassigned"
+        @drop.prevent="onDropUnassigned"
+      >
+        <div
+          v-if="!standaloneQuestionnaires.length"
+          class="text-caption px-2 py-2"
+          :class="isDragging ? 'drop-hint-text' : 'text-medium-emphasis'"
+        >
+          {{ isDragging ? 'Drop to unassign from project' : 'No questionnaires' }}
+        </div>
 
-      <div
-        v-for="q in standaloneQuestionnaires"
-        :key="q.id"
-        class="standalone-item"
-        :class="{ 'reorder-target': isReorderTarget(q.id) }"
-        draggable="true"
-        @click="openQuestionnaire(q.id)"
-        @dragstart.stop="onDragStart(null, q.id)"
-        @dragend="onDragEnd()"
-        @dragover.prevent.stop="onDragOverQuestionnaire(null, q.id)"
-        @dragleave="onDragLeaveQuestionnaire(q.id)"
-        @drop.prevent.stop="onDropOnStandaloneItem(q.id)"
-      >
-        <v-icon size="16" class="mr-1">mdi-file-document-outline</v-icon>
-        <span class="standalone-title">{{ q.name }}</span>
-        <v-menu location="bottom end">
-          <template #activator="{ props: menuProps }">
-            <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
-              <v-icon size="16">mdi-dots-vertical</v-icon>
-            </v-btn>
-          </template>
-          <v-list density="compact">
-            <v-list-item @click.stop="downloadQuestionnaire(q.id)">
-              <template #prepend><v-icon size="16">mdi-download</v-icon></template>
-              <v-list-item-title>Download</v-list-item-title>
-            </v-list-item>
-            <v-divider />
-            <v-list-item @click.stop="openRenameQuestionnaireDialog(q)">
-              <template #prepend><v-icon size="16">mdi-pencil</v-icon></template>
-              <v-list-item-title>Rename</v-list-item-title>
-            </v-list-item>
-            <v-list-item @click.stop="deleteQuestionnaire(q)">
-              <template #prepend><v-icon size="16" color="error">mdi-delete</v-icon></template>
-              <v-list-item-title>Delete</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
+        <div
+          v-for="q in standaloneQuestionnaires"
+          :key="q.id"
+          class="standalone-item"
+          :class="{ 'reorder-target': isReorderTarget(q.id) }"
+          draggable="true"
+          @click="openQuestionnaire(q.id)"
+          @dragstart.stop="onDragStart(null, q.id)"
+          @dragend="onDragEnd()"
+          @dragover.prevent.stop="onDragOverQuestionnaire(null, q.id)"
+          @dragleave="onDragLeaveQuestionnaire(q.id)"
+          @drop.prevent.stop="onDropOnStandaloneItem(q.id)"
+        >
+          <v-icon size="16" class="mr-1">mdi-file-document-outline</v-icon>
+          <span class="standalone-title">{{ q.name }}</span>
+          <v-menu location="bottom end">
+            <template #activator="{ props: menuProps }">
+              <v-btn icon size="x-small" variant="text" class="item-menu" v-bind="menuProps" @click.stop>
+                <v-icon size="16">mdi-dots-vertical</v-icon>
+              </v-btn>
+            </template>
+            <v-list density="compact">
+              <v-list-item @click.stop="downloadQuestionnaire(q.id)">
+                <template #prepend><v-icon size="16">mdi-download</v-icon></template>
+                <v-list-item-title>Download</v-list-item-title>
+              </v-list-item>
+              <v-divider />
+              <v-list-item @click.stop="openRenameQuestionnaireDialog(q)">
+                <template #prepend><v-icon size="16">mdi-pencil</v-icon></template>
+                <v-list-item-title>Rename</v-list-item-title>
+              </v-list-item>
+              <v-list-item @click.stop="deleteQuestionnaire(q)">
+                <template #prepend><v-icon size="16" color="error">mdi-delete</v-icon></template>
+                <v-list-item-title>Delete</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
       </div>
-    </div>
     </template>
 
     <v-dialog v-model="projectDialogOpen" max-width="420">
@@ -225,11 +275,92 @@
             autofocus
             @keyup.enter="createProject"
           />
+          <v-select
+            v-model="newProjectCatalogId"
+            label="Default catalog"
+            :items="catalogs"
+            item-title="name"
+            item-value="id"
+            density="compact"
+            class="mt-3"
+            hide-details
+          />
+          <div v-if="newProjectCatalogSummary" class="text-caption text-medium-emphasis mt-1 ml-1">
+            {{ newProjectCatalogSummary }}
+          </div>
+          <v-checkbox
+            v-model="newProjectCreateQuestionnaire"
+            label="Create first questionnaire from catalog"
+            density="compact"
+            hide-details
+            class="mt-2"
+          />
         </v-card-text>
         <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeProjectDialog">Cancel</v-btn>
           <v-btn color="primary" @click="createProject">Create</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="catalogDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>New catalog</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="newCatalogName"
+            label="Catalog name"
+            density="compact"
+            autofocus
+            @keyup.enter="createCatalog"
+          />
+        </v-card-text>
+        <v-card-actions class="gap-3">
+          <v-spacer />
+          <v-btn variant="text" @click="closeCatalogDialog">Cancel</v-btn>
+          <v-btn color="primary" @click="createCatalog">Create</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="renameCatalogDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Rename catalog</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="renameCatalogName"
+            label="Catalog name"
+            density="compact"
+            autofocus
+            @keyup.enter="confirmRenameCatalog"
+          />
+        </v-card-text>
+        <v-card-actions class="gap-3">
+          <v-spacer />
+          <v-btn variant="text" @click="closeRenameCatalogDialog">Cancel</v-btn>
+          <v-btn color="primary" @click="confirmRenameCatalog">Rename</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="deleteCatalogBlockedDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title>Catalog in use</v-card-title>
+        <v-card-text>
+          <p class="mb-2">
+            This catalog can't be deleted because the following project{{
+              deleteCatalogBlockedProjects.length > 1 ? 's use' : ' uses'
+            }}
+            it as their default catalog:
+          </p>
+          <ul class="mb-0">
+            <li v-for="name in deleteCatalogBlockedProjects" :key="name">{{ name }}</li>
+          </ul>
+        </v-card-text>
+        <v-card-actions class="gap-3">
+          <v-spacer />
+          <v-btn color="primary" @click="closeDeleteCatalogBlockedDialog">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -379,9 +510,7 @@
     <v-dialog v-model="deleteQuestionnaireDialogOpen" max-width="420">
       <v-card>
         <v-card-title>Delete questionnaire</v-card-title>
-        <v-card-text>
-          Are you sure you want to delete this questionnaire?
-        </v-card-text>
+        <v-card-text> Are you sure you want to delete this questionnaire? </v-card-text>
         <v-card-actions class="gap-3">
           <v-spacer />
           <v-btn variant="text" @click="closeDeleteQuestionnaireDialog">Cancel</v-btn>
@@ -395,11 +524,15 @@
 <script>
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../stores/workspaceStore'
+import { summarizeCatalog } from '../services/catalogService'
+import { useWorkspaceTabGuard } from '../composables/useWorkspaceTabGuard'
 
 export default {
   setup() {
     const store = useWorkspaceStore()
+    const { canLeaveActiveTab } = useWorkspaceTabGuard()
     const projects = computed(() => store.workspace.projects || [])
+    const catalogs = computed(() => store.workspace.catalogs || [])
 
     const treeItems = computed(() => {
       return projects.value.map((project) => ({
@@ -427,6 +560,15 @@ export default {
       }
     })
     const projectDialogOpen = ref(false)
+    const newProjectCatalogId = ref('')
+    const newProjectCreateQuestionnaire = ref(true)
+    const catalogDialogOpen = ref(false)
+    const newCatalogName = ref('')
+    const renameCatalogDialogOpen = ref(false)
+    const renameCatalogId = ref('')
+    const renameCatalogName = ref('')
+    const deleteCatalogBlockedDialogOpen = ref(false)
+    const deleteCatalogBlockedProjects = ref([])
     const questionnaireDialogOpen = ref(false)
     const renameProjectDialogOpen = ref(false)
     const renameQuestionnaireDialogOpen = ref(false)
@@ -464,9 +606,82 @@ export default {
 
     const isDragging = computed(() => !!dragState.value)
 
+    function catalogSummaryText(catalog) {
+      const { categoryCount, entryCount } = summarizeCatalog(catalog)
+      return `${categoryCount} categories · ${entryCount} questions`
+    }
+
+    const newProjectCatalogSummary = computed(() => {
+      const catalog = catalogs.value.find((c) => c.id === newProjectCatalogId.value)
+      return catalog ? catalogSummaryText(catalog) : ''
+    })
+
     function openProjectDialog() {
       newProjectName.value = ''
+      newProjectCatalogId.value = catalogs.value[0]?.id || ''
+      newProjectCreateQuestionnaire.value = true
       projectDialogOpen.value = true
+    }
+
+    function openCatalogDialog() {
+      newCatalogName.value = ''
+      catalogDialogOpen.value = true
+    }
+
+    async function openCatalog(catalogId) {
+      if (store.toCatalogTabId(catalogId) !== store.activeWorkspaceTabId && !(await canLeaveActiveTab())) return
+      store.openCatalogEditor(catalogId)
+    }
+
+    function closeCatalogDialog() {
+      catalogDialogOpen.value = false
+    }
+
+    function createCatalog() {
+      const name = newCatalogName.value.trim()
+      if (!name) return
+      store.addCatalog(name)
+      catalogDialogOpen.value = false
+    }
+
+    function duplicateCatalogAction(catalogId) {
+      store.duplicateCatalog(catalogId)
+    }
+
+    function downloadCatalog(catalogId) {
+      store.exportCatalog(catalogId)
+    }
+
+    function openRenameCatalogDialog(catalog) {
+      renameCatalogId.value = catalog.id
+      renameCatalogName.value = catalog.name
+      renameCatalogDialogOpen.value = true
+    }
+
+    function closeRenameCatalogDialog() {
+      renameCatalogDialogOpen.value = false
+      renameCatalogId.value = ''
+      renameCatalogName.value = ''
+    }
+
+    function confirmRenameCatalog() {
+      const name = renameCatalogName.value.trim()
+      if (!renameCatalogId.value || !name) return
+      store.renameCatalog(renameCatalogId.value, name)
+      closeRenameCatalogDialog()
+    }
+
+    function deleteCatalogAction(catalogId) {
+      const result = store.deleteCatalog(catalogId)
+      if (!result.ok) {
+        deleteCatalogBlockedProjects.value = result.referencingProjects
+        deleteCatalogBlockedDialogOpen.value = true
+      }
+    }
+
+    function closeDeleteCatalogBlockedDialog() {
+      deleteCatalogBlockedDialogOpen.value = false
+      deleteCatalogBlockedProjects.value = []
     }
 
     function openImportDialog() {
@@ -492,7 +707,16 @@ export default {
     function createProject() {
       const name = newProjectName.value.trim()
       if (!name) return
-      store.addProject(name)
+      const catalogId = newProjectCatalogId.value
+      const projectId = store.addProject(name, catalogId)
+      if (newProjectCreateQuestionnaire.value && catalogId) {
+        // Name it after the catalog, not the project — a project can hold
+        // several questionnaires, so reusing the project's own name here
+        // would make the first one indistinguishable from the project node
+        // itself in the tree/tabs.
+        const catalog = store.getCatalogById(catalogId)
+        store.addQuestionnaire(catalog?.name || 'New questionnaire', null, projectId)
+      }
       projectDialogOpen.value = false
     }
 
@@ -567,7 +791,11 @@ export default {
             radar: Array.isArray(data?.project?.radar) ? data.project.radar : [],
             radarRefs: Array.isArray(data?.project?.radarRefs) ? data.project.radarRefs : [],
             radarOverrides: Array.isArray(data?.project?.radarOverrides) ? data.project.radarOverrides : [],
-            radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : []
+            radarCategoryOrder: Array.isArray(data?.project?.radarCategoryOrder) ? data.project.radarCategoryOrder : [],
+            radarExportSettings:
+              data?.project?.radarExportSettings && typeof data.project.radarExportSettings === 'object'
+                ? data.project.radarExportSettings
+                : undefined
           }
           store.importProject(projectName, questionnaires, radarData)
           closeImportDialog()
@@ -637,11 +865,13 @@ export default {
       questionnaireDialogOpen.value = false
     }
 
-    function openQuestionnaire(questionnaireId) {
+    async function openQuestionnaire(questionnaireId) {
+      if (!(await canLeaveActiveTab())) return
       store.openQuestionnaire(questionnaireId)
     }
 
-    function openProjectSummary(projectId) {
+    async function openProjectSummary(projectId) {
+      if (!(await canLeaveActiveTab())) return
       store.openProjectSummary(projectId)
     }
 
@@ -714,8 +944,8 @@ export default {
     }
 
     function proceedToNameDialog() {
-      const file = Array.isArray(questionnaireImportFile.value) 
-        ? questionnaireImportFile.value[0] 
+      const file = Array.isArray(questionnaireImportFile.value)
+        ? questionnaireImportFile.value[0]
         : questionnaireImportFile.value
       if (!file) return
 
@@ -748,11 +978,7 @@ export default {
       const name = questionnaireImportName.value.trim()
       if (!name || !questionnaireImportData.value) return
 
-      store.addQuestionnaire(
-        name,
-        questionnaireImportData.value.categories,
-        questionnaireImportProjectId.value
-      )
+      store.addQuestionnaire(name, questionnaireImportData.value.categories, questionnaireImportProjectId.value)
 
       closeQuestionnaireNameDialog()
     }
@@ -765,8 +991,14 @@ export default {
     }
 
     function onDragEnd() {
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       dragState.value = null
       activeDropTarget.value = ''
       reorderTarget.value = ''
@@ -775,7 +1007,10 @@ export default {
 
     function onDragOver(projectId) {
       if (!dragState.value) return
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       activeDropTarget.value = projectId
     }
 
@@ -787,7 +1022,10 @@ export default {
     }
 
     function onDrop(projectId) {
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (fromProjectId === null) {
@@ -802,7 +1040,10 @@ export default {
 
     function onDragOverQuestionnaire(projectId, questionnaireId) {
       if (!dragState.value) return
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       // Clear project-level highlight – we're over a sibling, not the folder
       activeDropTarget.value = ''
       reorderTarget.value = questionnaireId
@@ -816,7 +1057,10 @@ export default {
     }
 
     function onDropOnQuestionnaire(projectId, beforeQuestionnaireId) {
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (draggedId === beforeQuestionnaireId) {
@@ -842,7 +1086,10 @@ export default {
 
     function onDragOverUnassigned() {
       if (!dragState.value) return
-      if (unassignDragLeaveTimer) { clearTimeout(unassignDragLeaveTimer); unassignDragLeaveTimer = null }
+      if (unassignDragLeaveTimer) {
+        clearTimeout(unassignDragLeaveTimer)
+        unassignDragLeaveTimer = null
+      }
       activeDropTarget.value = ''
       unassignDropTarget.value = true
     }
@@ -855,7 +1102,10 @@ export default {
     }
 
     function onDropUnassigned() {
-      if (unassignDragLeaveTimer) { clearTimeout(unassignDragLeaveTimer); unassignDragLeaveTimer = null }
+      if (unassignDragLeaveTimer) {
+        clearTimeout(unassignDragLeaveTimer)
+        unassignDragLeaveTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (fromProjectId !== null) {
@@ -867,7 +1117,10 @@ export default {
     }
 
     function onDropOnStandaloneItem(beforeId) {
-      if (dragLeaveQuestionnaireTimer) { clearTimeout(dragLeaveQuestionnaireTimer); dragLeaveQuestionnaireTimer = null }
+      if (dragLeaveQuestionnaireTimer) {
+        clearTimeout(dragLeaveQuestionnaireTimer)
+        dragLeaveQuestionnaireTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (draggedId !== beforeId && fromProjectId !== null) {
@@ -897,8 +1150,7 @@ export default {
         if (!pending) return
         const { action, payload } = pending
         if (action === 'new-project') {
-          newProjectName.value = ''
-          projectDialogOpen.value = true
+          openProjectDialog()
           store.clearMenuAction()
         } else if (action === 'import-project') {
           openImportDialog()
@@ -919,6 +1171,28 @@ export default {
 
     return {
       projects,
+      catalogs,
+      catalogSummaryText,
+      newProjectCatalogId,
+      newProjectCatalogSummary,
+      newProjectCreateQuestionnaire,
+      catalogDialogOpen,
+      newCatalogName,
+      openCatalogDialog,
+      openCatalog,
+      closeCatalogDialog,
+      createCatalog,
+      duplicateCatalogAction,
+      downloadCatalog,
+      renameCatalogDialogOpen,
+      renameCatalogName,
+      openRenameCatalogDialog,
+      closeRenameCatalogDialog,
+      confirmRenameCatalog,
+      deleteCatalogAction,
+      deleteCatalogBlockedDialogOpen,
+      deleteCatalogBlockedProjects,
+      closeDeleteCatalogBlockedDialog,
       treeItems,
       opened,
       treeItemProps,
@@ -1018,7 +1292,7 @@ export default {
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #78909C;
+  color: #78909c;
 }
 
 .tree-list {
@@ -1072,7 +1346,9 @@ export default {
   min-height: 32px;
   border-radius: 4px;
   padding: 2px 0;
-  transition: background 0.15s, outline 0.15s;
+  transition:
+    background 0.15s,
+    outline 0.15s;
   margin-bottom: 8px;
 }
 
@@ -1120,5 +1396,44 @@ export default {
 .drop-hint-text {
   color: rgb(21, 101, 192);
   font-style: italic;
+}
+
+.catalog-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.catalog-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.catalog-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.catalog-item:hover .item-menu {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.catalog-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-summary {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  margin-right: 4px;
 }
 </style>

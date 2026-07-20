@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron')
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Preload Script - Secure Bridge between Main and Renderer Processes
@@ -14,7 +14,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 /**
  * Expose Electron-specific APIs to the renderer process via window.electronAPI
- * 
+ *
  * All communication with the main process happens through these controlled
  * channels. The renderer has NO direct access to Node.js or Electron APIs.
  */
@@ -22,14 +22,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─────────────────────────────────────────────────────────────────────────
   // Environment Detection
   // ─────────────────────────────────────────────────────────────────────────
-  
+
   /** Flag indicating the app is running in Electron (not web browser) */
   isElectron: true,
 
   // ─────────────────────────────────────────────────────────────────────────
   // Workspace Directory Management
   // ─────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Get the currently configured workspace directory path
    * @returns {Promise<string|null>} Directory path or null if not set
@@ -52,10 +52,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─────────────────────────────────────────────────────────────────────────
   // Data File I/O (replaces localStorage in Electron mode)
   // ─────────────────────────────────────────────────────────────────────────
-  
+
   /**
-   * Read workspace data from the configured workspace directory
-   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   * Read workspace data from the configured workspace directory.
+   * `notFound: true` means no data file exists yet (safe to seed a fresh
+   * workspace); any other failure means a file exists but could not be read
+   * (must NOT be treated as "no data" — see docs/spec-fragenkataloge.md §3.3.1).
+   * @returns {Promise<{success: boolean, notFound?: boolean, data?: Object, error?: string}>}
    */
   readDataFile: () => ipcRenderer.invoke('read-data-file'),
 
@@ -69,7 +72,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─────────────────────────────────────────────────────────────────────────
   // Save/Duplicate Workspace
   // ─────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Show directory picker for "Save Workspace As" operation
    * @returns {Promise<string|null>} Selected directory or null if canceled
@@ -82,8 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {string} jsonString - Serialized JSON data to write
    * @returns {Promise<{success: boolean, path?: string, error?: string}>}
    */
-  writeDataFileTo: (dirPath, jsonString) => 
-    ipcRenderer.invoke('write-data-file-to', dirPath, jsonString),
+  writeDataFileTo: (dirPath, jsonString) => ipcRenderer.invoke('write-data-file-to', dirPath, jsonString),
 
   /**
    * Show file open dialog and read workspace JSON file
@@ -94,17 +96,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─────────────────────────────────────────────────────────────────────────
   // Menu Integration
   // ─────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Register a callback for menu action events from the main process
    * @param {Function} callback - Callback function that receives action string
    */
-  onMenuAction: (callback) => 
-    ipcRenderer.on('menu-action', (_event, action) => callback(action)),
+  onMenuAction: (callback) => ipcRenderer.on('menu-action', (_event, action) => callback(action)),
 
   /**
    * Send current application state to main process for menu updates
    * @param {Object} state - State object with hasWorkspace, hasProjects flags
    */
-  updateMenuState: (state) => ipcRenderer.send('update-menu-state', state),
-});
+  updateMenuState: (state) => ipcRenderer.send('update-menu-state', state)
+})

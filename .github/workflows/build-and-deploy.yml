@@ -31,6 +31,18 @@ jobs:
         run: npm ci
         working-directory: Client
 
+      - name: Lint
+        run: npm run lint
+        working-directory: Client
+
+      - name: Check formatting
+        run: npm run format:check
+        working-directory: Client
+
+      - name: Run unit tests
+        run: npm run test:unit
+        working-directory: Client
+
       - name: Install Playwright browser and system dependencies
         run: npx playwright install --with-deps chromium
         working-directory: Client

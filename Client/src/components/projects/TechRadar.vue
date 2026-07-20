@@ -9,8 +9,8 @@
 
     <div v-else>
       <!-- Toolbar -->
-      <div class="d-flex align-center mb-3" style="gap:8px;">
-        <div class="d-flex align-center flex-wrap" style="gap:8px; flex:1;">
+      <div class="d-flex align-center mb-3" style="gap: 8px">
+        <div class="d-flex align-center flex-wrap" style="gap: 8px; flex: 1">
           <v-btn-toggle
             v-model="answerTypeFilter"
             density="compact"
@@ -19,7 +19,7 @@
             divided
             mandatory
             rounded="lg"
-            style="white-space:nowrap;"
+            style="white-space: nowrap"
           >
             <v-btn value="all" size="small">All</v-btn>
             <v-btn value="Tool" size="small">
@@ -39,11 +39,11 @@
             clearable
             prepend-inner-icon="mdi-magnify"
             placeholder="Search"
-            style="max-width:220px;"
+            style="max-width: 220px"
             @click:clear="searchQuery = ''"
           />
         </div>
-        <div class="d-flex align-center" style="gap:8px;">
+        <div class="d-flex align-center" style="gap: 8px">
           <v-tooltip v-if="unassignedCategories.length > 0" text="Open quadrant configuration" location="top">
             <template #activator="{ props: tipProps }">
               <v-chip
@@ -60,343 +60,387 @@
           </v-tooltip>
           <v-menu location="bottom end">
             <template #activator="{ props: menuProps }">
-              <v-btn
-                v-bind="menuProps"
-                size="small"
-                variant="text"
-                icon="mdi-dots-vertical"
-              />
+              <v-btn v-bind="menuProps" size="small" variant="text" icon="mdi-dots-vertical" />
             </template>
-          <v-list density="compact" min-width="200">
-            <v-list-item
-              prepend-icon="mdi-cog"
-              title="Quadrant Configuration"
-              @click="quadrantConfigDialog = true"
-            />
-            <v-divider />
-            <v-list-item
-              prepend-icon="mdi-code-json"
-              title="Export as ThoughtWorks JSON"
-              @click="exportRadarJson"
-            />
-            <v-list-item
-              prepend-icon="mdi-web"
-              title="Export as Standalone HTML"
-              @click="exportRadarHtml"
-            />
-            <v-list-item
-              prepend-icon="mdi-tune"
-              title="Export as Custom HTML"
-              @click="openCustomExportDialog"
-            />
-            <v-list-item
-              prepend-icon="mdi-download"
-              title="Download as PNG"
-              :disabled="isDownloading"
-              @click="downloadRadar"
-            />
-          </v-list>
+            <v-list density="compact" min-width="200">
+              <v-list-item prepend-icon="mdi-cog" title="Quadrant Configuration" @click="quadrantConfigDialog = true" />
+              <v-divider />
+              <v-list-item prepend-icon="mdi-code-json" title="Export as ThoughtWorks JSON" @click="exportRadarJson" />
+              <v-list-item prepend-icon="mdi-web" title="Export as Standalone HTML" @click="exportRadarHtml" />
+              <v-list-item prepend-icon="mdi-tune" title="Export as Custom HTML" @click="openCustomExportDialog" />
+              <v-list-item
+                prepend-icon="mdi-download"
+                title="Download as PNG"
+                :disabled="isDownloading"
+                @click="downloadRadar"
+              />
+            </v-list>
           </v-menu>
         </div>
       </div>
 
       <div ref="radarLayoutRef" class="radar-layout">
-      <!-- Left legend: Q1 (top-left) + Q2 (bottom-left) -->
-      <div class="radar-legend">
-        <div v-for="group in leftGroups" :key="group.quadrant" class="mb-4">
-          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1 legend-quadrant-header--editable" @click="quadrantConfigDialog = true">
-            {{ group.label || `Quadrant ${group.quadrant + 1}` }}
-            <v-icon class="legend-quadrant-edit-icon" size="12">mdi-pencil-outline</v-icon>
-          </div>
-          <div v-for="sg in group.statusGroups" :key="sg.ring">
-            <div class="legend-status-header" :style="{ '--status-color': sg.color }">
-              {{ sg.statusLabel }}
-            </div>
+        <!-- Left legend: Q1 (top-left) + Q2 (bottom-left) -->
+        <div class="radar-legend">
+          <div v-for="group in leftGroups" :key="group.quadrant" class="mb-4">
             <div
-              v-for="blip in sg.blips"
-              :key="blip.key"
-              class="legend-row"
-              :class="{
-                'legend-row--hovered': hoveredBlip?.key === blip.key,
-                'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
-                'legend-row--dimmed': (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) || (hoveredBlip && hoveredBlip.key !== blip.key)
-              }"
-              @mouseenter="hoveredBlip = blip"
-              @mouseleave="hoveredBlip = null"
-              @click="openDetail(blip)"
+              class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1 legend-quadrant-header--editable"
+              @click="quadrantConfigDialog = true"
             >
-              <span class="legend-index" :style="{ background: blip.ringColor }" :class="{ 'legend-index--mandatory': blip.mandatory }">{{ blip.index }}</span>
-              <div class="legend-info">
-                <div class="text-body-2 font-weight-medium legend-name">
-                  {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
-                </div>
+              {{ group.label || `Quadrant ${group.quadrant + 1}` }}
+              <v-icon class="legend-quadrant-edit-icon" size="12">mdi-pencil-outline</v-icon>
+            </div>
+            <div v-for="sg in group.statusGroups" :key="sg.ring">
+              <div class="legend-status-header" :style="{ '--status-color': sg.color }">
+                {{ sg.statusLabel }}
               </div>
-              <div class="legend-row-actions">
-                <v-menu location="bottom end">
-                  <template #activator="{ props: menuProps }">
-                    <v-btn icon size="x-small" variant="text" v-bind="menuProps" @click.stop>
-                      <v-icon size="14">mdi-dots-vertical</v-icon>
-                    </v-btn>
-                  </template>
-                  <v-list density="compact" min-width="140">
-                    <v-list-item prepend-icon="mdi-pencil-outline" title="Edit" @click="openEdit(blip)" />
-                    <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
-                  </v-list>
-                </v-menu>
+              <div
+                v-for="blip in sg.blips"
+                :key="blip.key"
+                class="legend-row"
+                :class="{
+                  'legend-row--hovered': hoveredBlip?.key === blip.key,
+                  'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
+                  'legend-row--dimmed':
+                    (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) ||
+                    (hoveredBlip && hoveredBlip.key !== blip.key)
+                }"
+                @mouseenter="hoveredBlip = blip"
+                @mouseleave="hoveredBlip = null"
+                @click="openDetail(blip)"
+              >
+                <span
+                  class="legend-index"
+                  :style="{ background: blip.ringColor }"
+                  :class="{ 'legend-index--mandatory': blip.mandatory }"
+                  >{{ blip.index }}</span
+                >
+                <div class="legend-info">
+                  <div class="text-body-2 font-weight-medium legend-name">
+                    {{ blip.name }}
+                    <v-icon
+                      v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle"
+                      size="10"
+                      class="ml-1 text-primary"
+                      style="vertical-align: middle"
+                      >mdi-pencil-circle</v-icon
+                    >
+                  </div>
+                </div>
+                <div class="legend-row-actions">
+                  <v-menu location="bottom end">
+                    <template #activator="{ props: menuProps }">
+                      <v-btn icon size="x-small" variant="text" v-bind="menuProps" @click.stop>
+                        <v-icon size="14">mdi-dots-vertical</v-icon>
+                      </v-btn>
+                    </template>
+                    <v-list density="compact" min-width="140">
+                      <v-list-item prepend-icon="mdi-pencil-outline" title="Edit" @click="openEdit(blip)" />
+                      <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
+                    </v-list>
+                  </v-menu>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Center: SVG + ring key -->
-      <div class="radar-center">
-      <!-- SVG Radar -->
-      <div class="radar-svg-wrapper">
-        <svg
-          :viewBox="`0 0 ${SIZE} ${SIZE}`"
-          class="radar-svg"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <!-- Definitions -->
-          <defs>
-            <clipPath id="radar-clip">
-              <circle :cx="CX" :cy="CY" :r="OUTER_R" />
-            </clipPath>
-          </defs>
+        <!-- Center: SVG + ring key -->
+        <div class="radar-center">
+          <!-- SVG Radar -->
+          <div class="radar-svg-wrapper">
+            <svg :viewBox="`0 0 ${SIZE} ${SIZE}`" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
+              <!-- Definitions -->
+              <defs>
+                <clipPath id="radar-clip">
+                  <circle :cx="CX" :cy="CY" :r="OUTER_R" />
+                </clipPath>
+              </defs>
 
-          <!-- Background circle -->
-          <circle :cx="CX" :cy="CY" :r="OUTER_R + 2" fill="var(--radar-bg)" />
+              <!-- Background circle -->
+              <circle :cx="CX" :cy="CY" :r="OUTER_R + 2" fill="var(--radar-bg)" />
 
-          <!-- Ring fills (painted outside-in using full circles) -->
-          <circle v-for="(ring, i) in ringsBg" :key="`rbg-${i}`"
-            :cx="CX" :cy="CY" :r="ring.r"
-            :fill="ring.fill"
-          />
+              <!-- Ring fills (painted outside-in using full circles) -->
+              <circle v-for="(ring, i) in ringsBg" :key="`rbg-${i}`" :cx="CX" :cy="CY" :r="ring.r" :fill="ring.fill" />
 
-          <!-- Quadrant overlay tints -->
-          <path v-for="(q, qi) in quadrantTints" :key="`qt-${qi}`"
-            :d="q.path"
-            :fill="q.fill"
-            opacity="0.04"
-          />
+              <!-- Quadrant overlay tints -->
+              <path v-for="(q, qi) in quadrantTints" :key="`qt-${qi}`" :d="q.path" :fill="q.fill" opacity="0.04" />
 
-          <!-- Ring boundary circles (stroke only) -->
-          <circle v-for="r in visibleRingRadii" :key="`rc-${r}`"
-            :cx="CX" :cy="CY" :r="r"
-            fill="none"
-            stroke="var(--radar-line)"
-            stroke-width="0.8"
-          />
+              <!-- Ring boundary circles (stroke only) -->
+              <circle
+                v-for="r in visibleRingRadii"
+                :key="`rc-${r}`"
+                :cx="CX"
+                :cy="CY"
+                :r="r"
+                fill="none"
+                stroke="var(--radar-line)"
+                stroke-width="0.8"
+              />
 
-          <!-- Divider lines -->
-          <line :x1="CX" :y1="CY - OUTER_R" :x2="CX" :y2="CY + OUTER_R"
-            stroke="var(--radar-line)" stroke-width="1.2" />
-          <line :x1="CX - OUTER_R" :y1="CY" :x2="CX + OUTER_R" :y2="CY"
-            stroke="var(--radar-line)" stroke-width="1.2" />
+              <!-- Divider lines -->
+              <line
+                :x1="CX"
+                :y1="CY - OUTER_R"
+                :x2="CX"
+                :y2="CY + OUTER_R"
+                stroke="var(--radar-line)"
+                stroke-width="1.2"
+              />
+              <line
+                :x1="CX - OUTER_R"
+                :y1="CY"
+                :x2="CX + OUTER_R"
+                :y2="CY"
+                stroke="var(--radar-line)"
+                stroke-width="1.2"
+              />
 
-          <!-- Ring labels (placed along the leftward horizontal axis, inside each ring) -->
-          <text
-            v-for="(label, i) in ringLabels" :key="`rl-${i}`"
-            :x="label.x" :y="label.y"
-            text-anchor="middle"
-            dominant-baseline="middle"
-            class="ring-label"
-            :fill="label.color"
-          >{{ label.text }}</text>
+              <!-- Ring labels (placed along the leftward horizontal axis, inside each ring) -->
+              <text
+                v-for="(label, i) in ringLabels"
+                :key="`rl-${i}`"
+                :x="label.x"
+                :y="label.y"
+                text-anchor="middle"
+                dominant-baseline="middle"
+                class="ring-label"
+                :fill="label.color"
+              >
+                {{ label.text }}
+              </text>
 
-          <!-- Quadrant corner labels -->
-          <text v-for="(ql, qi) in activeQuadrantLabels" :key="`ql-${qi}`"
-            :x="ql.x" :y="ql.y"
-            :text-anchor="ql.anchor"
-            class="quadrant-label"
-            fill="var(--radar-text-dim)"
-          >{{ ql.text }}</text>
+              <!-- Quadrant corner labels -->
+              <text
+                v-for="(ql, qi) in activeQuadrantLabels"
+                :key="`ql-${qi}`"
+                :x="ql.x"
+                :y="ql.y"
+                :text-anchor="ql.anchor"
+                class="quadrant-label"
+                fill="var(--radar-text-dim)"
+              >
+                {{ ql.text }}
+              </text>
 
-          <!-- Blip circles -->
-          <g
-            v-for="blip in positionedBlips"
-            :key="blip.key"
-            :opacity="(highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) || (hoveredBlip && hoveredBlip.key !== blip.key) ? 0.12 : 1"
-          >
-            <!-- Glow ring for search-matching blips -->
-            <circle
-              v-if="highlightedBlipKeys && highlightedBlipKeys.has(blip.key)"
-              :cx="blip.x"
-              :cy="blip.y"
-              :r="BLIP_R + 7"
-              :fill="blip.ringColor"
-              opacity="0.35"
-              class="blip-glow"
-            />
-            <!-- Diamond outline for mandatory blips -->
-            <polygon
-              v-if="blip.mandatory"
-              :points="`${blip.x},${blip.y - BLIP_R - 4} ${blip.x + BLIP_R + 4},${blip.y} ${blip.x},${blip.y + BLIP_R + 4} ${blip.x - BLIP_R - 4},${blip.y}`"
-              :fill="blip.ringColor"
-              stroke="white"
-              stroke-width="1.2"
-              class="blip-circle"
-              @mouseenter="hoveredBlip = blip"
-              @mouseleave="hoveredBlip = null"
-              @click="openDetail(blip)"
-            />
-            <circle
-              v-else
-              :cx="blip.x"
-              :cy="blip.y"
-              :r="BLIP_R"
-              :fill="blip.ringColor"
-              stroke="white"
-              stroke-width="1.2"
-              class="blip-circle"
-              @mouseenter="hoveredBlip = blip"
-              @mouseleave="hoveredBlip = null"
-              @click="openDetail(blip)"
-            />
-            <text
-              :x="blip.x"
-              :y="blip.y"
-              text-anchor="middle"
-              dominant-baseline="central"
-              class="blip-label"
-              style="pointer-events:none;"
-            >{{ blip.index }}</text>
-          </g>
+              <!-- Blip circles -->
+              <g
+                v-for="blip in positionedBlips"
+                :key="blip.key"
+                :opacity="
+                  (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) ||
+                  (hoveredBlip && hoveredBlip.key !== blip.key)
+                    ? 0.12
+                    : 1
+                "
+              >
+                <!-- Glow ring for search-matching blips -->
+                <circle
+                  v-if="highlightedBlipKeys && highlightedBlipKeys.has(blip.key)"
+                  :cx="blip.x"
+                  :cy="blip.y"
+                  :r="BLIP_R + 7"
+                  :fill="blip.ringColor"
+                  opacity="0.35"
+                  class="blip-glow"
+                />
+                <!-- Diamond outline for mandatory blips -->
+                <polygon
+                  v-if="blip.mandatory"
+                  :points="`${blip.x},${blip.y - BLIP_R - 4} ${blip.x + BLIP_R + 4},${blip.y} ${blip.x},${blip.y + BLIP_R + 4} ${blip.x - BLIP_R - 4},${blip.y}`"
+                  :fill="blip.ringColor"
+                  stroke="white"
+                  stroke-width="1.2"
+                  class="blip-circle"
+                  @mouseenter="hoveredBlip = blip"
+                  @mouseleave="hoveredBlip = null"
+                  @click="openDetail(blip)"
+                />
+                <circle
+                  v-else
+                  :cx="blip.x"
+                  :cy="blip.y"
+                  :r="BLIP_R"
+                  :fill="blip.ringColor"
+                  stroke="white"
+                  stroke-width="1.2"
+                  class="blip-circle"
+                  @mouseenter="hoveredBlip = blip"
+                  @mouseleave="hoveredBlip = null"
+                  @click="openDetail(blip)"
+                />
+                <text
+                  :x="blip.x"
+                  :y="blip.y"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                  class="blip-label"
+                  style="pointer-events: none"
+                >
+                  {{ blip.index }}
+                </text>
+              </g>
 
-          <!-- Hover tooltip -->
-          <g v-if="hoveredBlip" style="pointer-events:none">
-            <rect
-              :x="clampTooltipX(hoveredBlip.x + 10)"
-              :y="clampTooltipY(hoveredBlip.y - 14)"
-              :width="tooltipWidth"
-              :height="76 + (hoveredBlip.entryTitle ? 14 : 0) + ((hoveredBlip.shortComment || hoveredBlip.comment) ? 14 : 0)"
-              rx="4"
-              fill="var(--radar-tooltip-bg)"
-              stroke="var(--radar-line)"
-              stroke-width="0.8"
-              opacity="0.97"
-            />
-            <text
-              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + 16"
-              class="tooltip-title"
-              fill="var(--radar-tooltip-text)"
-            >{{ truncate(hoveredBlip.name, 32) }}</text>
-            <text
-              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + 32"
-              class="tooltip-sub"
-              fill="var(--radar-tooltip-text-dim)"
-            >{{ hoveredBlip.typeLabel }}</text>
-            <text
-              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + 46"
-              class="tooltip-sub"
-              fill="var(--radar-tooltip-text-dim)"
-            >{{ truncate(hoveredBlip.categoryTitle || hoveredBlip.questionnaireName, 32) }}</text>
-            <text
-              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + 60"
-              class="tooltip-sub"
-              fill="var(--radar-tooltip-text-dim)"
-            >{{ truncate(hoveredBlip.questionnaireName, 32) }}</text>
-            <text
-              v-if="hoveredBlip.entryTitle"
-              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + 74"
-              class="tooltip-sub"
-              fill="var(--radar-tooltip-text-dim)"
-            >{{ truncate(hoveredBlip.entryTitle, 32) }}</text>
-            <text
-              v-if="hoveredBlip.shortComment || hoveredBlip.comment"
-              :x="clampTooltipX(hoveredBlip.x + 10) + 8"
-              :y="clampTooltipY(hoveredBlip.y - 14) + (hoveredBlip.entryTitle ? 88 : 74)"
-              class="tooltip-sub"
-              fill="var(--radar-tooltip-text)"
-              font-style="italic"
-            >{{ truncate(hoveredBlip.shortComment || hoveredBlip.comment, 32) }}</text>
-          </g>
-        </svg>
-      </div>
-
-      <!-- Ring key -->
-      <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap:16px;">
-        <v-tooltip 
-          v-for="ring in RING_META" 
-          :key="ring.label"
-          :text="ring.description"
-          location="top"
-        >
-          <template #activator="{ props: tooltipProps }">
-            <div 
-              v-bind="tooltipProps"
-              class="ring-key-item d-flex align-center" 
-              :class="{ 'ring-key-item--inactive': !isStatusVisible(ring.label) }"
-              style="gap:6px; cursor:pointer; user-select:none;"
-              @click="toggleStatusVisibility(ring.label)"
-            >
-              <span class="ring-dot" :style="{ background: ring.color }" />
-              <span class="text-caption">{{ ring.label }}</span>
-            </div>
-          </template>
-        </v-tooltip>
-      </div>
-      <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
-        <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
-        <span v-else>No blips with type "{{ answerTypeFilter }}". Set the <strong>Type</strong> field on answers to classify them.</span>
-      </div>
-      </div>
-
-      <!-- Right legend: Q0 (top-right) + Q3 (bottom-right) -->
-      <div class="radar-legend">
-        <div v-for="group in rightGroups" :key="group.quadrant" class="mb-4">
-          <div class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1 legend-quadrant-header--editable" @click="quadrantConfigDialog = true">
-            {{ group.label || `Quadrant ${group.quadrant + 1}` }}
-            <v-icon class="legend-quadrant-edit-icon" size="12">mdi-pencil-outline</v-icon>
+              <!-- Hover tooltip -->
+              <g v-if="hoveredBlip" style="pointer-events: none">
+                <rect
+                  :x="clampTooltipX(hoveredBlip.x + 10)"
+                  :y="clampTooltipY(hoveredBlip.y - 14)"
+                  :width="tooltipWidth"
+                  :height="
+                    76 + (hoveredBlip.entryTitle ? 14 : 0) + (hoveredBlip.shortComment || hoveredBlip.comment ? 14 : 0)
+                  "
+                  rx="4"
+                  fill="var(--radar-tooltip-bg)"
+                  stroke="var(--radar-line)"
+                  stroke-width="0.8"
+                  opacity="0.97"
+                />
+                <text
+                  :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+                  :y="clampTooltipY(hoveredBlip.y - 14) + 16"
+                  class="tooltip-title"
+                  fill="var(--radar-tooltip-text)"
+                >
+                  {{ truncate(hoveredBlip.name, 32) }}
+                </text>
+                <text
+                  :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+                  :y="clampTooltipY(hoveredBlip.y - 14) + 32"
+                  class="tooltip-sub"
+                  fill="var(--radar-tooltip-text-dim)"
+                >
+                  {{ hoveredBlip.typeLabel }}
+                </text>
+                <text
+                  :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+                  :y="clampTooltipY(hoveredBlip.y - 14) + 46"
+                  class="tooltip-sub"
+                  fill="var(--radar-tooltip-text-dim)"
+                >
+                  {{ truncate(hoveredBlip.categoryTitle || hoveredBlip.questionnaireName, 32) }}
+                </text>
+                <text
+                  :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+                  :y="clampTooltipY(hoveredBlip.y - 14) + 60"
+                  class="tooltip-sub"
+                  fill="var(--radar-tooltip-text-dim)"
+                >
+                  {{ truncate(hoveredBlip.questionnaireName, 32) }}
+                </text>
+                <text
+                  v-if="hoveredBlip.entryTitle"
+                  :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+                  :y="clampTooltipY(hoveredBlip.y - 14) + 74"
+                  class="tooltip-sub"
+                  fill="var(--radar-tooltip-text-dim)"
+                >
+                  {{ truncate(hoveredBlip.entryTitle, 32) }}
+                </text>
+                <text
+                  v-if="hoveredBlip.shortComment || hoveredBlip.comment"
+                  :x="clampTooltipX(hoveredBlip.x + 10) + 8"
+                  :y="clampTooltipY(hoveredBlip.y - 14) + (hoveredBlip.entryTitle ? 88 : 74)"
+                  class="tooltip-sub"
+                  fill="var(--radar-tooltip-text)"
+                  font-style="italic"
+                >
+                  {{ truncate(hoveredBlip.shortComment || hoveredBlip.comment, 32) }}
+                </text>
+              </g>
+            </svg>
           </div>
-          <div v-for="sg in group.statusGroups" :key="sg.ring">
-            <div class="legend-status-header" :style="{ '--status-color': sg.color }">
-              {{ sg.statusLabel }}
-            </div>
-            <div
-              v-for="blip in sg.blips"
-              :key="blip.key"
-              class="legend-row"
-              :class="{
-                'legend-row--hovered': hoveredBlip?.key === blip.key,
-                'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
-                'legend-row--dimmed': (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) || (hoveredBlip && hoveredBlip.key !== blip.key)
-              }"
-              @mouseenter="hoveredBlip = blip"
-              @mouseleave="hoveredBlip = null"
-              @click="openDetail(blip)"
-            >
-              <span class="legend-index" :style="{ background: blip.ringColor }" :class="{ 'legend-index--mandatory': blip.mandatory }">{{ blip.index }}</span>
-              <div class="legend-info">
-                <div class="text-body-2 font-weight-medium legend-name">
-                  {{ blip.name }}
-                  <v-icon v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle" size="10" class="ml-1 text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+
+          <!-- Ring key -->
+          <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap: 16px">
+            <v-tooltip v-for="ring in RING_META" :key="ring.label" :text="ring.description" location="top">
+              <template #activator="{ props: tooltipProps }">
+                <div
+                  v-bind="tooltipProps"
+                  class="ring-key-item d-flex align-center"
+                  :class="{ 'ring-key-item--inactive': !isStatusVisible(ring.label) }"
+                  style="gap: 6px; cursor: pointer; user-select: none"
+                  @click="toggleStatusVisibility(ring.label)"
+                >
+                  <span class="ring-dot" :style="{ background: ring.color }" />
+                  <span class="text-caption">{{ ring.label }}</span>
                 </div>
+              </template>
+            </v-tooltip>
+          </div>
+          <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
+            <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
+            <span v-else
+              >No blips with type "{{ answerTypeFilter }}". Set the <strong>Type</strong> field on answers to classify
+              them.</span
+            >
+          </div>
+        </div>
+
+        <!-- Right legend: Q0 (top-right) + Q3 (bottom-right) -->
+        <div class="radar-legend">
+          <div v-for="group in rightGroups" :key="group.quadrant" class="mb-4">
+            <div
+              class="legend-quadrant-header text-caption font-weight-bold text-uppercase mb-1 legend-quadrant-header--editable"
+              @click="quadrantConfigDialog = true"
+            >
+              {{ group.label || `Quadrant ${group.quadrant + 1}` }}
+              <v-icon class="legend-quadrant-edit-icon" size="12">mdi-pencil-outline</v-icon>
+            </div>
+            <div v-for="sg in group.statusGroups" :key="sg.ring">
+              <div class="legend-status-header" :style="{ '--status-color': sg.color }">
+                {{ sg.statusLabel }}
               </div>
-              <div class="legend-row-actions">
-                <v-menu location="bottom end">
-                  <template #activator="{ props: menuProps }">
-                    <v-btn icon size="x-small" variant="text" v-bind="menuProps" @click.stop>
-                      <v-icon size="14">mdi-dots-vertical</v-icon>
-                    </v-btn>
-                  </template>
-                  <v-list density="compact" min-width="140">
-                    <v-list-item prepend-icon="mdi-pencil-outline" title="Edit" @click="openEdit(blip)" />
-                    <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
-                  </v-list>
-                </v-menu>
+              <div
+                v-for="blip in sg.blips"
+                :key="blip.key"
+                class="legend-row"
+                :class="{
+                  'legend-row--hovered': hoveredBlip?.key === blip.key,
+                  'legend-row--highlighted': highlightedBlipKeys?.has(blip.key),
+                  'legend-row--dimmed':
+                    (highlightedBlipKeys && !highlightedBlipKeys.has(blip.key)) ||
+                    (hoveredBlip && hoveredBlip.key !== blip.key)
+                }"
+                @mouseenter="hoveredBlip = blip"
+                @mouseleave="hoveredBlip = null"
+                @click="openDetail(blip)"
+              >
+                <span
+                  class="legend-index"
+                  :style="{ background: blip.ringColor }"
+                  :class="{ 'legend-index--mandatory': blip.mandatory }"
+                  >{{ blip.index }}</span
+                >
+                <div class="legend-info">
+                  <div class="text-body-2 font-weight-medium legend-name">
+                    {{ blip.name }}
+                    <v-icon
+                      v-if="blip.overrideStatus || blip.radarComment || blip.overrideCategoryTitle"
+                      size="10"
+                      class="ml-1 text-primary"
+                      style="vertical-align: middle"
+                      >mdi-pencil-circle</v-icon
+                    >
+                  </div>
+                </div>
+                <div class="legend-row-actions">
+                  <v-menu location="bottom end">
+                    <template #activator="{ props: menuProps }">
+                      <v-btn icon size="x-small" variant="text" v-bind="menuProps" @click.stop>
+                        <v-icon size="14">mdi-dots-vertical</v-icon>
+                      </v-btn>
+                    </template>
+                    <v-list density="compact" min-width="140">
+                      <v-list-item prepend-icon="mdi-pencil-outline" title="Edit" @click="openEdit(blip)" />
+                      <v-list-item prepend-icon="mdi-delete-outline" title="Remove" @click="confirmRemove(blip)" />
+                    </v-list>
+                  </v-menu>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
 
       <!-- Blip detail dialog -->
@@ -437,12 +481,19 @@
               </div>
               <div class="detail-field">
                 <div class="detail-label">Quadrant</div>
-                <div class="text-body-2 d-flex align-center" style="gap:4px;">
+                <div class="text-body-2 d-flex align-center" style="gap: 4px">
                   {{ detailBlip.categoryTitle || '—' }}
-                  <v-icon v-if="detailBlip.overrideCategoryTitle" size="10" class="text-primary" style="vertical-align:middle;">mdi-pencil-circle</v-icon>
+                  <v-icon
+                    v-if="detailBlip.overrideCategoryTitle"
+                    size="10"
+                    class="text-primary"
+                    style="vertical-align: middle"
+                    >mdi-pencil-circle</v-icon
+                  >
                 </div>
                 <div v-if="detailBlip.overrideCategoryTitle" class="text-caption text-medium-emphasis">
-                  <v-icon size="10">mdi-pencil-circle</v-icon> Radar override (default: {{ detailBlip.naturalCategoryTitle }})
+                  <v-icon size="10">mdi-pencil-circle</v-icon> Radar override (default:
+                  {{ detailBlip.naturalCategoryTitle }})
                 </div>
               </div>
               <div class="detail-field">
@@ -475,7 +526,9 @@
             <!-- Short comment (override or questionnaire comment as default) -->
             <template v-if="detailBlip.shortComment || detailBlip.comment">
               <div class="detail-label mb-1">Short comment</div>
-              <div class="text-body-2 mb-4" style="font-style:italic; white-space:pre-wrap;">{{ detailBlip.shortComment || detailBlip.comment }}</div>
+              <div class="text-body-2 mb-4" style="font-style: italic; white-space: pre-wrap">
+                {{ detailBlip.shortComment || detailBlip.comment }}
+              </div>
             </template>
 
             <!-- Radar detailed comment (Markdown) -->
@@ -485,18 +538,31 @@
                 Detailed comment
               </div>
               <v-sheet rounded="lg" variant="outlined" class="pa-2 mb-4 radar-comment-preview">
-                <MdPreview :modelValue="detailBlip.radarComment" language="en-US" class="md-preview-inline" />
+                <MdPreview :model-value="detailBlip.radarComment" language="en-US" class="md-preview-inline" />
               </v-sheet>
             </template>
 
-            <div v-if="!detailBlip.comment && !detailBlip.radarComment && !detailBlip.shortComment && !detailBlip.infoUrl" class="text-caption text-medium-emphasis">
+            <div
+              v-if="!detailBlip.comment && !detailBlip.radarComment && !detailBlip.shortComment && !detailBlip.infoUrl"
+              class="text-caption text-medium-emphasis"
+            >
               No comments available.
             </div>
           </v-card-text>
 
           <v-divider />
           <v-card-actions class="px-4 py-3">
-            <v-btn variant="text" prepend-icon="mdi-pencil-outline" size="small" @click="() => { detailDialog = false; openEdit(detailBlip) }">
+            <v-btn
+              variant="text"
+              prepend-icon="mdi-pencil-outline"
+              size="small"
+              @click="
+                () => {
+                  detailDialog = false
+                  openEdit(detailBlip)
+                }
+              "
+            >
               Edit
             </v-btn>
             <v-spacer />
@@ -529,7 +595,7 @@
           </v-card-title>
           <v-card-subtitle class="px-4 pb-0">{{ blipToEdit?.name }}</v-card-subtitle>
           <v-card-text class="px-4 pt-3 pb-2">
-            <div class="d-flex" style="gap:12px;">
+            <div class="d-flex" style="gap: 12px">
               <v-select
                 v-model="editForm.status"
                 :items="RADAR_STATUS_OPTIONS"
@@ -539,9 +605,11 @@
                 density="compact"
                 variant="outlined"
                 clearable
-                :hint="blipToEdit?.status && !editForm.status ? `Inherited from questionnaire: ${blipToEdit.status}` : ''"
+                :hint="
+                  blipToEdit?.status && !editForm.status ? `Inherited from questionnaire: ${blipToEdit.status}` : ''
+                "
                 persistent-hint
-                style="flex:1;"
+                style="flex: 1"
               />
               <v-select
                 v-model="editForm.categoryOverride"
@@ -550,9 +618,17 @@
                 density="compact"
                 variant="outlined"
                 clearable
-                :hint="editForm.categoryOverride && blipToEdit && editForm.categoryOverride !== blipToEdit.naturalCategoryTitle ? 'Overrides the questionnaire-defined quadrant' : (blipToEdit ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}` : '')"
+                :hint="
+                  editForm.categoryOverride &&
+                  blipToEdit &&
+                  editForm.categoryOverride !== blipToEdit.naturalCategoryTitle
+                    ? 'Overrides the questionnaire-defined quadrant'
+                    : blipToEdit
+                      ? `Questionnaire default: ${blipToEdit.naturalCategoryTitle}`
+                      : ''
+                "
                 persistent-hint
-                style="flex:1;"
+                style="flex: 1"
               />
             </div>
             <v-text-field
@@ -578,13 +654,7 @@
               class="mt-3"
             />
             <div class="mt-4 mb-1 text-caption text-medium-emphasis">Binding level</div>
-            <v-btn-toggle
-              v-model="editForm.mandatory"
-              mandatory
-              density="compact"
-              color="primary"
-              variant="outlined"
-            >
+            <v-btn-toggle v-model="editForm.mandatory" mandatory density="compact" color="primary" variant="outlined">
               <v-btn :value="false" size="small" prepend-icon="mdi-thumb-up-outline">Recommendation</v-btn>
               <v-btn :value="true" size="small" prepend-icon="mdi-shield-check-outline">Mandatory</v-btn>
             </v-btn-toggle>
@@ -596,7 +666,7 @@
               language="en-US"
               :preview="false"
               :toolbars="mdToolbars"
-              style="min-height:220px;"
+              style="min-height: 220px"
               placeholder="Detailed notes with Markdown formatting…"
             />
           </v-card-text>
@@ -620,9 +690,16 @@
             <!-- Unassigned categories -->
             <div class="mb-6">
               <div class="text-caption font-weight-bold text-uppercase mb-2">Unassigned Categories</div>
-              <div 
-                class="d-flex align-center flex-wrap unassigned-zone" 
-                style="gap:4px; min-height: 40px; padding: 8px; border: 2px dashed #ccc; border-radius: 4px; background: rgba(0,0,0,0.02);"
+              <div
+                class="d-flex align-center flex-wrap unassigned-zone"
+                style="
+                  gap: 4px;
+                  min-height: 40px;
+                  padding: 8px;
+                  border: 2px dashed #ccc;
+                  border-radius: 4px;
+                  background: rgba(0, 0, 0, 0.02);
+                "
                 @dragover.prevent="handleUnassignedDragOver"
                 @drop="handleUnassignedDrop"
               >
@@ -633,13 +710,16 @@
                   variant="tonal"
                   color="grey"
                   class="category-badge"
-                  style="cursor:grab;"
+                  style="cursor: grab"
                   draggable="true"
                   @dragstart="handleCategoryDragStart($event, cat)"
                   @dragend="handleCategoryDragEnd"
                   @click.stop="toggleCategory(cat)"
-                >{{ cat }}</v-chip>
-                <span v-if="unassignedCategories.length === 0" class="text-caption text-disabled">(drag categories here to unassign)</span>
+                  >{{ cat }}</v-chip
+                >
+                <span v-if="unassignedCategories.length === 0" class="text-caption text-disabled"
+                  >(drag categories here to unassign)</span
+                >
               </div>
             </div>
 
@@ -655,12 +735,19 @@
                 clearable
                 label="Legend label (optional)"
                 class="mb-2"
-                @update:modelValue="updateQuadrantLabel(q.index, $event)"
+                @update:model-value="updateQuadrantLabel(q.index, $event)"
                 @click:clear="updateQuadrantLabel(q.index, '')"
               />
               <div
                 class="d-flex align-center flex-wrap"
-                style="gap:4px; min-height: 40px; padding: 8px; border: 2px dashed #ccc; border-radius: 4px; background: rgba(0,0,0,0.02);"
+                style="
+                  gap: 4px;
+                  min-height: 40px;
+                  padding: 8px;
+                  border: 2px dashed #ccc;
+                  border-radius: 4px;
+                  background: rgba(0, 0, 0, 0.02);
+                "
                 @dragover.prevent="handleQuadrantDragOver($event, q.index)"
                 @drop="handleQuadrantDrop($event, q.index)"
               >
@@ -671,17 +758,16 @@
                   variant="tonal"
                   color="blue-grey-lighten-2"
                   class="category-badge"
-                  style="cursor:grab;"
+                  style="cursor: grab"
                   draggable="true"
                   @dragstart="handleCategoryDragStart($event, cat)"
                   @dragend="handleCategoryDragEnd"
                   @click.stop="toggleCategory(cat)"
-                >{{ cat }}</v-chip>
+                  >{{ cat }}</v-chip
+                >
                 <span v-if="q.categories.length === 0" class="text-caption text-disabled">(drag categories here)</span>
               </div>
             </div>
-
-
           </v-card-text>
           <v-divider />
           <v-card-actions class="px-4 py-3">
@@ -694,6 +780,7 @@
       <!-- Custom HTML Export Dialog -->
       <CustomHtmlExportDialog
         v-model="customExportDialog"
+        :project-id="projectId"
         :positioned-blips="positionedBlips"
         :available-categories="availableCategories"
         :title="project?.name || 'Tech Radar'"
@@ -715,11 +802,7 @@ import 'md-editor-v3/lib/style.css'
 const SIZE = 720
 const CX = SIZE / 2
 const CY = SIZE / 2
-const OUTER_R = SIZE / 2 - 30  // 330
-
-// Ring outer radii (innermost to outermost): adopt / trial / assess / hold / retire
-// Adopt gets the largest inner ring so frequently-used blips have more room
-const RINGS = [0, 132, 188, 236, 282, OUTER_R]
+const OUTER_R = SIZE / 2 - 30 // 330
 
 const BLIP_R = 12
 const TOOLTIP_W = 220
@@ -745,9 +828,11 @@ const RING_META = [
 ]
 
 // ── Sector path builder ──────────────────────────────────────────────────────
-function arcPath (cx, cy, innerR, outerR, a1, a2) {
-  const cos1 = Math.cos(a1), sin1 = Math.sin(a1)
-  const cos2 = Math.cos(a2), sin2 = Math.sin(a2)
+function arcPath(cx, cy, innerR, outerR, a1, a2) {
+  const cos1 = Math.cos(a1),
+    sin1 = Math.sin(a1)
+  const cos2 = Math.cos(a2),
+    sin2 = Math.sin(a2)
   if (innerR <= 0) {
     // Pie sector
     return [
@@ -767,11 +852,11 @@ function arcPath (cx, cy, innerR, outerR, a1, a2) {
 }
 
 // ── Slot position pre-computation ────────────────────────────────────────────
-function computeSlots (qIdx, rIdx, rings) {
+function computeSlots(qIdx, rIdx, rings) {
   const { a1, a2 } = Q_ANGLES[qIdx]
   const innerR = rings[rIdx]
   const outerR = rings[rIdx + 1]
-  const marginA = 0.14   // ~8°
+  const marginA = 0.14 // ~8°
   const marginR = 7
   const effA1 = a1 + marginA
   const effA2 = a2 - marginA
@@ -786,9 +871,7 @@ function computeSlots (qIdx, rIdx, rings) {
   for (let ri = 0; ri < nR; ri++) {
     // Center the row grid around the true ring midpoint so that blips always
     // sit in the visual middle of their band regardless of how many rows exist.
-    const r = nR === 1
-      ? midR
-      : Math.max(effInner, Math.min(effOuter, midR + (ri - (nR - 1) / 2) * rStep))
+    const r = nR === 1 ? midR : Math.max(effInner, Math.min(effOuter, midR + (ri - (nR - 1) / 2) * rStep))
     const arcLen = r * Math.abs(effA2 - effA1)
     const nA = Math.max(1, Math.round(arcLen / 30))
     const da = (effA2 - effA1) / nA
@@ -802,15 +885,17 @@ function computeSlots (qIdx, rIdx, rings) {
 
 // Slot cache – keyed by quadrant, ring index AND ring boundaries so dynamic sizes invalidate correctly
 const SLOT_CACHE = {}
-function getSlots (qIdx, rIdx, rings) {
+function getSlots(qIdx, rIdx, rings) {
   const key = `${qIdx}-${rIdx}-${rings[rIdx]}-${rings[rIdx + 1]}`
   if (!SLOT_CACHE[key]) SLOT_CACHE[key] = computeSlots(qIdx, rIdx, rings)
   return SLOT_CACHE[key]
 }
 
 // ── Status / type mapping helpers ────────────────────────────────────────────
-function statusToRing (status) {
-  const s = String(status || '').trim().toLowerCase()
+function statusToRing(status) {
+  const s = String(status || '')
+    .trim()
+    .toLowerCase()
   if (s === 'adopt') return 0
   if (s === 'trial') return 1
   if (s === 'assess') return 2
@@ -819,16 +904,16 @@ function statusToRing (status) {
   return 3
 }
 
-function statusLabel (status) {
+function statusLabel(status) {
   const s = String(status || '').trim()
   return s || 'Unset'
 }
 
-function typeLabelOf (type) {
+function typeLabelOf(type) {
   return String(type || '').trim() || 'Other'
 }
 
-function normalizeInfoUrl (value) {
+function normalizeInfoUrl(value) {
   const trimmed = String(value || '').trim()
   if (!trimmed) return ''
 
@@ -852,7 +937,7 @@ export default {
       required: true
     }
   },
-  setup (props) {
+  setup(props) {
     const store = useWorkspaceStore()
     const hoveredBlip = ref(null)
     const radarLayoutRef = ref(null)
@@ -864,17 +949,24 @@ export default {
     const blipToRemove = ref(null)
     const editDialog = ref(false)
     const blipToEdit = ref(null)
-    const editForm = ref({ status: '', shortComment: '', comment: '', categoryOverride: '', infoUrl: '', mandatory: false })
+    const editForm = ref({
+      status: '',
+      shortComment: '',
+      comment: '',
+      categoryOverride: '',
+      infoUrl: '',
+      mandatory: false
+    })
 
     const customExportDialog = ref(false)
     const detailDialog = ref(false)
     const detailBlip = ref(null)
     const quadrantConfigDialog = ref(false)
     const RADAR_STATUS_OPTIONS = [
-      { title: 'Adopt',  value: 'adopt' },
-      { title: 'Trial',  value: 'trial' },
+      { title: 'Adopt', value: 'adopt' },
+      { title: 'Trial', value: 'trial' },
       { title: 'Assess', value: 'assess' },
-      { title: 'Hold',   value: 'hold' },
+      { title: 'Hold', value: 'hold' },
       { title: 'Retire', value: 'retire' }
     ]
     const draggedCategory = ref(null)
@@ -882,9 +974,19 @@ export default {
 
     // Markdown editor toolbar – minimal set for comment editing
     const mdToolbars = [
-      'bold', 'italic', 'strikethrough', '-',
-      'title', 'quote', 'unorderedList', 'orderedList', '-',
-      'link', 'code', 'codeRow', '-',
+      'bold',
+      'italic',
+      'strikethrough',
+      '-',
+      'title',
+      'quote',
+      'unorderedList',
+      'orderedList',
+      '-',
+      'link',
+      'code',
+      'codeRow',
+      '-',
       'fullscreen'
     ]
 
@@ -908,7 +1010,7 @@ export default {
     // ── Visible ring tracking ────────────────────────────────────────────────
     // List of visible ring indices (0-4 corresponding to RING_META)
     const visibleRingIndices = computed(() => {
-      return [0, 1, 2, 3, 4].filter(i => {
+      return [0, 1, 2, 3, 4].filter((i) => {
         const statusName = RING_META[i].label.toLowerCase()
         return visibleStatuses.value.has(statusName)
       })
@@ -926,7 +1028,7 @@ export default {
     // ── Dynamic ring radii – capacity-based solver ───────────────────────────
     // Computes how many blip slots fit in one quadrant of a ring band.
     // Mirrors the slot-grid logic in computeSlots() so the numbers agree.
-    function ringSlotCapacity (innerR, outerR) {
+    function ringSlotCapacity(innerR, outerR) {
       const marginR = 7
       const rStep = 26
       const effInner = Math.max(innerR + marginR, BLIP_R + 2)
@@ -936,9 +1038,7 @@ export default {
       const nR = Math.max(1, Math.round((effOuter - effInner) / rStep))
       let cap = 0
       for (let ri = 0; ri < nR; ri++) {
-        const r = nR === 1
-          ? midR
-          : Math.max(effInner, Math.min(effOuter, midR + (ri - (nR - 1) / 2) * rStep))
+        const r = nR === 1 ? midR : Math.max(effInner, Math.min(effOuter, midR + (ri - (nR - 1) / 2) * rStep))
         // Each quadrant spans π/2 radians, with marginA cut from both edges
         const arcLen = r * (Math.PI / 2 - 0.28)
         cap += Math.max(1, Math.round(arcLen / 30))
@@ -954,7 +1054,7 @@ export default {
       // Replicate categoryToQuadrant assignment inline (avoids circular dep)
       const catToQ = new Map()
       const seenCats = []
-      
+
       for (const b of blips) {
         if (b.categoryTitle && !catToQ.has(b.categoryTitle)) {
           seenCats.push(b.categoryTitle)
@@ -975,13 +1075,13 @@ export default {
         }
       }
       // Worst-case quadrant load per ring
-      const needed = perRQ.map(qCounts => Math.max(...qCounts, 0))
+      const needed = perRQ.map((qCounts) => Math.max(...qCounts, 0))
 
-      const MIN_EMPTY = 22   // just enough to show the ring label
-      const MIN_ACTIVE = 36  // minimum for at least one blip row
+      const MIN_EMPTY = 22 // just enough to show the ring label
+      const MIN_ACTIVE = 36 // minimum for at least one blip row
 
       // Starting widths - only for visible rings
-      const widths = needed.map(n => n === 0 ? MIN_EMPTY : MIN_ACTIVE)
+      const widths = needed.map((n) => (n === 0 ? MIN_EMPTY : MIN_ACTIVE))
 
       // Iterative growth: if a ring's capacity is too small, grow it by 20 %
       // and repeat until every ring can hold its blips (max 40 iterations).
@@ -996,7 +1096,7 @@ export default {
           if (needed[ri] === 0) continue
           const cap = ringSlotCapacity(radii[ri], radii[ri + 1])
           if (cap < needed[ri]) {
-            widths[ri] = widths[ri] * (1 + (needed[ri] - cap) / needed[ri] * 0.5 + 0.1)
+            widths[ri] = widths[ri] * (1 + ((needed[ri] - cap) / needed[ri]) * 0.5 + 0.1)
             changed = true
           }
         }
@@ -1017,24 +1117,26 @@ export default {
     const ringsBg = computed(() => {
       const cr = computedRings.value
       const visibleIndices = visibleRingIndices.value
-      
+
       // Create ring backgrounds only for visible rings, in reverse order (outer to inner)
-      return visibleIndices.map((origIdx, newIdx) => {
-        const ringRadius = cr[newIdx + 1]
-        const meta = RING_META[origIdx]
-        const fills = [
-          'rgba(76,175,80,0.15)',   // adopt
-          'rgba(33,150,243,0.10)',  // trial
-          'rgba(255,152,0,0.10)',   // assess
-          'rgba(158,158,158,0.10)', // hold
-          'rgba(244,67,54,0.08)'    // retire
-        ]
-        return {
-          r: ringRadius,
-          fill: fills[origIdx],
-          label: meta.label.toLowerCase()
-        }
-      }).reverse() // Paint from outside-in
+      return visibleIndices
+        .map((origIdx, newIdx) => {
+          const ringRadius = cr[newIdx + 1]
+          const meta = RING_META[origIdx]
+          const fills = [
+            'rgba(76,175,80,0.15)', // adopt
+            'rgba(33,150,243,0.10)', // trial
+            'rgba(255,152,0,0.10)', // assess
+            'rgba(158,158,158,0.10)', // hold
+            'rgba(244,67,54,0.08)' // retire
+          ]
+          return {
+            r: ringRadius,
+            fill: fills[origIdx],
+            label: meta.label.toLowerCase()
+          }
+        })
+        .reverse() // Paint from outside-in
     })
 
     const quadrantTints = Q_ANGLES.map((qa, qi) => ({
@@ -1045,7 +1147,7 @@ export default {
     const ringLabels = computed(() => {
       const cr = computedRings.value
       const visibleIndices = visibleRingIndices.value
-      
+
       return visibleIndices.map((origIdx, newIdx) => {
         const meta = RING_META[origIdx]
         return {
@@ -1072,9 +1174,7 @@ export default {
     ]
 
     // ── Data collection ──────────────────────────────────────────────────────
-    const project = computed(() =>
-      (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
-    )
+    const project = computed(() => (store.workspace.projects || []).find((p) => p.id === props.projectId) || null)
 
     // Lookup table: entryId -> { categoryTitle, entryTitle, candidates }
     // Only rebuilds when questionnaires change (not on every radar ref update)
@@ -1082,51 +1182,51 @@ export default {
       if (!project.value) return new Map()
       const questionnaires = store.getProjectQuestionnaires(project.value)
       const lookup = new Map()
-      
+
       for (const q of questionnaires) {
         const cats = q?.categories
         if (!Array.isArray(cats)) continue
-        
+
         for (const cat of cats) {
           if (cat?.isMetadata) continue
-          
+
           const catTitle = String(cat?.title || '').trim()
           const entries = cat?.entries
           if (!Array.isArray(entries)) continue
-          
+
           for (const entry of entries) {
             const entryId = String(entry?.id || '').trim()
             if (!entryId) continue
-            
+
             const entryTitle = String(entry?.aspect || entry?.title || entryId).trim()
-            
+
             if (!lookup.has(entryId)) {
-              lookup.set(entryId, { 
-                categoryTitle: catTitle, 
-                entryTitle, 
-                candidates: [] 
+              lookup.set(entryId, {
+                categoryTitle: catTitle,
+                entryTitle,
+                candidates: []
               })
             }
-            
+
             const entryData = lookup.get(entryId)
             const answers = entry?.answers
             if (!Array.isArray(answers)) continue
-            
+
             for (const a of answers) {
               const tech = String(a?.technology || '').trim()
               if (!tech) continue
-              
-              entryData.candidates.push({ 
-                tech, 
-                answer: a, 
-                questionnaireName: q.name || q.id, 
-                questionnaireId: q.id 
+
+              entryData.candidates.push({
+                tech,
+                answer: a,
+                questionnaireName: q.name || q.id,
+                questionnaireId: q.id
               })
             }
           }
         }
       }
-      
+
       return lookup
     })
 
@@ -1140,7 +1240,9 @@ export default {
       const result = []
 
       for (const entry of entries) {
-        const norm = String(entry.option || '').trim().toLowerCase()
+        const norm = String(entry.option || '')
+          .trim()
+          .toLowerCase()
         const entryData = lookup.get(entry.entryId)
         const candidates = entryData?.candidates || []
 
@@ -1212,15 +1314,21 @@ export default {
 
     // Selected categories (array of titles). Initialised / synced via watcher.
     const selectedCategories = ref([])
-    watch(availableCategories, (newCats) => {
-      const current = new Set(selectedCategories.value)
-      // Add newly appearing categories as selected
-      newCats.forEach((c) => { if (!current.has(c)) selectedCategories.value.push(c) })
-      // Remove categories that no longer exist
-      selectedCategories.value = selectedCategories.value.filter((c) => newCats.includes(c))
-    }, { immediate: true })
+    watch(
+      availableCategories,
+      (newCats) => {
+        const current = new Set(selectedCategories.value)
+        // Add newly appearing categories as selected
+        newCats.forEach((c) => {
+          if (!current.has(c)) selectedCategories.value.push(c)
+        })
+        // Remove categories that no longer exist
+        selectedCategories.value = selectedCategories.value.filter((c) => newCats.includes(c))
+      },
+      { immediate: true }
+    )
 
-    function toggleCategory (cat) {
+    function toggleCategory(cat) {
       const idx = selectedCategories.value.indexOf(cat)
       if (idx === -1) {
         selectedCategories.value = [...selectedCategories.value, cat]
@@ -1235,7 +1343,7 @@ export default {
       const map = new Map()
       const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
       const categories = availableCategories.value
-      
+
       // Apply stored assignments only (no side-effects)
       for (const cat of categories) {
         const quadrant = assignments[cat]
@@ -1243,7 +1351,7 @@ export default {
           map.set(cat, quadrant)
         }
       }
-      
+
       return map
     })
 
@@ -1252,11 +1360,11 @@ export default {
       () => availableCategories.value,
       (categories) => {
         const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
-        const unassigned = categories.filter(cat => {
+        const unassigned = categories.filter((cat) => {
           const quadrant = assignments[cat]
           return quadrant === undefined || quadrant === null
         })
-        
+
         if (unassigned.length > 0) {
           // Count current assignments per quadrant
           const quadrantCounts = [0, 0, 0, 0]
@@ -1266,20 +1374,20 @@ export default {
               quadrantCounts[q]++
             }
           }
-          
+
           const newAssignments = { ...assignments }
           // Display order: Q1 (idx 1), Q2 (idx 0), Q3 (idx 2), Q4 (idx 3)
           const quadrantOrder = [1, 0, 2, 3]
-          
+
           for (const cat of unassigned) {
             // Assign to the first free quadrant (no categories yet); fall back to Q4
-            const freeQuadrant = quadrantOrder.find(q => quadrantCounts[q] === 0)
+            const freeQuadrant = quadrantOrder.find((q) => quadrantCounts[q] === 0)
             const targetQuadrant = freeQuadrant !== undefined ? freeQuadrant : 3
-            
+
             quadrantCounts[targetQuadrant]++
             newAssignments[cat] = targetQuadrant
           }
-          
+
           // Save auto-assignments
           store.setProjectRadarCategoryQuadrants(props.projectId, newAssignments)
         }
@@ -1290,7 +1398,7 @@ export default {
     // Categories not yet assigned to any quadrant
     const unassignedCategories = computed(() => {
       const mapping = categoryToQuadrant.value
-      return availableCategories.value.filter(cat => !mapping.has(cat))
+      return availableCategories.value.filter((cat) => !mapping.has(cat))
     })
 
     // Quadrant data with assigned categories
@@ -1306,23 +1414,23 @@ export default {
         { index: 2, label: 'Quadrant 3', color: 'blue-grey-lighten-2', categories: [] },
         { index: 3, label: 'Quadrant 4', color: 'blue-grey-lighten-2', categories: [] }
       ]
-      
+
       const mapping = categoryToQuadrant.value
       for (const [cat, quadrantIdx] of mapping) {
         if (quadrantIdx >= 0 && quadrantIdx < 4) {
           // Find the quadrant object by its index property (not array index)
-          const quadrant = q.find(quad => quad.index === quadrantIdx)
+          const quadrant = q.find((quad) => quad.index === quadrantIdx)
           if (quadrant) {
             quadrant.categories.push(cat)
           }
         }
       }
-      
+
       // Sort categories within each quadrant alphabetically
       for (const quadrant of q) {
         quadrant.categories.sort((a, b) => a.localeCompare(b))
       }
-      
+
       return q
     })
 
@@ -1335,7 +1443,7 @@ export default {
         if (override) {
           result[qi] = override
         } else {
-          const q = quadrants.value.find(quad => quad.index === qi)
+          const q = quadrants.value.find((quad) => quad.index === qi)
           if (!q || q.categories.length === 0) {
             result[qi] = ''
           } else if (q.categories.length === 1) {
@@ -1349,15 +1457,15 @@ export default {
     })
 
     // Auto-generated label (no override) — used as placeholder in the config form
-    function autoQuadrantLabel (qIndex) {
-      const q = quadrants.value.find(quad => quad.index === qIndex)
+    function autoQuadrantLabel(qIndex) {
+      const q = quadrants.value.find((quad) => quad.index === qIndex)
       if (!q || q.categories.length === 0) return `Quadrant ${qIndex + 1}`
       if (q.categories.length === 1) return q.categories[0]
       return `${q.categories[0]} (+${q.categories.length - 1})`
     }
 
     // Persist label change immediately (called on every input in the config dialog)
-    function updateQuadrantLabel (qIndex, value) {
+    function updateQuadrantLabel(qIndex, value) {
       const labels = store.getProjectRadarQuadrantLabels(props.projectId)
       if (value && value.trim()) {
         labels[qIndex] = value.trim()
@@ -1369,20 +1477,21 @@ export default {
 
     // Blips filtered by answerType, selected categories AND visible statuses
     const visibleBlips = computed(() => {
-      let blips = answerTypeFilter.value === 'all'
-        ? allBlips.value
-        : allBlips.value.filter((b) => b.answerType === answerTypeFilter.value)
-      
+      let blips =
+        answerTypeFilter.value === 'all'
+          ? allBlips.value
+          : allBlips.value.filter((b) => b.answerType === answerTypeFilter.value)
+
       // Filter by selected categories
       if (selectedCategories.value.length < availableCategories.value.length) {
         const sel = new Set(selectedCategories.value)
         blips = blips.filter((b) => sel.has(b.categoryTitle))
       }
-      
+
       // Filter out categories not assigned to any quadrant
       const mapping = categoryToQuadrant.value
       blips = blips.filter((b) => mapping.has(b.categoryTitle))
-      
+
       // Filter by visible statuses
       blips = blips.filter((b) => {
         const statusName = RING_META[b.ring]?.label.toLowerCase()
@@ -1401,7 +1510,7 @@ export default {
     const positionedBlips = computed(() => {
       const counter = {}
       const mapping = ringIndexMapping.value
-      
+
       // Sort blips according to legend order: Q1 (top-left), Q0 (top-right), Q2 (bottom-left), Q3 (bottom-right)
       // Within each quadrant: sort by ring (status), then alphabetically by name
       const legendOrder = [1, 0, 2, 3] // Quadrant order in the legend
@@ -1410,78 +1519,78 @@ export default {
         const qB = categoryToQuadrant.value.get(b.categoryTitle) ?? 3
         const qOrderA = legendOrder.indexOf(qA)
         const qOrderB = legendOrder.indexOf(qB)
-        
+
         if (qOrderA !== qOrderB) return qOrderA - qOrderB
         if (a.ring !== b.ring) return a.ring - b.ring
         // mandatory blips first within each ring
         if (a.mandatory !== b.mandatory) return a.mandatory ? -1 : 1
         return a.name.localeCompare(b.name)
       })
-      
-      return sortedBlips.map((blip, globalIdx) => {
-        const quadrant = categoryToQuadrant.value.get(blip.categoryTitle) ?? 3
-        const newRingIdx = mapping[blip.ring]
-        
-        // Skip blips whose ring is not visible (shouldn't happen due to filtering, but be safe)
-        if (newRingIdx === undefined) return null
-        
-        const sectorKey = `${quadrant}-${newRingIdx}`
-        counter[sectorKey] = (counter[sectorKey] ?? 0)
-        const slotIdx = counter[sectorKey]++
-        const cr = computedRings.value
-        const slots = getSlots(quadrant, newRingIdx, cr)
-        let pos
-        if (slotIdx < slots.length) {
-          pos = slots[slotIdx]
-        } else {
-          const { a1, a2 } = Q_ANGLES[quadrant]
-          const midA = (a1 + a2) / 2
-          const midR = (cr[newRingIdx] + cr[newRingIdx + 1]) / 2
-          pos = {
-            x: CX + midR * Math.cos(midA) + (slotIdx % 5 - 2) * 6,
-            y: CY + midR * Math.sin(midA) + Math.floor(slotIdx / 5) * 6
+
+      return sortedBlips
+        .map((blip, globalIdx) => {
+          const quadrant = categoryToQuadrant.value.get(blip.categoryTitle) ?? 3
+          const newRingIdx = mapping[blip.ring]
+
+          // Skip blips whose ring is not visible (shouldn't happen due to filtering, but be safe)
+          if (newRingIdx === undefined) return null
+
+          const sectorKey = `${quadrant}-${newRingIdx}`
+          counter[sectorKey] = counter[sectorKey] ?? 0
+          const slotIdx = counter[sectorKey]++
+          const cr = computedRings.value
+          const slots = getSlots(quadrant, newRingIdx, cr)
+          let pos
+          if (slotIdx < slots.length) {
+            pos = slots[slotIdx]
+          } else {
+            const { a1, a2 } = Q_ANGLES[quadrant]
+            const midA = (a1 + a2) / 2
+            const midR = (cr[newRingIdx] + cr[newRingIdx + 1]) / 2
+            pos = {
+              x: CX + midR * Math.cos(midA) + ((slotIdx % 5) - 2) * 6,
+              y: CY + midR * Math.sin(midA) + Math.floor(slotIdx / 5) * 6
+            }
           }
-        }
-        return {
-          ...blip,
-          quadrant,
-          ...pos,
-          index: globalIdx + 1,
-          ringColor: RING_META[blip.ring].color,
-          statusLabel: statusLabel(blip.status),
-          typeLabel: typeLabelOf(blip.answerType)
-        }
-      }).filter(Boolean) // Remove any null entries
+          return {
+            ...blip,
+            quadrant,
+            ...pos,
+            index: globalIdx + 1,
+            ringColor: RING_META[blip.ring].color,
+            statusLabel: statusLabel(blip.status),
+            typeLabel: typeLabelOf(blip.answerType)
+          }
+        })
+        .filter(Boolean) // Remove any null entries
     })
 
     // ── Legend grouping by quadrant + status ───────────────────────────────
     const blipsByQuadrant = computed(() => {
       // Pre-bin blips by quadrant+ring to avoid repeated filtering
-      const bins = Array.from({ length: 4 }, () => 
-        Array.from({ length: 5 }, () => [])
-      )
-      
+      const bins = Array.from({ length: 4 }, () => Array.from({ length: 5 }, () => []))
+
       for (const blip of positionedBlips.value) {
         bins[blip.quadrant][blip.ring].push(blip)
       }
 
       const groups = []
       for (let qi = 0; qi < 4; qi++) {
-        const hasBlips = bins[qi].some(ringBlips => ringBlips.length > 0)
+        const hasBlips = bins[qi].some((ringBlips) => ringBlips.length > 0)
         if (!hasBlips) continue
-        
+
         // Label: use effective label (override if set, otherwise auto from categories)
         const label = effectiveQuadrantLabels.value[qi] || ''
-        
+
         const statusGroups = []
         for (let ri = 0; ri < 5; ri++) {
           const ringBlips = bins[qi][ri]
           if (ringBlips.length) {
-            statusGroups.push({ 
-              ring: ri, 
-              statusLabel: RING_META[ri].label, 
-              color: RING_META[ri].color, 
-              blips: ringBlips 
+            statusGroups.push({
+              ring: ri,
+              statusLabel: RING_META[ri].label,
+              color: RING_META[ri].color,
+              blips: ringBlips
             })
           }
         }
@@ -1506,44 +1615,47 @@ export default {
     // ── Search highlight ──────────────────────────────────────────────────────
     // Returns a Set of matching blip keys, or null when no query is active
     const highlightedBlipKeys = computed(() => {
-      const q = String(searchQuery.value || '').trim().toLowerCase()
+      const q = String(searchQuery.value || '')
+        .trim()
+        .toLowerCase()
       if (!q) return null
       return new Set(
         positionedBlips.value
-          .filter((b) =>
-            b.name.toLowerCase().includes(q) ||
-            b.categoryTitle.toLowerCase().includes(q) ||
-            b.questionnaireName.toLowerCase().includes(q) ||
-            b.statusLabel.toLowerCase().includes(q)
+          .filter(
+            (b) =>
+              b.name.toLowerCase().includes(q) ||
+              b.categoryTitle.toLowerCase().includes(q) ||
+              b.questionnaireName.toLowerCase().includes(q) ||
+              b.statusLabel.toLowerCase().includes(q)
           )
           .map((b) => b.key)
       )
     })
 
     // ── Tooltip helpers ───────────────────────────────────────────────────────
-    function clampTooltipX (x) {
+    function clampTooltipX(x) {
       return Math.min(Math.max(x, 4), SIZE - TOOLTIP_W - 4)
     }
-    function clampTooltipY (y) {
+    function clampTooltipY(y) {
       return Math.min(Math.max(y, 4), SIZE - 110)
     }
-    function truncate (str, max) {
+    function truncate(str, max) {
       return str.length > max ? str.slice(0, max - 1) + '…' : str
     }
 
-    function confirmRemove (blip) {
+    function confirmRemove(blip) {
       blipToRemove.value = blip
       confirmDialog.value = true
     }
 
-    function executeRemove () {
+    function executeRemove() {
       if (!blipToRemove.value) return
       store.toggleProjectRadarRef(props.projectId, blipToRemove.value.entryId, blipToRemove.value.option)
       confirmDialog.value = false
       blipToRemove.value = null
     }
 
-    function openEdit (blip) {
+    function openEdit(blip) {
       blipToEdit.value = blip
       editForm.value = {
         status: (blip.overrideStatus || blip.status || '').toLowerCase(),
@@ -1556,7 +1668,7 @@ export default {
       editDialog.value = true
     }
 
-    function saveEdit () {
+    function saveEdit() {
       if (!blipToEdit.value) return
       store.setRadarOverride(props.projectId, blipToEdit.value.entryId, blipToEdit.value.option, {
         status: editForm.value.status,
@@ -1570,82 +1682,82 @@ export default {
       blipToEdit.value = null
     }
 
-    function openDetail (blip) {
+    function openDetail(blip) {
       detailBlip.value = blip
       detailDialog.value = true
     }
 
     // Drag-and-drop handlers for category<->quadrant assignment
-    function handleCategoryDragStart (event, category) {
+    function handleCategoryDragStart(event, category) {
       draggedCategory.value = category
       event.dataTransfer.effectAllowed = 'move'
       event.target.style.opacity = '0.5'
     }
 
-    function handleCategoryDragEnd (event) {
+    function handleCategoryDragEnd(event) {
       event.target.style.opacity = '1'
       draggedCategory.value = null
     }
 
-    function handleQuadrantDragOver (event, quadrantIndex) {
+    function handleQuadrantDragOver(event, _quadrantIndex) {
       if (draggedCategory.value) {
         event.dataTransfer.dropEffect = 'move'
       }
     }
 
-    function handleQuadrantDrop (event, quadrantIndex) {
+    function handleQuadrantDrop(event, quadrantIndex) {
       event.preventDefault()
       if (!draggedCategory.value) return
-      
+
       const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
       assignments[draggedCategory.value] = quadrantIndex
       store.setProjectRadarCategoryQuadrants(props.projectId, assignments)
-      
+
       draggedCategory.value = null
     }
 
-    function handleTrashDragOver (event) {
+    function handleTrashDragOver(event) {
       if (draggedCategory.value) {
         event.dataTransfer.dropEffect = 'move'
       }
     }
 
-    function handleTrashDrop (event) {
+    function handleTrashDrop(event) {
       event.preventDefault()
       if (!draggedCategory.value) return
-      
+
       const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
       delete assignments[draggedCategory.value]
       store.setProjectRadarCategoryQuadrants(props.projectId, assignments)
-      
+
       // Also deselect the category
-      selectedCategories.value = selectedCategories.value.filter(c => c !== draggedCategory.value)
-      
+      selectedCategories.value = selectedCategories.value.filter((c) => c !== draggedCategory.value)
+
       draggedCategory.value = null
     }
 
-    function handleUnassignedDragOver (event) {
+    function handleUnassignedDragOver(event) {
       if (draggedCategory.value) {
         event.dataTransfer.dropEffect = 'move'
       }
     }
 
-    function handleUnassignedDrop (event) {
+    function handleUnassignedDrop(event) {
       event.preventDefault()
       if (!draggedCategory.value) return
-      
+
       const assignments = store.getProjectRadarCategoryQuadrants(props.projectId)
       delete assignments[draggedCategory.value]
       store.setProjectRadarCategoryQuadrants(props.projectId, assignments)
-      
+
       draggedCategory.value = null
     }
 
     // Toggle status visibility
-    function toggleStatusVisibility (statusLabel) {
+    function toggleStatusVisibility(statusLabel) {
       const statusName = statusLabel.toLowerCase()
       const newSet = new Set(visibleStatuses.value)
-      
+
       if (newSet.has(statusName)) {
         // Don't allow hiding all statuses - keep at least one visible
         if (newSet.size > 1) {
@@ -1654,17 +1766,17 @@ export default {
       } else {
         newSet.add(statusName)
       }
-      
+
       visibleStatuses.value = newSet
     }
 
-    function isStatusVisible (statusLabel) {
+    function isStatusVisible(statusLabel) {
       return visibleStatuses.value.has(statusLabel.toLowerCase())
     }
 
     // Flatten a CSS rgba() colour against a white background so the exported
     // PNG looks correct regardless of dark/light mode.
-    function flattenRgba (rgba) {
+    function flattenRgba(rgba) {
       const m = rgba.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
       if (!m) return rgba
       const [r, g, b, a] = [+m[1], +m[2], +m[3], +m[4]]
@@ -1673,7 +1785,7 @@ export default {
     }
 
     // Flatten an rgb/hex colour with a separate opacity attribute against white.
-    function flattenOpacity (fill, opacity) {
+    function flattenOpacity(fill, opacity) {
       let r, g, b
       if (fill.startsWith('#') && fill.length === 7) {
         r = parseInt(fill.slice(1, 3), 16)
@@ -1693,15 +1805,16 @@ export default {
     // Format: https://www.thoughtworks.com/radar/byor
     // Fields: name, ring, quadrant, isNew, description
     // -----------------------------------------------------------------------
-    function exportRadarJson () {
+    function exportRadarJson() {
       const blips = allBlips.value
       const catToQ = categoryToQuadrant.value
       const effLabels = effectiveQuadrantLabels.value
       const data = blips.map((blip) => {
         const qIdx = catToQ.get(blip.categoryTitle)
-        const quadrantLabel = (qIdx !== undefined && effLabels[qIdx])
-          ? effLabels[qIdx]
-          : (blip.categoryTitle || blip.questionnaireName || 'Other')
+        const quadrantLabel =
+          qIdx !== undefined && effLabels[qIdx]
+            ? effLabels[qIdx]
+            : blip.categoryTitle || blip.questionnaireName || 'Other'
         return {
           name: blip.name,
           ring: RING_META[blip.ring]?.label ?? 'Hold',
@@ -1721,7 +1834,7 @@ export default {
       URL.revokeObjectURL(url)
     }
 
-    function exportRadarHtml () {
+    function exportRadarHtml() {
       _exportRadarHtml({
         title: project.value?.name || 'Tech Radar',
         blips: positionedBlips.value,
@@ -1732,11 +1845,11 @@ export default {
       })
     }
 
-    function openCustomExportDialog () {
+    function openCustomExportDialog() {
       customExportDialog.value = true
     }
 
-    async function downloadRadar () {
+    async function downloadRadar() {
       if (!radarLayoutRef.value || isDownloading.value) return
       isDownloading.value = true
       try {
@@ -1745,7 +1858,7 @@ export default {
         // --- Temporarily patch SVG fills on the LIVE element ---
         // (scoped CSS only works on real DOM nodes; clones lose it)
         const restoreFills = []
-        el.querySelectorAll('[fill]').forEach(node => {
+        el.querySelectorAll('[fill]').forEach((node) => {
           const fill = node.getAttribute('fill')
           if (fill && fill.startsWith('rgba')) {
             restoreFills.push({ node, attr: 'fill', original: fill })
@@ -1753,7 +1866,7 @@ export default {
           }
         })
         const restoreOpacity = []
-        el.querySelectorAll('path[opacity], circle[opacity], rect[opacity]').forEach(node => {
+        el.querySelectorAll('path[opacity], circle[opacity], rect[opacity]').forEach((node) => {
           const opacity = parseFloat(node.getAttribute('opacity') || '1')
           if (opacity >= 1) return
           const fill = node.getAttribute('fill') || ''
@@ -1768,13 +1881,12 @@ export default {
           }
         })
 
-        await new Promise(r => requestAnimationFrame(r))
+        await new Promise((r) => requestAnimationFrame(r))
 
         const dataUrl = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2 })
 
         // --- Restore original attributes ---
-        for (const { node, attr, original } of restoreFills)
-          node.setAttribute(attr, original)
+        for (const { node, attr, original } of restoreFills) node.setAttribute(attr, original)
         for (const { node, origFill, origOpacity } of restoreOpacity) {
           node.setAttribute('fill', origFill)
           node.setAttribute('opacity', origOpacity)
@@ -1790,7 +1902,13 @@ export default {
     }
 
     return {
-      SIZE, CX, CY, OUTER_R, computedRings, BLIP_R, RING_META,
+      SIZE,
+      CX,
+      CY,
+      OUTER_R,
+      computedRings,
+      BLIP_R,
+      RING_META,
       tooltipWidth,
       answerTypeFilter,
       searchQuery,
@@ -2192,14 +2310,14 @@ export default {
   text-transform: uppercase;
   color: rgba(var(--v-theme-on-surface), 0.5);
 
-.detail-link {
-  color: rgb(var(--v-theme-primary));
-  word-break: break-word;
-}
+  .detail-link {
+    color: rgb(var(--v-theme-primary));
+    word-break: break-word;
+  }
 
-.detail-link:hover {
-  text-decoration: underline;
-}
+  .detail-link:hover {
+    text-decoration: underline;
+  }
   margin-bottom: 4px;
 }
 

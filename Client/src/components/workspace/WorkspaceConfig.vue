@@ -48,7 +48,9 @@
           <tbody>
             <tr>
               <td class="text-medium-emphasis" style="width: 200px">Storage Key</td>
-              <td><code>{{ storageKey }}</code></td>
+              <td>
+                <code>{{ storageKey }}</code>
+              </td>
             </tr>
             <tr>
               <td class="text-medium-emphasis">Version</td>
@@ -60,7 +62,9 @@
             </tr>
             <tr>
               <td class="text-medium-emphasis">Workspace ID</td>
-              <td><code>{{ workspace.id }}</code></td>
+              <td>
+                <code>{{ workspace.id }}</code>
+              </td>
             </tr>
           </tbody>
         </v-table>
@@ -75,8 +79,10 @@
       </v-card-title>
       <v-divider />
       <v-card-text class="pa-3">
-
-        <div v-if="!workspace.projects.length && !workspace.questionnaires.length" class="pa-4 text-center text-medium-emphasis">
+        <div
+          v-if="!workspace.projects.length && !workspace.questionnaires.length"
+          class="pa-4 text-center text-medium-emphasis"
+        >
           <v-icon size="48">mdi-tray-remove</v-icon>
           <p class="mt-2">No data stored</p>
         </div>
@@ -116,7 +122,9 @@
               <v-icon size="14" class="mr-2">mdi-file-document-outline</v-icon>
               <span class="q-name">{{ q.name }}</span>
               <span class="text-caption text-medium-emphasis ml-2">{{ q.categories.length }} cat.</span>
-              <v-chip v-if="project.referenceQuestionnaireId === q.id" size="x-small" color="primary" class="ml-2">Reference</v-chip>
+              <v-chip v-if="project.referenceQuestionnaireId === q.id" size="x-small" color="primary" class="ml-2"
+                >Reference</v-chip
+              >
             </div>
 
             <div
@@ -140,7 +148,9 @@
           <div class="project-header">
             <v-icon size="18" class="mr-2">mdi-folder-off-outline</v-icon>
             <strong>Unassigned</strong>
-            <span class="text-caption text-medium-emphasis ml-2">{{ standaloneQuestionnaires.length }} questionnaire(s)</span>
+            <span class="text-caption text-medium-emphasis ml-2"
+              >{{ standaloneQuestionnaires.length }} questionnaire(s)</span
+            >
           </div>
 
           <div class="questionnaire-list">
@@ -162,21 +172,21 @@
               <span class="text-caption text-medium-emphasis ml-2">{{ q.categories.length }} Kat.</span>
             </div>
 
-            <div v-if="!standaloneQuestionnaires.length" class="q-empty"
-              :class="{ 'q-empty-active': unassignDropTarget }">
+            <div
+              v-if="!standaloneQuestionnaires.length"
+              class="q-empty"
+              :class="{ 'q-empty-active': unassignDropTarget }"
+            >
               {{ unassignDropTarget ? 'Drop here to unassign from project' : 'No unassigned questionnaires' }}
             </div>
           </div>
         </div>
-
       </v-card-text>
     </v-card>
 
     <!-- Actions -->
-    <div class="d-flex align-center flex-wrap" style="gap: 24px;">
-      <v-btn color="primary" @click="exportAll">
-        <v-icon class="mr-1">mdi-download</v-icon>Export all
-      </v-btn>
+    <div class="d-flex align-center flex-wrap" style="gap: 24px">
+      <v-btn color="primary" @click="exportAll"> <v-icon class="mr-1">mdi-download</v-icon>Export all </v-btn>
       <v-btn color="error" variant="outlined" @click="confirmClear = true">
         <v-icon class="mr-1">mdi-delete-sweep</v-icon>Clear local data
       </v-btn>
@@ -250,9 +260,7 @@ export default {
     })
 
     const standaloneQuestionnaires = computed(() => {
-      return workspace.value.questionnaires.filter(
-        (q) => !assignedQuestionnaireIds.value.has(q.id)
-      )
+      return workspace.value.questionnaires.filter((q) => !assignedQuestionnaireIds.value.has(q.id))
     })
 
     function projectQuestionnaires(project) {
@@ -262,10 +270,10 @@ export default {
     }
 
     // --- Drag & Drop ---
-    const dragState = ref(null)          // { projectId: string|null, questionnaireId: string }
-    const activeDropTarget = ref('')     // project id being hovered as drop zone
+    const dragState = ref(null) // { projectId: string|null, questionnaireId: string }
+    const activeDropTarget = ref('') // project id being hovered as drop zone
     const unassignDropTarget = ref(false)
-    const reorderTarget = ref('')        // questionnaire id showing insert-before indicator
+    const reorderTarget = ref('') // questionnaire id showing insert-before indicator
 
     let dragLeaveTimer = null
     let dragLeaveItemTimer = null
@@ -286,15 +294,27 @@ export default {
     }
 
     function clearAllTimers() {
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
-      if (dragLeaveItemTimer) { clearTimeout(dragLeaveItemTimer); dragLeaveItemTimer = null }
-      if (unassignLeaveTimer) { clearTimeout(unassignLeaveTimer); unassignLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
+      if (dragLeaveItemTimer) {
+        clearTimeout(dragLeaveItemTimer)
+        dragLeaveItemTimer = null
+      }
+      if (unassignLeaveTimer) {
+        clearTimeout(unassignLeaveTimer)
+        unassignLeaveTimer = null
+      }
     }
 
     function onDragOver(e, projectId) {
       e.dataTransfer.dropEffect = 'move'
       if (!dragState.value) return
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       activeDropTarget.value = projectId
       unassignDropTarget.value = false
     }
@@ -307,7 +327,10 @@ export default {
     }
 
     function onDrop(projectId) {
-      if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+      if (dragLeaveTimer) {
+        clearTimeout(dragLeaveTimer)
+        dragLeaveTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (fromProjectId === null) {
@@ -323,7 +346,10 @@ export default {
     function onDragOverItem(e, projectId, questionnaireId) {
       e.dataTransfer.dropEffect = 'move'
       if (!dragState.value) return
-      if (dragLeaveItemTimer) { clearTimeout(dragLeaveItemTimer); dragLeaveItemTimer = null }
+      if (dragLeaveItemTimer) {
+        clearTimeout(dragLeaveItemTimer)
+        dragLeaveItemTimer = null
+      }
       activeDropTarget.value = ''
       reorderTarget.value = questionnaireId
     }
@@ -336,11 +362,15 @@ export default {
     }
 
     function onDropOnItem(projectId, beforeId) {
-      if (dragLeaveItemTimer) { clearTimeout(dragLeaveItemTimer); dragLeaveItemTimer = null }
+      if (dragLeaveItemTimer) {
+        clearTimeout(dragLeaveItemTimer)
+        dragLeaveItemTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
-      if (draggedId === beforeId) { /* no-op */ }
-      else if (fromProjectId === null) {
+      if (draggedId === beforeId) {
+        /* no-op */
+      } else if (fromProjectId === null) {
         store.assignQuestionnaireToProject(projectId, draggedId)
         store.reorderQuestionnaire(projectId, draggedId, beforeId)
       } else if (fromProjectId === projectId) {
@@ -357,7 +387,10 @@ export default {
     function onDragOverUnassigned(e) {
       e.dataTransfer.dropEffect = 'move'
       if (!dragState.value) return
-      if (unassignLeaveTimer) { clearTimeout(unassignLeaveTimer); unassignLeaveTimer = null }
+      if (unassignLeaveTimer) {
+        clearTimeout(unassignLeaveTimer)
+        unassignLeaveTimer = null
+      }
       activeDropTarget.value = ''
       unassignDropTarget.value = true
     }
@@ -370,7 +403,10 @@ export default {
     }
 
     function onDropUnassigned() {
-      if (unassignLeaveTimer) { clearTimeout(unassignLeaveTimer); unassignLeaveTimer = null }
+      if (unassignLeaveTimer) {
+        clearTimeout(unassignLeaveTimer)
+        unassignLeaveTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (fromProjectId !== null) {
@@ -382,7 +418,10 @@ export default {
     }
 
     function onDropOnStandaloneItem(beforeId) {
-      if (dragLeaveItemTimer) { clearTimeout(dragLeaveItemTimer); dragLeaveItemTimer = null }
+      if (dragLeaveItemTimer) {
+        clearTimeout(dragLeaveItemTimer)
+        dragLeaveItemTimer = null
+      }
       if (!dragState.value) return
       const { projectId: fromProjectId, questionnaireId: draggedId } = dragState.value
       if (draggedId !== beforeId && fromProjectId !== null) {
@@ -394,11 +433,7 @@ export default {
     }
 
     function exportAll() {
-      const data = JSON.stringify(
-        { version: STORAGE_VERSION, workspace: workspace.value },
-        null,
-        2
-      )
+      const data = JSON.stringify({ version: STORAGE_VERSION, workspace: workspace.value }, null, 2)
       const blob = new Blob([data], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -462,7 +497,9 @@ code {
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 6px;
   overflow: hidden;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .project-card.drop-target {

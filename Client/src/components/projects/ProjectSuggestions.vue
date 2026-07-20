@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Toolbar -->
-    <div class="d-flex align-center mb-3" style="gap: 8px;">
+    <div class="d-flex align-center mb-3" style="gap: 8px">
       <v-btn-toggle
         v-model="answerTypeFilter"
         density="compact"
@@ -10,7 +10,7 @@
         mandatory
         rounded="lg"
         class="mr-2"
-        style="white-space: nowrap;"
+        style="white-space: nowrap"
       >
         <v-btn value="all" size="small">All</v-btn>
         <v-btn value="Tool" size="small">
@@ -44,12 +44,14 @@
         variant="outlined"
         hide-details
         multiple
-        style="max-width:220px; flex-shrink:0;"
+        style="max-width: 220px; flex-shrink: 0"
       >
         <template #selection="{ index }">
           <span v-if="index === 0" class="text-caption text-truncate">
             <template v-if="selectedQuestionnaireIds.length === allQuestionnaires.length">All</template>
-            <template v-else-if="selectedQuestionnaireIds.length === 1">{{ allQuestionnaires.find(q => q.id === selectedQuestionnaireIds[0])?.name }}</template>
+            <template v-else-if="selectedQuestionnaireIds.length === 1">{{
+              allQuestionnaires.find((q) => q.id === selectedQuestionnaireIds[0])?.name
+            }}</template>
             <template v-else>{{ selectedQuestionnaireIds.length }} selected</template>
           </span>
         </template>
@@ -76,16 +78,16 @@
 
     <!-- Content -->
     <v-expansion-panels v-model="openPanels" variant="accordion" multiple>
-      <v-expansion-panel
-        v-for="group in visibleCategoryGroups"
-        :key="group.categoryTitle"
-        :value="group.categoryTitle"
-      >
+      <v-expansion-panel v-for="group in visibleCategoryGroups" :key="group.categoryTitle" :value="group.categoryTitle">
         <v-expansion-panel-title>
           <div class="d-flex align-center justify-space-between w-100">
-            <div class="d-flex align-center" style="gap: 6px;">
+            <div class="d-flex align-center" style="gap: 6px">
               <span class="text-body-2 font-weight-bold">{{ group.categoryTitle }}</span>
-              <v-tooltip v-if="hiddenCountForCategory(group.categoryTitle) > 0" text="Open visibility settings" location="top">
+              <v-tooltip
+                v-if="hiddenCountForCategory(group.categoryTitle) > 0"
+                text="Open visibility settings"
+                location="top"
+              >
                 <template #activator="{ props: tipProps }">
                   <v-chip
                     v-bind="tipProps"
@@ -106,17 +108,12 @@
 
         <v-expansion-panel-text>
           <div class="entries-grid">
-            <v-card
-              v-for="entry in group.entries"
-              :key="entry.entryId"
-              variant="outlined"
-              class="entry-card"
-            >
+            <v-card v-for="entry in group.entries" :key="entry.entryId" variant="outlined" class="entry-card">
               <v-card-title
                 class="entry-card-title d-flex align-center justify-space-between"
                 @click="toggleEntry(group.categoryTitle, entry.entryId)"
               >
-                <div class="d-flex align-center" style="gap: 2px; min-width: 0; flex: 1;">
+                <div class="d-flex align-center" style="gap: 2px; min-width: 0; flex: 1">
                   <span class="text-subtitle-2 font-weight-medium">{{ entry.entryTitle }}</span>
                   <v-tooltip text="Hide this entry" location="top">
                     <template #activator="{ props: hideTipProps }">
@@ -133,7 +130,7 @@
                     </template>
                   </v-tooltip>
                 </div>
-                <div class="d-flex align-center" style="gap: 4px; flex-shrink: 0;">
+                <div class="d-flex align-center" style="gap: 4px; flex-shrink: 0">
                   <v-chip size="x-small" variant="tonal">{{ entry.answers.length }}</v-chip>
                   <v-icon size="18">
                     {{ isEntryOpen(group.categoryTitle, entry.entryId) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
@@ -152,16 +149,32 @@
                         class="suggestion-row"
                         :class="{ 'suggestion-row--radar': isProjectRadarRef(projectId, entry.entryId, answer.option) }"
                       >
-                        <v-tooltip :text="isProjectRadarRef(projectId, entry.entryId, answer.option) ? 'Remove from Tech Radar' : 'Add to Tech Radar'" location="top">
+                        <v-tooltip
+                          :text="
+                            isProjectRadarRef(projectId, entry.entryId, answer.option)
+                              ? 'Remove from Tech Radar'
+                              : 'Add to Tech Radar'
+                          "
+                          location="top"
+                        >
                           <template #activator="{ props: tProps }">
                             <v-btn
                               v-bind="tProps"
                               size="x-small"
                               variant="text"
-                              :color="isProjectRadarRef(projectId, entry.entryId, answer.option) ? 'primary' : 'default'"
+                              :color="
+                                isProjectRadarRef(projectId, entry.entryId, answer.option) ? 'primary' : 'default'
+                              "
                               icon
                               class="radar-toggle-btn"
-                              @click.stop="toggleProjectRadarRef(projectId, entry.entryId, answer.option, answer.questionnaireRefs[0]?.id)"
+                              @click.stop="
+                                toggleProjectRadarRef(
+                                  projectId,
+                                  entry.entryId,
+                                  answer.option,
+                                  answer.questionnaireRefs[0]?.id
+                                )
+                              "
                             >
                               <v-icon size="14">mdi-radar</v-icon>
                             </v-btn>
@@ -174,7 +187,9 @@
                           variant="tonal"
                           class="type-chip"
                         >
-                          <v-icon start size="11">{{ answer.answerType === 'Tool' ? 'mdi-puzzle' : 'mdi-map-marker-path' }}</v-icon>
+                          <v-icon start size="11">{{
+                            answer.answerType === 'Tool' ? 'mdi-puzzle' : 'mdi-map-marker-path'
+                          }}</v-icon>
                           {{ answer.answerType }}
                         </v-chip>
                         <span class="suggestion-option">{{ answer.option }}</span>
@@ -251,7 +266,6 @@ import CategorySettings from './CategorySettings.vue'
 
 export default {
   components: { CategorySettings },
-  emits: ['update:visibilitySettings'],
   props: {
     projectId: {
       type: String,
@@ -266,7 +280,8 @@ export default {
       default: () => ({})
     }
   },
-  setup (props, { emit }) {
+  emits: ['update:visibilitySettings'],
+  setup(props, { emit }) {
     const store = useWorkspaceStore()
     const search = ref('')
     const openPanels = ref([])
@@ -276,11 +291,11 @@ export default {
     const settingsDialog = ref(false)
     const settingsCategory = ref('')
 
-    function isEntryOpen (categoryTitle, entryId) {
+    function isEntryOpen(categoryTitle, entryId) {
       return openSubPanels.value[categoryTitle]?.has(entryId) ?? false
     }
 
-    function toggleEntry (categoryTitle, entryId) {
+    function toggleEntry(categoryTitle, entryId) {
       if (!openSubPanels.value[categoryTitle]) {
         openSubPanels.value[categoryTitle] = new Set()
       }
@@ -294,25 +309,27 @@ export default {
       openSubPanels.value = { ...openSubPanels.value }
     }
 
-    const project = computed(() =>
-      (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
-    )
+    const project = computed(() => (store.workspace.projects || []).find((p) => p.id === props.projectId) || null)
 
     const questionnaires = computed(() => {
       if (!project.value) return []
       return store.getProjectQuestionnaires(project.value)
     })
 
-    const allQuestionnaires = computed(() =>
-      questionnaires.value.map((q) => ({ id: q.id, name: q.name || q.id }))
-    )
+    const allQuestionnaires = computed(() => questionnaires.value.map((q) => ({ id: q.id, name: q.name || q.id })))
 
     // Keep selectedQuestionnaireIds in sync when questionnaires change
-    watch(allQuestionnaires, (qs) => {
-      const currentSet = new Set(selectedQuestionnaireIds.value)
-      qs.forEach((q) => { if (!currentSet.has(q.id)) selectedQuestionnaireIds.value.push(q.id) })
-      selectedQuestionnaireIds.value = selectedQuestionnaireIds.value.filter((id) => qs.some((q) => q.id === id))
-    }, { immediate: true })
+    watch(
+      allQuestionnaires,
+      (qs) => {
+        const currentSet = new Set(selectedQuestionnaireIds.value)
+        qs.forEach((q) => {
+          if (!currentSet.has(q.id)) selectedQuestionnaireIds.value.push(q.id)
+        })
+        selectedQuestionnaireIds.value = selectedQuestionnaireIds.value.filter((id) => qs.some((q) => q.id === id))
+      },
+      { immediate: true }
+    )
 
     // Build: [{ categoryTitle, entries: [{ entryId, entryTitle, answers: [{option,status,comment,answerType,questionnaireName}] }] }]
     const categoryGroups = computed(() => {
@@ -416,10 +433,11 @@ export default {
 
               // Apply search
               if (term) {
-                answers = answers.filter((a) =>
-                  [a.option, a.status, a.comment, a.answerType, ...a.questionnaireRefs.map((r) => r.name)]
-                    .some((v) => v.toLowerCase().includes(term))
-                  || entry.entryTitle.toLowerCase().includes(term)
+                answers = answers.filter(
+                  (a) =>
+                    [a.option, a.status, a.comment, a.answerType, ...a.questionnaireRefs.map((r) => r.name)].some((v) =>
+                      v.toLowerCase().includes(term)
+                    ) || entry.entryTitle.toLowerCase().includes(term)
                 )
               }
 
@@ -458,7 +476,7 @@ export default {
       }
     })
 
-    function expandAll () {
+    function expandAll() {
       openPanels.value = visibleCategoryGroups.value.map((g) => g.categoryTitle)
       const next = {}
       visibleCategoryGroups.value.forEach((g) => {
@@ -467,20 +485,22 @@ export default {
       openSubPanels.value = next
     }
 
-    function collapseAll () {
+    function collapseAll() {
       openPanels.value = []
       openSubPanels.value = {}
     }
 
-    function statusChipColor (status) {
-      const s = String(status || '').trim().toLowerCase()
+    function statusChipColor(status) {
+      const s = String(status || '')
+        .trim()
+        .toLowerCase()
       if (s === 'adopt') return 'success'
       if (s === 'retire') return 'error'
       if (!s) return undefined
       return 'warning'
     }
 
-    function navigateToEntry (questionnaireId, categoryId, entryId) {
+    function navigateToEntry(questionnaireId, categoryId, entryId) {
       store.navigateToEntry(questionnaireId, categoryId, entryId)
     }
 
@@ -495,27 +515,27 @@ export default {
       return [{ id: group.categoryId, title: group.categoryTitle, entries }]
     })
 
-    function hiddenCountForCategory (categoryTitle) {
+    function hiddenCountForCategory(categoryTitle) {
       const group = categoryGroups.value.find((g) => g.categoryTitle === categoryTitle)
       if (!group) return 0
       const vs = props.visibilitySettings
       return group.entries.filter((e) => (e.entryId in vs ? !vs[e.entryId] : false)).length
     }
 
-    function openSettingsForCategory (categoryTitle) {
+    function openSettingsForCategory(categoryTitle) {
       settingsCategory.value = categoryTitle
       settingsDialog.value = true
     }
 
-    function hideEntry (entryId) {
+    function hideEntry(entryId) {
       emit('update:visibilitySettings', { ...props.visibilitySettings, [entryId]: false })
     }
 
-    function toggleProjectRadarRef (projectId, entryId, option, questionnaireId) {
+    function toggleProjectRadarRef(projectId, entryId, option, questionnaireId) {
       store.toggleProjectRadarRef(projectId, entryId, option, questionnaireId)
     }
 
-    function isProjectRadarRef (projectId, entryId, option) {
+    function isProjectRadarRef(projectId, entryId, option) {
       return store.isProjectRadarRef(projectId, entryId, option)
     }
 
@@ -672,7 +692,9 @@ export default {
   cursor: pointer;
   background: transparent !important;
   opacity: 0.55;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
 .hidden-count-chip:hover {
   background: rgba(var(--v-theme-on-surface), 0.12) !important;

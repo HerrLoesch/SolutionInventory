@@ -1,7 +1,6 @@
 <template>
   <div class="workspace">
-    <div v-if="workspaceTabs.length" class="workspace-actions">
-    </div>
+    <div v-if="workspaceTabs.length" class="workspace-actions"></div>
 
     <v-tabs v-if="workspaceTabs.length" v-model="activeTab" density="compact" show-arrows class="workspace-tabs">
       <v-tab
@@ -12,15 +11,11 @@
         :class="{ 'tab-active': tab.id === activeTab }"
       >
         <v-icon v-if="tab.type === 'project-summary'" size="16" class="mr-2">mdi-folder</v-icon>
+        <v-icon v-else-if="tab.type === 'catalog-editor'" size="16" class="mr-2">mdi-file-tree-outline</v-icon>
         <v-icon v-else size="16" class="mr-2">mdi-file-document-outline</v-icon>
         <span class="tab-title">{{ tab.label }}</span>
-        <v-btn
-          icon
-          size="x-small"
-          variant="text"
-          class="tab-close"
-          @click.stop="closeTab(tab.id)"
-        >
+        <span v-if="tab.type === 'catalog-editor' && tab.dirty" class="tab-dirty-dot" title="Unsaved changes"></span>
+        <v-btn icon size="x-small" variant="text" class="tab-close" @click.stop="closeTab(tab.id)">
           <v-icon size="14">mdi-close</v-icon>
         </v-btn>
       </v-tab>
@@ -31,64 +26,39 @@
     </div>
 
     <v-window v-else v-model="activeTab">
-      <v-window-item
-        v-for="tab in workspaceTabs"
-        :key="tab.id"
-        :value="tab.id"
-      >
-        <ProjectSummary
-          v-if="tab.type === 'project-summary'"
-          :project-id="tab.projectId"
-        />
+      <v-window-item v-for="tab in workspaceTabs" :key="tab.id" :value="tab.id">
+        <ProjectSummary v-if="tab.type === 'project-summary'" :project-id="tab.projectId" />
+        <CatalogEditor v-else-if="tab.type === 'catalog-editor'" :catalog-id="tab.catalogId" />
         <Questionnaire
           v-else
           :categories="tab.categories"
           :questionnaire-id="tab.id"
           @update-categories="updateQuestionnaire(tab.id, $event)"
-          @open-config="openConfig(tab.id)"
         />
       </v-window-item>
     </v-window>
-
-    <!-- Config Dialog -->
-    <v-dialog v-model="configOpen" max-width="1200" scrollable>
-      <v-card>
-        <v-card-title>Configuration</v-card-title>
-        <v-divider />
-        <v-card-text>
-          <QuestionnaireConfig
-            :categories="activeCategories"
-            @update-categories="updateCategories"
-          />
-        </v-card-text>
-        <v-divider />
-        <v-card-actions class="gap-3">
-          <v-spacer />
-          <v-btn variant="text" @click="configOpen = false">Close</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </div>
 </template>
 
 <script>
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Questionnaire from '../questionaire/Questionnaire.vue'
 import ProjectSummary from '../projects/ProjectSummary.vue'
-import QuestionnaireConfig from '../questionaire/QuestionnaireConfig.vue'
+import CatalogEditor from '../catalog/CatalogEditor.vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useWorkspaceTabGuard } from '../../composables/useWorkspaceTabGuard'
 
 export default {
-  components: { Questionnaire, ProjectSummary, QuestionnaireConfig },
+  components: { Questionnaire, ProjectSummary, CatalogEditor },
   setup() {
     const store = useWorkspaceStore()
-    const { workspaceTabs, activeWorkspaceTabId, activeCategories, activeQuestionnaireId } = storeToRefs(store)
-    const configOpen = ref(false)
+    const { workspaceTabs, activeWorkspaceTabId } = storeToRefs(store)
+    const { canLeaveActiveTab, confirmLeavingDirtyCatalog } = useWorkspaceTabGuard()
 
     const activeTab = computed({
       get: () => activeWorkspaceTabId.value,
-      set: (value) => store.setActiveWorkspaceTab(value)
+      set: (value) => guardedSwitchTab(value)
     })
 
     watch(
@@ -102,34 +72,36 @@ export default {
       { immediate: true, deep: true }
     )
 
-
     function updateQuestionnaire(questionnaireId, newCategories) {
       store.updateQuestionnaireCategories(questionnaireId, newCategories)
     }
 
-
-    function closeTab(tabId) {
-      store.closeWorkspaceTab(tabId)
-    }
-
-    function openConfig(tabId) {
+    async function guardedSwitchTab(tabId) {
+      if (tabId === activeWorkspaceTabId.value) return
+      const canLeave = await canLeaveActiveTab()
+      if (!canLeave) return
       store.setActiveWorkspaceTab(tabId)
-      configOpen.value = true
     }
 
-    function updateCategories(newCategories) {
-      store.updateQuestionnaireCategories(activeQuestionnaireId.value, newCategories)
+    // Closing a dirty catalog tab is a different check than switching away
+    // from one — here the tab being closed is the one at risk, whether or
+    // not it's currently active.
+    async function closeTab(tabId) {
+      if (store.isCatalogTabId(tabId)) {
+        const catalogId = store.fromCatalogTabId(tabId)
+        if (store.isCatalogDraftDirty(catalogId)) {
+          const canLeave = await confirmLeavingDirtyCatalog(catalogId)
+          if (!canLeave) return
+        }
+      }
+      store.closeWorkspaceTab(tabId)
     }
 
     return {
       workspaceTabs,
       activeTab,
-      activeCategories,
-      configOpen,
       updateQuestionnaire,
-      closeTab,
-      openConfig,
-      updateCategories
+      closeTab
     }
   }
 }
@@ -148,14 +120,14 @@ export default {
 }
 
 .workspace-tabs {
-  border-bottom: 1px solid #ECEFF1;
+  border-bottom: 1px solid #eceff1;
   margin-bottom: 16px;
 }
 
 .workspace-empty {
   padding: 32px 12px;
   text-align: center;
-  color: #607D8B;
+  color: #607d8b;
   font-size: 14px;
 }
 
@@ -175,6 +147,14 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tab-dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-warning));
+  flex-shrink: 0;
 }
 
 .tab-close {

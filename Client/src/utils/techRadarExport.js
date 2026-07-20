@@ -30,7 +30,9 @@ const markdownRenderer = new MarkdownIt({
   breaks: true
 })
 
-const defaultLinkOpen = markdownRenderer.renderer.rules.link_open || ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options))
+const defaultLinkOpen =
+  markdownRenderer.renderer.rules.link_open ||
+  ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options))
 markdownRenderer.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   token.attrSet('target', '_blank')
@@ -38,9 +40,11 @@ markdownRenderer.renderer.rules.link_open = (tokens, idx, options, env, self) =>
   return defaultLinkOpen(tokens, idx, options, env, self)
 }
 
-function arcPath (cx, cy, innerR, outerR, a1, a2) {
-  const cos1 = Math.cos(a1), sin1 = Math.sin(a1)
-  const cos2 = Math.cos(a2), sin2 = Math.sin(a2)
+function arcPath(cx, cy, innerR, outerR, a1, a2) {
+  const cos1 = Math.cos(a1),
+    sin1 = Math.sin(a1)
+  const cos2 = Math.cos(a2),
+    sin2 = Math.sin(a2)
   if (innerR <= 0) {
     return [
       `M ${cx},${cy}`,
@@ -58,7 +62,7 @@ function arcPath (cx, cy, innerR, outerR, a1, a2) {
   ].join(' ')
 }
 
-function esc (s) {
+function esc(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -66,7 +70,7 @@ function esc (s) {
     .replace(/"/g, '&quot;')
 }
 
-function normalizeLink (value) {
+function normalizeLink(value) {
   const trimmed = String(value || '').trim()
   if (!trimmed) return ''
 
@@ -81,11 +85,11 @@ function normalizeLink (value) {
   }
 }
 
-function getCommentMarkdown (blip) {
+function getCommentMarkdown(blip) {
   return String(blip.radarComment || blip.shortComment || blip.comment || '').trim()
 }
 
-function renderMarkdownComment (value) {
+function renderMarkdownComment(value) {
   const source = String(value || '').trim()
   if (!source) return ''
   return markdownRenderer.render(source)
@@ -102,25 +106,30 @@ function renderMarkdownComment (value) {
  * @param {object}   params.effectiveQuadrantLabels  { 0: label, 1: label, … }
  * @param {Array}    params.blipsByQuadrant    grouped blip data for the legend
  */
-export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effectiveQuadrantLabels, blipsByQuadrant }) {
+export function exportRadarHtml({ title, blips, rings, visibleRingIndices, effectiveQuadrantLabels, blipsByQuadrant }) {
   const cr = rings
   const visIdx = visibleRingIndices
   const effLabels = effectiveQuadrantLabels
 
   const RING_FILLS = [
-    'rgba(76,175,80,0.15)', 'rgba(33,150,243,0.10)',
-    'rgba(255,152,0,0.10)', 'rgba(158,158,158,0.10)', 'rgba(244,67,54,0.08)'
+    'rgba(76,175,80,0.15)',
+    'rgba(33,150,243,0.10)',
+    'rgba(255,152,0,0.10)',
+    'rgba(158,158,158,0.10)',
+    'rgba(244,67,54,0.08)'
   ]
   const Q_COLORS = ['#2196f3', '#4caf50', '#ff9800', '#9e9e9e']
 
   // ── SVG ────────────────────────────────────────────────────────────────
   const svgParts = []
-  svgParts.push(`<svg id="radar-svg" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">`)
+  svgParts.push(
+    `<svg id="radar-svg" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">`
+  )
   svgParts.push(`  <defs><clipPath id="radar-clip"><circle cx="${CX}" cy="${CY}" r="${OUTER_R}"/></clipPath></defs>`)
   svgParts.push(`  <circle cx="${CX}" cy="${CY}" r="${OUTER_R + 2}" fill="#f5f5f5"/>`)
 
   // Ring fills (outside-in)
-  ;[...visIdx].reverse().forEach(origIdx => {
+  ;[...visIdx].reverse().forEach((origIdx) => {
     const newIdx = visIdx.indexOf(origIdx)
     svgParts.push(`  <circle cx="${CX}" cy="${CY}" r="${cr[newIdx + 1]}" fill="${RING_FILLS[origIdx]}"/>`)
   })
@@ -131,19 +140,25 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
   })
 
   // Ring boundary circles
-  cr.slice(1).forEach(r => {
+  cr.slice(1).forEach((r) => {
     svgParts.push(`  <circle cx="${CX}" cy="${CY}" r="${r}" fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="0.8"/>`)
   })
 
   // Divider lines
-  svgParts.push(`  <line x1="${CX}" y1="${CY - OUTER_R}" x2="${CX}" y2="${CY + OUTER_R}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>`)
-  svgParts.push(`  <line x1="${CX - OUTER_R}" y1="${CY}" x2="${CX + OUTER_R}" y2="${CY}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>`)
+  svgParts.push(
+    `  <line x1="${CX}" y1="${CY - OUTER_R}" x2="${CX}" y2="${CY + OUTER_R}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>`
+  )
+  svgParts.push(
+    `  <line x1="${CX - OUTER_R}" y1="${CY}" x2="${CX + OUTER_R}" y2="${CY}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>`
+  )
 
   // Ring labels
   visIdx.forEach((origIdx, newIdx) => {
     const meta = RING_META[origIdx]
     const yPos = CY - (cr[newIdx] + cr[newIdx + 1]) / 2
-    svgParts.push(`  <text x="${CX}" y="${yPos.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="10" font-weight="700" letter-spacing="1" fill="${meta.color}">${meta.label.toUpperCase()}</text>`)
+    svgParts.push(
+      `  <text x="${CX}" y="${yPos.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="10" font-weight="700" letter-spacing="1" fill="${meta.color}">${meta.label.toUpperCase()}</text>`
+    )
   })
 
   // Quadrant corner labels
@@ -155,12 +170,14 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
   ]
   Q_LABEL_POSITIONS.forEach((pos, i) => {
     if (effLabels[i]) {
-      svgParts.push(`  <text x="${pos.x}" y="${pos.y}" text-anchor="${pos.anchor}" font-family="sans-serif" font-size="11" font-weight="600" fill="rgba(0,0,0,0.45)">${esc(effLabels[i].toUpperCase())}</text>`)
+      svgParts.push(
+        `  <text x="${pos.x}" y="${pos.y}" text-anchor="${pos.anchor}" font-family="sans-serif" font-size="11" font-weight="600" fill="rgba(0,0,0,0.45)">${esc(effLabels[i].toUpperCase())}</text>`
+      )
     }
   })
 
   // Blips
-  blips.forEach(blip => {
+  blips.forEach((blip) => {
     const tipLines = [blip.name]
     if (blip.statusLabel) tipLines.push(blip.statusLabel)
     if (blip.categoryTitle) tipLines.push(blip.categoryTitle)
@@ -168,15 +185,21 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     if (c) tipLines.push(c)
     const linkHref = normalizeLink(blip.infoUrl)
     if (linkHref) tipLines.push(linkHref)
-    const titleText = tipLines.map(l => esc(l)).join('\n')
+    const titleText = tipLines.map((l) => esc(l)).join('\n')
 
     if (linkHref) {
       svgParts.push(`  <a class="blip-link" href="${esc(linkHref)}" target="_blank" rel="noopener noreferrer">`)
     }
-    svgParts.push(`  <g class="blip${linkHref ? ' blip--linked' : ''}" style="cursor:${linkHref ? 'pointer' : 'default'};">`)
+    svgParts.push(
+      `  <g class="blip${linkHref ? ' blip--linked' : ''}" style="cursor:${linkHref ? 'pointer' : 'default'};">`
+    )
     svgParts.push(`    <title>${titleText}</title>`)
-    svgParts.push(`    <circle class="blip-circle" cx="${blip.x.toFixed(1)}" cy="${blip.y.toFixed(1)}" r="${BLIP_R}" fill="${blip.ringColor}" stroke="white" stroke-width="1.2"/>`)
-    svgParts.push(`    <text x="${blip.x.toFixed(1)}" y="${blip.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="white" font-family="sans-serif" font-size="10" font-weight="700" style="pointer-events:none;user-select:none;">${blip.index}</text>`)
+    svgParts.push(
+      `    <circle class="blip-circle" cx="${blip.x.toFixed(1)}" cy="${blip.y.toFixed(1)}" r="${BLIP_R}" fill="${blip.ringColor}" stroke="white" stroke-width="1.2"/>`
+    )
+    svgParts.push(
+      `    <text x="${blip.x.toFixed(1)}" y="${blip.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="white" font-family="sans-serif" font-size="10" font-weight="700" style="pointer-events:none;user-select:none;">${blip.index}</text>`
+    )
     svgParts.push('  </g>')
     if (linkHref) {
       svgParts.push('  </a>')
@@ -186,48 +209,77 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
   const svgHtml = svgParts.join('\n')
 
   // ── Ring key ──────────────────────────────────────────────────────────
-  const ringKeyHtml = RING_META
-    .map((m, i) => ({ m, i }))
+  const ringKeyHtml = RING_META.map((m, i) => ({ m, i }))
     .filter(({ i }) => visIdx.includes(i))
-    .map(({ m }) => `<span class="rk-item"><span class="rk-dot" style="background:${m.color}"></span><span>${esc(m.label)}</span></span>`)
+    .map(
+      ({ m }) =>
+        `<span class="rk-item"><span class="rk-dot" style="background:${m.color}"></span><span>${esc(m.label)}</span></span>`
+    )
     .join('')
 
   // ── Legend ────────────────────────────────────────────────────────────
-  function buildGroupsHtml (groups) {
-    return groups.map(g => {
-      const statusGroupsHtml = g.statusGroups.map(sg => {
-        const rows = sg.blips.map(b => {
-          const linkHref = normalizeLink(b.infoUrl)
-          const infoLinkHtml = linkHref
-            ? '<a class="legend-inline-link" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer" title="Open further information">↗</a>'
-            : ''
-          const tipParts = []
-          if (b.statusLabel) tipParts.push('<span class="tt-row">' + esc(b.statusLabel) + '</span>')
-          if (b.categoryTitle) tipParts.push('<span class="tt-row">' + esc(b.categoryTitle) + '</span>')
-          const commentHtml = renderMarkdownComment(getCommentMarkdown(b))
-          if (commentHtml) tipParts.push('<div class="tt-markdown">' + commentHtml + '</div>')
-          if (linkHref) tipParts.push('<span class="tt-link"><a href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer">Open further information</a></span>')
-          const tipHtml = tipParts.length
-            ? '<span class="legend-tip"><span class="tt-name">' + esc(b.name) + '</span>' + tipParts.join('') + '</span>'
-            : ''
-          return '<div class="legend-row">' +
-            '<span class="legend-idx" style="background:' + b.ringColor + '">' + b.index + '</span>' +
-            '<span class="legend-name-wrap"><span class="legend-name">' + esc(b.name) + '</span>' + infoLinkHtml + '</span>' +
-            tipHtml +
-            '</div>'
-        }).join('')
-        return '<div class="status-header" style="color:' + sg.color + '">' + esc(sg.statusLabel) + '</div>' + rows
-      }).join('')
-      const label = esc(g.label || ('Quadrant ' + (g.quadrant + 1)))
-      return '<div class="q-group"><div class="q-header">' + label + '</div>' + statusGroupsHtml + '</div>'
-    }).join('')
+  function buildGroupsHtml(groups) {
+    return groups
+      .map((g) => {
+        const statusGroupsHtml = g.statusGroups
+          .map((sg) => {
+            const rows = sg.blips
+              .map((b) => {
+                const linkHref = normalizeLink(b.infoUrl)
+                const infoLinkHtml = linkHref
+                  ? '<a class="legend-inline-link" href="' +
+                    esc(linkHref) +
+                    '" target="_blank" rel="noopener noreferrer" title="Open further information">↗</a>'
+                  : ''
+                const tipParts = []
+                if (b.statusLabel) tipParts.push('<span class="tt-row">' + esc(b.statusLabel) + '</span>')
+                if (b.categoryTitle) tipParts.push('<span class="tt-row">' + esc(b.categoryTitle) + '</span>')
+                const commentHtml = renderMarkdownComment(getCommentMarkdown(b))
+                if (commentHtml) tipParts.push('<div class="tt-markdown">' + commentHtml + '</div>')
+                if (linkHref)
+                  tipParts.push(
+                    '<span class="tt-link"><a href="' +
+                      esc(linkHref) +
+                      '" target="_blank" rel="noopener noreferrer">Open further information</a></span>'
+                  )
+                const tipHtml = tipParts.length
+                  ? '<span class="legend-tip"><span class="tt-name">' +
+                    esc(b.name) +
+                    '</span>' +
+                    tipParts.join('') +
+                    '</span>'
+                  : ''
+                return (
+                  '<div class="legend-row">' +
+                  '<span class="legend-idx" style="background:' +
+                  b.ringColor +
+                  '">' +
+                  b.index +
+                  '</span>' +
+                  '<span class="legend-name-wrap"><span class="legend-name">' +
+                  esc(b.name) +
+                  '</span>' +
+                  infoLinkHtml +
+                  '</span>' +
+                  tipHtml +
+                  '</div>'
+                )
+              })
+              .join('')
+            return '<div class="status-header" style="color:' + sg.color + '">' + esc(sg.statusLabel) + '</div>' + rows
+          })
+          .join('')
+        const label = esc(g.label || 'Quadrant ' + (g.quadrant + 1))
+        return '<div class="q-group"><div class="q-header">' + label + '</div>' + statusGroupsHtml + '</div>'
+      })
+      .join('')
   }
 
   const leftBlipGroups = blipsByQuadrant
-    .filter(g => g.quadrant === 1 || g.quadrant === 2)
+    .filter((g) => g.quadrant === 1 || g.quadrant === 2)
     .sort((a, b) => a.quadrant - b.quadrant)
   const rightBlipGroups = blipsByQuadrant
-    .filter(g => g.quadrant === 0 || g.quadrant === 3)
+    .filter((g) => g.quadrant === 0 || g.quadrant === 3)
     .sort((a, b) => a.quadrant - b.quadrant)
 
   const legendLeftHtml = buildGroupsHtml(leftBlipGroups)
@@ -297,7 +349,13 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
     '<body>',
     '  <div class="page">',
     '    <h1>' + safeTitle + ' \u2013 Tech Radar</h1>',
-    '    <p class="subtitle">Exported ' + exportedAt + ' &middot; ' + blips.length + ' blip' + (blips.length !== 1 ? 's' : '') + '</p>',
+    '    <p class="subtitle">Exported ' +
+      exportedAt +
+      ' &middot; ' +
+      blips.length +
+      ' blip' +
+      (blips.length !== 1 ? 's' : '') +
+      '</p>',
     '    <div class="radar-layout">',
     '      <div class="radar-legend">' + legendLeftHtml + '</div>',
     '      <div class="radar-center">',
@@ -325,9 +383,9 @@ export function exportRadarHtml ({ title, blips, rings, visibleRingIndices, effe
 // ── Custom HTML export ────────────────────────────────────────────────────────
 
 /** Build one blip card (shared by both grouping modes). */
-function _blipCard (b, badgeColor, subLabel, displayOptions) {
+function _blipCard(b, badgeColor, subLabel, displayOptions) {
   const { showBindingLevel = true, showBlipIndex = true, labels = {}, statusColors = {} } = displayOptions || {}
-  const RING_LABELS_LC = RING_META.map(r => r.label.toLowerCase())
+  const RING_LABELS_LC = RING_META.map((r) => r.label.toLowerCase())
   const ringKey = RING_LABELS_LC[b.ring] || ''
   const resolvedColor = statusColors[ringKey] || badgeColor
   const recommendationText = labels.recommendation || 'Recommendation'
@@ -339,23 +397,42 @@ function _blipCard (b, badgeColor, subLabel, displayOptions) {
   const badgeContent = showBlipIndex ? b.index : ''
   const badgeStyle = 'background:' + resolvedColor + (isMandatory ? ';border-radius:3px;' : '')
   const bindingHtml = showBindingLevel
-    ? '<span class="blip-binding' + (isMandatory ? ' blip-binding--mandatory' : '') + '">' +
-      (isMandatory ? esc(mandatoryText) : esc(recommendationText)) + '</span>'
+    ? '<span class="blip-binding' +
+      (isMandatory ? ' blip-binding--mandatory' : '') +
+      '">' +
+      (isMandatory ? esc(mandatoryText) : esc(recommendationText)) +
+      '</span>'
     : ''
-  return '<div class="blip-card">' +
+  return (
+    '<div class="blip-card">' +
     '<div class="blip-card-header">' +
-      '<span class="blip-badge" style="' + badgeStyle + '">' + badgeContent + '</span>' +
-      '<div class="blip-card-meta">' +
-        '<div class="blip-card-title-row">' +
-          '<div class="blip-card-name">' + esc(b.name) + '</div>' +
-          bindingHtml +
-        '</div>' +
-        '<div class="blip-card-cat">' + esc(subLabel || '') + '</div>' +
-      '</div>' +
+    '<span class="blip-badge" style="' +
+    badgeStyle +
+    '">' +
+    badgeContent +
+    '</span>' +
+    '<div class="blip-card-meta">' +
+    '<div class="blip-card-title-row">' +
+    '<div class="blip-card-name">' +
+    esc(b.name) +
+    '</div>' +
+    bindingHtml +
+    '</div>' +
+    '<div class="blip-card-cat">' +
+    esc(subLabel || '') +
+    '</div>' +
+    '</div>' +
     '</div>' +
     (commentHtml ? '<div class="blip-card-comment">' + commentHtml + '</div>' : '') +
-    (linkHref ? '<a class="blip-card-link-btn" href="' + esc(linkHref) + '" target="_blank" rel="noopener noreferrer">' + esc(furtherInfoText) + ' \u2197</a>' : '') +
+    (linkHref
+      ? '<a class="blip-card-link-btn" href="' +
+        esc(linkHref) +
+        '" target="_blank" rel="noopener noreferrer">' +
+        esc(furtherInfoText) +
+        ' \u2197</a>'
+      : '') +
     '</div>'
+  )
 }
 
 /**
@@ -366,57 +443,105 @@ function _blipCard (b, badgeColor, subLabel, displayOptions) {
  * @param {object} statusLabels Map: lowercase ring label → display name
  * @returns {{ html: string }}
  */
-function _buildGridContent (blips, gridColumns, groupBy, statusLabels, displayOptions) {
+function _buildGridContent(blips, gridColumns, groupBy, statusLabels, displayOptions) {
   const cols = Math.max(1, Math.min(6, parseInt(gridColumns) || 3))
   const sl = statusLabels || {}
   const sc = (displayOptions && displayOptions.statusColors) || {}
 
-  function slug (s) {
-    return 'grp-' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  function slug(s) {
+    return (
+      'grp-' +
+      String(s)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+    )
   }
 
   let sectionsHtml = ''
 
   if (groupBy === 'category') {
-    const order = [...new Set(blips.map(b => b.groupLabel || b.categoryTitle))]
-    sectionsHtml = order.map(groupLabel => {
-      const id = slug(groupLabel)
-      const cards = blips
-        .filter(b => (b.groupLabel || b.categoryTitle) === groupLabel)
-        .slice()
-        .sort((a, b) => a.ring !== b.ring ? a.ring - b.ring : a.mandatory !== b.mandatory ? (a.mandatory ? -1 : 1) : (a.name || '').localeCompare(b.name || ''))
-        .map(b => {
-          const meta = RING_META[b.ring] || { color: '#9e9e9e', label: '' }
-          const ringKey = meta.label.toLowerCase()
-          const color = sc[ringKey] || meta.color
-          const statusDisplay = sl[ringKey] || meta.label
-          return _blipCard(b, color, statusDisplay, displayOptions)
-        }).join('')
-      return '<section class="ring-section" id="' + id + '">' +
-        '<div class="ring-section-header" style="border-color:#1565c0;color:#1565c0">' + esc(groupLabel) + '</div>' +
-        '<div class="blip-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' + cards + '</div>' +
-        '</section>'
-    }).join('')
+    const order = [...new Set(blips.map((b) => b.groupLabel || b.categoryTitle))]
+    sectionsHtml = order
+      .map((groupLabel) => {
+        const id = slug(groupLabel)
+        const cards = blips
+          .filter((b) => (b.groupLabel || b.categoryTitle) === groupLabel)
+          .slice()
+          .sort((a, b) =>
+            a.ring !== b.ring
+              ? a.ring - b.ring
+              : a.mandatory !== b.mandatory
+                ? a.mandatory
+                  ? -1
+                  : 1
+                : (a.name || '').localeCompare(b.name || '')
+          )
+          .map((b) => {
+            const meta = RING_META[b.ring] || { color: '#9e9e9e', label: '' }
+            const ringKey = meta.label.toLowerCase()
+            const color = sc[ringKey] || meta.color
+            const statusDisplay = sl[ringKey] || meta.label
+            return _blipCard(b, color, statusDisplay, displayOptions)
+          })
+          .join('')
+        return (
+          '<section class="ring-section" id="' +
+          id +
+          '">' +
+          '<div class="ring-section-header" style="border-color:#1565c0;color:#1565c0">' +
+          esc(groupLabel) +
+          '</div>' +
+          '<div class="blip-grid" style="grid-template-columns:repeat(' +
+          cols +
+          ',1fr)">' +
+          cards +
+          '</div>' +
+          '</section>'
+        )
+      })
+      .join('')
   } else {
-    const byRing = [0, 1, 2, 3, 4].map(ri => ({
-      meta: RING_META[ri],
-      blips: blips.filter(b => b.ring === ri)
-    })).filter(r => r.blips.length > 0)
+    const byRing = [0, 1, 2, 3, 4]
+      .map((ri) => ({
+        meta: RING_META[ri],
+        blips: blips.filter((b) => b.ring === ri)
+      }))
+      .filter((r) => r.blips.length > 0)
 
-    sectionsHtml = byRing.map(({ meta, blips: ringBlips }) => {
-      const id = slug(meta.label)
-      const ringKey = meta.label.toLowerCase()
-      const color = sc[ringKey] || meta.color
-      const headerLabel = sl[ringKey] || meta.label
-      const cards = ringBlips
-        .slice()
-        .sort((a, b) => a.mandatory !== b.mandatory ? (a.mandatory ? -1 : 1) : (a.name || '').localeCompare(b.name || ''))
-        .map(b => _blipCard(b, color, b.groupLabel || b.categoryTitle || '', displayOptions)).join('')
-      return '<section class="ring-section" id="' + id + '">' +
-        '<div class="ring-section-header" style="border-color:' + color + ';color:' + color + '">' + esc(headerLabel) + '</div>' +
-        '<div class="blip-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' + cards + '</div>' +
-        '</section>'
-    }).join('')
+    sectionsHtml = byRing
+      .map(({ meta, blips: ringBlips }) => {
+        const id = slug(meta.label)
+        const ringKey = meta.label.toLowerCase()
+        const color = sc[ringKey] || meta.color
+        const headerLabel = sl[ringKey] || meta.label
+        const cards = ringBlips
+          .slice()
+          .sort((a, b) =>
+            a.mandatory !== b.mandatory ? (a.mandatory ? -1 : 1) : (a.name || '').localeCompare(b.name || '')
+          )
+          .map((b) => _blipCard(b, color, b.groupLabel || b.categoryTitle || '', displayOptions))
+          .join('')
+        return (
+          '<section class="ring-section" id="' +
+          id +
+          '">' +
+          '<div class="ring-section-header" style="border-color:' +
+          color +
+          ';color:' +
+          color +
+          '">' +
+          esc(headerLabel) +
+          '</div>' +
+          '<div class="blip-grid" style="grid-template-columns:repeat(' +
+          cols +
+          ',1fr)">' +
+          cards +
+          '</div>' +
+          '</section>'
+        )
+      })
+      .join('')
   }
 
   return { html: sectionsHtml }
@@ -439,9 +564,10 @@ function _buildGridContent (blips, gridColumns, groupBy, statusLabels, displayOp
  * @param {boolean}  options.showGroupToggle     Include the By Status / By Category toggle
  * @param {boolean}  options.showSearch          Include a search input (requires JS in export)
  */
-export function generateCustomRadarHtml (params, options) {
+export function generateCustomRadarHtml(params, options) {
   const { title, blips } = params
   const {
+    exportMode = 'static',
     categoryGroups,
     includedCategories = [],
     statusLabels = {},
@@ -457,24 +583,31 @@ export function generateCustomRadarHtml (params, options) {
     statusColors = {}
   } = options
 
-  // Build category → group-label map from whichever format is provided
+  // Build category → group-label map (+ ordered group list) from whichever format is provided
   const catToGroupLabel = {}
+  const groupOrder = []
   if (categoryGroups && categoryGroups.length > 0) {
-    for (const g of categoryGroups.filter(g => g.included !== false)) {
+    for (const g of categoryGroups.filter((g) => g.included !== false)) {
+      if (!groupOrder.includes(g.label)) groupOrder.push(g.label)
       for (const cat of g.categories) catToGroupLabel[cat] = g.label
     }
   } else {
-    for (const cat of includedCategories) catToGroupLabel[cat] = cat
+    for (const cat of includedCategories) {
+      catToGroupLabel[cat] = cat
+      if (!groupOrder.includes(cat)) groupOrder.push(cat)
+    }
   }
 
-  const statusSet = new Set(includedStatuses.map(s => s.toLowerCase()))
+  const statusSet = new Set(includedStatuses.map((s) => s.toLowerCase()))
 
   // ── Filter blips & annotate with groupLabel + sequential index ──────────────
   let counter = 0
-  const filteredBlips = blips.filter(b => {
-    const sk = (RING_META[b.ring]?.label || '').toLowerCase()
-    return (b.categoryTitle in catToGroupLabel) && statusSet.has(sk)
-  }).map(b => ({ ...b, index: ++counter, groupLabel: catToGroupLabel[b.categoryTitle] }))
+  const filteredBlips = blips
+    .filter((b) => {
+      const sk = (RING_META[b.ring]?.label || '').toLowerCase()
+      return b.categoryTitle in catToGroupLabel && statusSet.has(sk)
+    })
+    .map((b) => ({ ...b, index: ++counter, groupLabel: catToGroupLabel[b.categoryTitle] }))
 
   // ── Both groupings ────────────────────────────────────────────────────────
   const displayOptions = { showBindingLevel, showBlipIndex, labels, statusColors }
@@ -487,31 +620,33 @@ export function generateCustomRadarHtml (params, options) {
     'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;color:#1a1a1a;}',
     '.page{max-width:1400px;margin:0 auto;padding:24px 16px;}',
     // ── hidden radio controls ──
-    ...(showGroupToggle ? [
-      '#grp-status,#grp-category{position:absolute;opacity:0;pointer-events:none;}',
-    ] : []),
+    ...(showGroupToggle ? ['#grp-status,#grp-category{position:absolute;opacity:0;pointer-events:none;}'] : []),
     // ── toolbar (toggle) ──
-    ...(showGroupToggle || showSearch ? [
-      '.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:24px;}',
-    ] : []),
-    ...(showSearch ? [
-      '.search-input{flex:1;padding:9px 16px;font-size:14px;border:1px solid rgba(0,0,0,.2);border-radius:24px;outline:none;background:#fff;font-family:inherit;}',
-      '.search-input:focus{border-color:#1565c0;box-shadow:0 0 0 3px rgba(21,101,192,.12);}',
-      '.blip-card.sh{display:none;}',
-      '.ring-section.sh{display:none;}',
-    ] : []),
-    ...(showGroupToggle ? [
-      '.view-toggle{display:flex;flex-shrink:0;border:1px solid rgba(0,0,0,.18);border-radius:20px;overflow:hidden;}',
-      '.view-toggle label{padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;color:rgba(0,0,0,.55);white-space:nowrap;user-select:none;}',
-      '.view-toggle label:hover{background:rgba(0,0,0,.04);}',
-      '#grp-status:checked ~ .toolbar .view-toggle label[for="grp-status"]{background:#1565c0;color:#fff;}',
-      '#grp-category:checked ~ .toolbar .view-toggle label[for="grp-category"]{background:#1565c0;color:#fff;}',
-      // ── view visibility ──
-      '.view-status{display:block;}',
-      '.view-category{display:none;}',
-      '#grp-category:checked ~ .view-status{display:none;}',
-      '#grp-category:checked ~ .view-category{display:block;}',
-    ] : []),
+    ...(showGroupToggle || showSearch
+      ? ['.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:24px;}']
+      : []),
+    ...(showSearch
+      ? [
+          '.search-input{flex:1;padding:9px 16px;font-size:14px;border:1px solid rgba(0,0,0,.2);border-radius:24px;outline:none;background:#fff;font-family:inherit;}',
+          '.search-input:focus{border-color:#1565c0;box-shadow:0 0 0 3px rgba(21,101,192,.12);}',
+          '.blip-card.sh{display:none;}',
+          '.ring-section.sh{display:none;}'
+        ]
+      : []),
+    ...(showGroupToggle
+      ? [
+          '.view-toggle{display:flex;flex-shrink:0;border:1px solid rgba(0,0,0,.18);border-radius:20px;overflow:hidden;}',
+          '.view-toggle label{padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;color:rgba(0,0,0,.55);white-space:nowrap;user-select:none;}',
+          '.view-toggle label:hover{background:rgba(0,0,0,.04);}',
+          '#grp-status:checked ~ .toolbar .view-toggle label[for="grp-status"]{background:#1565c0;color:#fff;}',
+          '#grp-category:checked ~ .toolbar .view-toggle label[for="grp-category"]{background:#1565c0;color:#fff;}',
+          // ── view visibility ──
+          '.view-status{display:block;}',
+          '.view-category{display:none;}',
+          '#grp-category:checked ~ .view-status{display:none;}',
+          '#grp-category:checked ~ .view-category{display:block;}'
+        ]
+      : []),
     '.ring-section{margin-bottom:40px;}',
     '.ring-section-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;border-left:4px solid;padding:4px 10px;margin-bottom:12px;}',
     '.blip-grid{display:grid;gap:12px;}',
@@ -531,8 +666,30 @@ export function generateCustomRadarHtml (params, options) {
     '.blip-card-comment p,.blip-card-comment ul,.blip-card-comment ol{margin:0 0 6px;}',
     '.blip-card-comment ul,.blip-card-comment ol{padding-left:18px;}',
     '.blip-card-comment code{font-family:Consolas,"Courier New",monospace;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px;font-size:12px;}',
-    '.blip-card-comment a{color:#1565c0;text-decoration:none;}.blip-card-comment a:hover{text-decoration:underline;}',
+    '.blip-card-comment a{color:#1565c0;text-decoration:none;}.blip-card-comment a:hover{text-decoration:underline;}'
   ].join('\n')
+
+  // JSON data-island mode: emit editable data + a small inline renderer instead
+  // of server-rendered cards. Needs JavaScript on the target page.
+  if (exportMode === 'json') {
+    return _assembleJsonDocument({
+      title,
+      css,
+      filteredBlips,
+      groupOrder,
+      statusLabels,
+      statusColors,
+      includedStatuses,
+      gridColumns,
+      showGroupToggle,
+      showSearch,
+      defaultGrouping,
+      groupToggleLabels,
+      showBindingLevel,
+      showBlipIndex,
+      labels
+    })
+  }
 
   // ── Assemble document ────────────────────────────────────────────────────
   return [
@@ -546,52 +703,274 @@ export function generateCustomRadarHtml (params, options) {
     '</head>',
     '<body>',
     '  <div class="page">',
-    ...(showGroupToggle ? [
-      '    <input type="radio" name="grp" id="grp-status"' + (defaultGrouping !== 'category' ? ' checked' : '') + '>',
-      '    <input type="radio" name="grp" id="grp-category"' + (defaultGrouping === 'category' ? ' checked' : '') + '>',
-    ] : []),
-    ...((showGroupToggle || showSearch) ? [
-      '    <div class="toolbar">',
-      ...(showSearch ? ['      <input id="si" class="search-input" type="search" placeholder="Search\u2026" autocomplete="off">'] : []),
-      ...(showGroupToggle ? [
-        '      <div class="view-toggle">',
-        '        <label for="grp-status">' + esc(groupToggleLabels.status || 'By Status') + '</label>',
-        '        <label for="grp-category">' + esc(groupToggleLabels.category || 'By Category') + '</label>',
-        '      </div>',
-      ] : []),
-      '    </div>',
-    ] : []),
-    ...(showGroupToggle ? [
-      '    <div class="view-status">' + statusHtml + '</div>',
-      '    <div class="view-category">' + categoryHtml + '</div>',
-    ] : [
-      '    ' + (defaultGrouping === 'category' ? categoryHtml : statusHtml),
-    ]),
+    ...(showGroupToggle
+      ? [
+          '    <input type="radio" name="grp" id="grp-status"' +
+            (defaultGrouping !== 'category' ? ' checked' : '') +
+            '>',
+          '    <input type="radio" name="grp" id="grp-category"' +
+            (defaultGrouping === 'category' ? ' checked' : '') +
+            '>'
+        ]
+      : []),
+    ...(showGroupToggle || showSearch
+      ? [
+          '    <div class="toolbar">',
+          ...(showSearch
+            ? ['      <input id="si" class="search-input" type="search" placeholder="Search\u2026" autocomplete="off">']
+            : []),
+          ...(showGroupToggle
+            ? [
+                '      <div class="view-toggle">',
+                '        <label for="grp-status">' + esc(groupToggleLabels.status || 'By Status') + '</label>',
+                '        <label for="grp-category">' + esc(groupToggleLabels.category || 'By Category') + '</label>',
+                '      </div>'
+              ]
+            : []),
+          '    </div>'
+        ]
+      : []),
+    ...(showGroupToggle
+      ? [
+          '    <div class="view-status">' + statusHtml + '</div>',
+          '    <div class="view-category">' + categoryHtml + '</div>'
+        ]
+      : ['    ' + (defaultGrouping === 'category' ? categoryHtml : statusHtml)]),
     '  </div>',
-    ...(showSearch ? [
-      '  <script>',
-      '  document.getElementById("si").addEventListener("input",function(){',
-      '    var q=this.value.toLowerCase().trim();',
-      '    document.querySelectorAll(".blip-card").forEach(function(c){',
-      '      c.classList.toggle("sh",q.length>0&&!c.textContent.toLowerCase().includes(q));',
-      '    });',
-      '    document.querySelectorAll(".ring-section").forEach(function(s){',
-      '      s.classList.toggle("sh",q.length>0&&s.querySelectorAll(".blip-card:not(.sh)").length===0);',
-      '    });',
-      '  });',
-      '  <\/script>',
-    ] : []),
+    ...(showSearch
+      ? [
+          '  <script>',
+          '  document.getElementById("si").addEventListener("input",function(){',
+          '    var q=this.value.toLowerCase().trim();',
+          '    document.querySelectorAll(".blip-card").forEach(function(c){',
+          '      c.classList.toggle("sh",q.length>0&&!c.textContent.toLowerCase().includes(q));',
+          '    });',
+          '    document.querySelectorAll(".ring-section").forEach(function(s){',
+          '      s.classList.toggle("sh",q.length>0&&s.querySelectorAll(".blip-card:not(.sh)").length===0);',
+          '    });',
+          '  });',
+          '  </script>'
+        ]
+      : []),
     '</body>',
-    '</html>',
+    '</html>'
+  ].join('\n')
+}
+
+// ── JSON data-island mode ─────────────────────────────────────────────────────
+
+/** Build the serialisable { config, blips } payload embedded as the data island. */
+function _radarDataPayload(cfg) {
+  const {
+    filteredBlips,
+    groupOrder,
+    statusLabels = {},
+    statusColors = {},
+    includedStatuses = [],
+    gridColumns,
+    defaultGrouping,
+    showGroupToggle,
+    showSearch,
+    groupToggleLabels = {},
+    showBindingLevel,
+    showBlipIndex,
+    labels = {}
+  } = cfg
+
+  const includedSet = new Set(includedStatuses.map((s) => s.toLowerCase()))
+  const RING_LABELS_LC = RING_META.map((r) => r.label.toLowerCase())
+
+  // Included statuses in ring order (defines both colour + sort order for the renderer)
+  const statuses = RING_META.map((m, ri) => ({ ri, key: m.label.toLowerCase() }))
+    .filter((s) => includedSet.has(s.key))
+    .map((s) => ({
+      key: s.key,
+      label: statusLabels[s.key] || RING_META[s.ri].label,
+      color: statusColors[s.key] || RING_META[s.ri].color
+    }))
+
+  const blips = filteredBlips.map((b) => ({
+    name: b.name,
+    status: RING_LABELS_LC[b.ring] || '',
+    category: b.groupLabel || b.categoryTitle || '',
+    mandatory: b.mandatory === true,
+    comment: getCommentMarkdown(b),
+    link: normalizeLink(b.infoUrl)
+  }))
+
+  return {
+    config: {
+      columns: Math.max(1, Math.min(6, parseInt(gridColumns) || 3)),
+      grouping: defaultGrouping === 'category' ? 'category' : 'status',
+      showGroupToggle: showGroupToggle !== false,
+      showSearch: showSearch === true,
+      showBindingLevel: showBindingLevel !== false,
+      showBlipIndex: showBlipIndex !== false,
+      labels: {
+        recommendation: labels.recommendation || 'Recommendation',
+        mandatory: labels.mandatory || 'Mandatory',
+        furtherInfo: labels.furtherInfo || 'Further information'
+      },
+      groupToggleLabels: {
+        status: groupToggleLabels.status || 'By Status',
+        category: groupToggleLabels.category || 'By Category'
+      },
+      statuses,
+      categoryOrder: groupOrder
+    },
+    blips
+  }
+}
+
+/**
+ * Self-contained inline renderer for the JSON data-island mode. Reads the
+ * `#radar-data` JSON island and rebuilds the same card layout the static mode
+ * produces server-side. Written in ES5 to run on legacy embedding pages.
+ */
+function _radarRendererScript() {
+  return [
+    '(function(){',
+    "  var el=document.getElementById('radar-data');if(!el)return;",
+    '  var data;try{data=JSON.parse(el.textContent);}catch(e){return;}',
+    '  var cfg=data.config||{},blips=(data.blips||[]).slice();',
+    '  blips.forEach(function(b,i){b._i=i+1;});',
+    '  var cols=Math.max(1,Math.min(6,parseInt(cfg.columns,10)||3));',
+    '  var statuses=cfg.statuses||[],sByKey={},sOrder={};',
+    '  statuses.forEach(function(s,i){sByKey[s.key]=s;sOrder[s.key]=i;});',
+    '  var showBinding=cfg.showBindingLevel!==false,showIndex=cfg.showBlipIndex!==false;',
+    "  var L=cfg.labels||{},recTxt=L.recommendation||'Recommendation',manTxt=L.mandatory||'Mandatory',infoTxt=L.furtherInfo||'Further information';",
+    "  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}",
+    "  function normLink(v){v=String(v||'').trim();if(!v)return '';if(!/^[a-z][a-z\\d+.-]*:/i.test(v))v='https://'+v;return /^https?:/i.test(v)?v:'';}",
+    '  function md(src){',
+    "    var s=esc(String(src||'').trim());if(!s)return '';",
+    "    s=s.replace(/`([^`]+)`/g,function(m,c){return '<code>'+c+'</code>';});",
+    '    s=s.replace(/\\[([^\\]]+)\\]\\((https?:[^\\s)]+)\\)/g,function(m,t,u){return \'<a href="\'+u+\'" target="_blank" rel="noopener noreferrer">\'+t+\'</a>\';});',
+    "    s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<strong>$1</strong>').replace(/\\*([^*]+)\\*/g,'<em>$1</em>');",
+    "    var lines=s.split(/\\n/),out='',inList=false;",
+    '    for(var i=0;i<lines.length;i++){var ln=lines[i],m=ln.match(/^\\s*[-*]\\s+(.*)$/);',
+    "      if(m){if(!inList){out+='<ul>';inList=true;}out+='<li>'+m[1]+'</li>';}",
+    "      else{if(inList){out+='</ul>';inList=false;}if(ln.trim())out+='<p>'+ln+'</p>';}}",
+    "    if(inList)out+='</ul>';return out;",
+    '  }',
+    '  function card(b,sub){',
+    "    var st=sByKey[b.status]||{color:'#9e9e9e',label:b.status||''};",
+    '    var mand=showBinding&&b.mandatory;',
+    "    var badge=showIndex?b._i:'';",
+    "    var bStyle='background:'+st.color+(mand?';border-radius:3px;':'');",
+    "    var bind=showBinding?'<span class=\"blip-binding'+(mand?' blip-binding--mandatory':'')+'\">'+(mand?esc(manTxt):esc(recTxt))+'</span>':'';",
+    '    var link=normLink(b.link);',
+    "    var cmt=b.comment?'<div class=\"blip-card-comment\">'+md(b.comment)+'</div>':'';",
+    '    var lnk=link?\'<a class="blip-card-link-btn" href="\'+esc(link)+\'" target="_blank" rel="noopener noreferrer">\'+esc(infoTxt)+\' \\u2197</a>\':\'\';',
+    '    return \'<div class="blip-card"><div class="blip-card-header"><span class="blip-badge" style="\'+bStyle+\'">\'+badge+\'</span><div class="blip-card-meta"><div class="blip-card-title-row"><div class="blip-card-name">\'+esc(b.name)+\'</div>\'+bind+\'</div><div class="blip-card-cat">\'+esc(sub||\'\')+\'</div></div></div>\'+cmt+lnk+\'</div>\';',
+    '  }',
+    "  function grid(cards){return '<div class=\"blip-grid\" style=\"grid-template-columns:repeat('+cols+',1fr)\">'+cards.join('')+'</div>';}",
+    "  function section(id,label,color,inner){return '<section class=\"ring-section\" id=\"'+id+'\"><div class=\"ring-section-header\" style=\"border-color:'+color+';color:'+color+'\">'+esc(label)+'</div>'+inner+'</section>';}",
+    "  function slug(s){return 'grp-'+String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}",
+    "  function byName(a,b){return String(a.name||'').localeCompare(String(b.name||''));}",
+    '  function byMand(a,b){return a.mandatory!==b.mandatory?(a.mandatory?-1:1):byName(a,b);}',
+    '  function statusView(){',
+    "    var out='';",
+    '    for(var i=0;i<statuses.length;i++){var s=statuses[i];',
+    '      var rows=blips.filter(function(b){return b.status===s.key;}).sort(byMand);',
+    '      if(!rows.length)continue;',
+    '      var cards=rows.map(function(b){return card(b,b.category);});',
+    '      out+=section(slug(s.key),s.label,s.color,grid(cards));}',
+    '    return out;',
+    '  }',
+    '  function catView(){',
+    '    var order=(cfg.categoryOrder||[]).slice();',
+    '    blips.forEach(function(b){if(order.indexOf(b.category)<0)order.push(b.category);});',
+    "    var out='';",
+    '    for(var i=0;i<order.length;i++){var cat=order[i];',
+    '      var rows=blips.filter(function(b){return b.category===cat;}).sort(function(a,b){var oa=sOrder[a.status],ob=sOrder[b.status];oa=oa==null?99:oa;ob=ob==null?99:ob;return oa!==ob?oa-ob:byMand(a,b);});',
+    '      if(!rows.length)continue;',
+    '      var cards=rows.map(function(b){var st=sByKey[b.status]||{label:b.status};return card(b,st.label);});',
+    "      out+=section(slug(cat),cat,'#1565c0',grid(cards));}",
+    '    return out;',
+    '  }',
+    "  var vs=document.querySelector('.view-status'),vc=document.querySelector('.view-category'),root=document.getElementById('radar-root');",
+    '  if(vs&&vc){vs.innerHTML=statusView();vc.innerHTML=catView();}',
+    "  else if(root){root.innerHTML=(cfg.grouping==='category')?catView():statusView();}",
+    "  if(cfg.showSearch){var si=document.getElementById('si');if(si)si.addEventListener('input',function(){var q=this.value.toLowerCase().trim();var all=document.querySelectorAll('.blip-card');for(var i=0;i<all.length;i++){var c=all[i];c.style.display=(q&&c.textContent.toLowerCase().indexOf(q)<0)?'none':'';}var secs=document.querySelectorAll('.ring-section');for(var j=0;j<secs.length;j++){var vis=secs[j].querySelectorAll('.blip-card'),shown=0;for(var k=0;k<vis.length;k++){if(vis[k].style.display!=='none')shown++;}secs[j].style.display=(q&&shown===0)?'none':'';}});}",
+    '})();'
+  ].join('\n')
+}
+
+/** Assemble the JSON data-island HTML document. */
+function _assembleJsonDocument(cfg) {
+  const { title, css, showGroupToggle, showSearch, defaultGrouping, groupToggleLabels = {} } = cfg
+  const payload = _radarDataPayload(cfg)
+  // Escape any literal </script that could prematurely close the JSON island.
+  const json = JSON.stringify(payload, null, 2).replace(/<\/(script)/gi, '<\\/$1')
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '  <meta charset="utf-8"/>',
+    '  <meta name="viewport" content="width=device-width,initial-scale=1"/>',
+    '  <title>' + esc(title) + ' – Tech Radar</title>',
+    '  <style>' + css + '</style>',
+    '</head>',
+    '<body>',
+    '  <div class="page">',
+    ...(showGroupToggle
+      ? [
+          '    <input type="radio" name="grp" id="grp-status"' +
+            (defaultGrouping !== 'category' ? ' checked' : '') +
+            '>',
+          '    <input type="radio" name="grp" id="grp-category"' +
+            (defaultGrouping === 'category' ? ' checked' : '') +
+            '>'
+        ]
+      : []),
+    ...(showGroupToggle || showSearch
+      ? [
+          '    <div class="toolbar">',
+          ...(showSearch
+            ? ['      <input id="si" class="search-input" type="search" placeholder="Search…" autocomplete="off">']
+            : []),
+          ...(showGroupToggle
+            ? [
+                '      <div class="view-toggle">',
+                '        <label for="grp-status">' + esc(groupToggleLabels.status || 'By Status') + '</label>',
+                '        <label for="grp-category">' + esc(groupToggleLabels.category || 'By Category') + '</label>',
+                '      </div>'
+              ]
+            : []),
+          '    </div>'
+        ]
+      : []),
+    ...(showGroupToggle
+      ? ['    <div class="view-status"></div>', '    <div class="view-category"></div>']
+      : ['    <div id="radar-root"></div>']),
+    '',
+    '    <!-- ============================================================ -->',
+    '    <!-- RADAR DATA – edit the JSON below; the page re-renders on   -->',
+    '    <!-- reload. "status" must match a key in config.statuses;         -->',
+    '    <!-- "category" a label in config.categoryOrder. "comment" takes   -->',
+    '    <!-- basic markdown (**bold**, *italic*, `code`, links, - lists).  -->',
+    '    <!-- ============================================================ -->',
+    '    <script type="application/json" id="radar-data">',
+    json,
+    '    </script>',
+    '  </div>',
+    '  <script>',
+    _radarRendererScript(),
+    '  </script>',
+    '</body>',
+    '</html>'
   ].join('\n')
 }
 
 /**
  * Generate a custom HTML Tech Radar page and trigger a browser download.
  */
-export function downloadCustomRadarHtml (params, options) {
+export function downloadCustomRadarHtml(params, options) {
   const html = generateCustomRadarHtml(params, options)
-  const safeSlug = String(params.title || 'export').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const safeSlug = String(params.title || 'export')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .toLowerCase()
   const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

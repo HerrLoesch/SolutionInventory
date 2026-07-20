@@ -18,14 +18,14 @@ export default defineConfig({
     screenshot: 'only-on-failure',
 
     // Record trace on first retry.
-    trace: 'on-first-retry',
+    trace: 'on-first-retry'
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
+      use: { ...devices['Desktop Chrome'] }
+    }
   ],
 
   // Automatically start the Vite dev server before the tests.
@@ -33,6 +33,6 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://localhost:5173/SolutionInventory/',
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+    timeout: 30_000
+  }
 })

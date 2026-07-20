@@ -34,17 +34,30 @@ public sealed class McpSessionManager
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
-    private readonly ConfigService          _config;
-    private readonly LogBroadcaster         _log;
-    private readonly ProjectRepository      _repo;
-    private readonly QuestionnaireEvaluator _evaluator;
+    private readonly ConfigService            _config;
+    private readonly LogBroadcaster           _log;
+    private readonly ProjectRepository        _repo;
+    private readonly QuestionnaireEvaluator   _evaluator;
+    private readonly DataConsistencyAnalyzer  _consistencyAnalyzer;
+    private readonly TechRadarStatusValidator _statusValidator;
+    private readonly CleanedDataExporter      _exporter;
 
-    public McpSessionManager(ConfigService config, LogBroadcaster log, ProjectRepository repo, QuestionnaireEvaluator evaluator)
+    public McpSessionManager(
+        ConfigService config,
+        LogBroadcaster log,
+        ProjectRepository repo,
+        QuestionnaireEvaluator evaluator,
+        DataConsistencyAnalyzer consistencyAnalyzer,
+        TechRadarStatusValidator statusValidator,
+        CleanedDataExporter exporter)
     {
-        _config    = config;
-        _log       = log;
-        _repo      = repo;
-        _evaluator = evaluator;
+        _config              = config;
+        _log                 = log;
+        _repo                = repo;
+        _evaluator           = evaluator;
+        _consistencyAnalyzer = consistencyAnalyzer;
+        _statusValidator     = statusValidator;
+        _exporter            = exporter;
     }
 
     // ── SSE endpoint  GET /sse ────────────────────────────────────────────────
@@ -357,6 +370,52 @@ public sealed class McpSessionManager
                         },
                         ["required"] = new JsonArray { "type" }
                     }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "detect_naming_inconsistencies",
+                    ["description"] = "Scans the entire loaded workspace for naming inconsistencies and returns a list of findings, each with a suggested correction. Detects: case/whitespace variations of the same value (e.g. 'PostgreSQL' vs 'postgresql'), near-duplicate terminology likely caused by typos or spelling variants (e.g. 'Kubernetes' vs 'Kubernets'), and category/entry identifiers that are not part of the canonical vocabulary. Covers technology names in answers, tech-radar option names, and category/entry IDs. Takes no arguments.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject(),
+                        ["required"]   = new JsonArray()
+                    }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "validate_tech_radar_status",
+                    ["description"] = "Validates every status value in the workspace (tech-radar entries and questionnaire answers) against the canonical status whitelist [\"Adopt\",\"Trial\",\"Assess\",\"Hold\",\"Retire\"]. Returns the canonical list, the number of status values checked, and a list of violations. Each violation reports its location, the raw non-canonical value, a suggested canonical correction (when a confident match exists, e.g. 'adopt' → 'Adopt', 'Retired' → 'Retire'), and whether it can be auto-corrected. Takes no arguments.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject(),
+                        ["required"]   = new JsonArray()
+                    }
+                },
+                new JsonObject
+                {
+                    ["name"]        = "export_cleaned_data",
+                    ["description"] = "Exports a single questionnaire to a file on the server in cleaned form. Cleaning unifies technology names to the most frequent spelling used across the workspace, corrects status values to the canonical whitelist, and trims surrounding whitespace. Returns a JSON object with 'filepath' (path to the written file), 'size_mb' (file size in megabytes) and 'corrections_applied' (number of values changed during cleaning).",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["questionnaire_id"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "The unique identifier (ID or name) of the questionnaire to export."
+                            },
+                            ["output_format"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Desired export file format: 'json' (full questionnaire document) or 'csv' (flat answer rows).",
+                                ["enum"]        = new JsonArray { "json", "csv" }
+                            }
+                        },
+                        ["required"] = new JsonArray { "questionnaire_id", "output_format" }
+                    }
                 }
             }
         });
@@ -377,6 +436,9 @@ public sealed class McpSessionManager
             "get_tech_radar"           => BuildTechRadarResponse(id),
             "evaluate_responses"       => BuildEvaluateResponsesResponse(id, args),
             "get_json_schema"          => BuildGetJsonSchemaResponse(id, args),
+            "detect_naming_inconsistencies" => BuildDetectInconsistenciesResponse(id, excludedIds),
+            "validate_tech_radar_status"    => BuildValidateStatusResponse(id, excludedIds),
+            "export_cleaned_data"           => BuildExportCleanedDataResponse(id, args),
             _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -571,6 +633,107 @@ public sealed class McpSessionManager
         var type   = args?["type"]?.GetValue<string>() ?? "workspace";
         var schema = type == "questionnaire" ? JsonSchemas.QuestionnaireSchema : JsonSchemas.WorkspaceSchema;
         return BuildTextToolResponse(id, $"```json\n{schema}\n```");
+    }
+
+    private string BuildDetectInconsistenciesResponse(JsonNode id, IReadOnlyList<string> excludedIds)
+    {
+        var workspace = _repo.Current;
+        if (workspace is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        var report = _consistencyAnalyzer.Analyze(workspace, excludedIds);
+
+        var findings = new JsonArray();
+        foreach (var f in report.Findings)
+        {
+            var values = new JsonArray();
+            foreach (var v in f.Values) values.Add(JsonValue.Create(v));
+
+            findings.Add(new JsonObject
+            {
+                ["type"]       = f.Type,
+                ["field"]      = f.Field,
+                ["values"]     = values,
+                ["suggestion"] = f.Suggestion,
+                ["detail"]     = f.Detail
+            });
+        }
+
+        var json = new JsonObject
+        {
+            ["names_scanned"]       = report.NamesScanned,
+            ["identifiers_scanned"] = report.IdentifiersScanned,
+            ["findings_count"]      = report.Findings.Count,
+            ["findings"]            = findings
+        };
+
+        return BuildTextToolResponse(id, json.ToJsonString());
+    }
+
+    private string BuildValidateStatusResponse(JsonNode id, IReadOnlyList<string> excludedIds)
+    {
+        var workspace = _repo.Current;
+        if (workspace is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        var report = _statusValidator.Validate(workspace, excludedIds);
+
+        var canonical = new JsonArray();
+        foreach (var s in report.CanonicalStatuses) canonical.Add(JsonValue.Create(s));
+
+        var violations = new JsonArray();
+        foreach (var v in report.Violations)
+        {
+            violations.Add(new JsonObject
+            {
+                ["location"]         = v.Location,
+                ["raw_status"]       = v.RawStatus,
+                ["suggested_status"] = v.SuggestedStatus,
+                ["auto_correctable"] = v.AutoCorrectable
+            });
+        }
+
+        var json = new JsonObject
+        {
+            ["canonical_statuses"] = canonical,
+            ["statuses_checked"]   = report.StatusesChecked,
+            ["violations_count"]   = report.Violations.Count,
+            ["violations"]         = violations
+        };
+
+        return BuildTextToolResponse(id, json.ToJsonString());
+    }
+
+    private string BuildExportCleanedDataResponse(JsonNode id, JsonNode? args)
+    {
+        var questionnaireId = args?["questionnaire_id"]?.GetValue<string>();
+        var outputFormat    = args?["output_format"]?.GetValue<string>();
+
+        if (string.IsNullOrWhiteSpace(questionnaireId))
+            return BuildError(id, -32602, "Parameter 'questionnaire_id' is required.");
+        if (string.IsNullOrWhiteSpace(outputFormat))
+            return BuildError(id, -32602, "Parameter 'output_format' is required ('json' or 'csv').");
+
+        var workspace = _repo.Current;
+        if (workspace is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        var questionnaire = _repo.FindQuestionnaire(questionnaireId);
+        if (questionnaire is null)
+            return BuildTextToolResponse(id, $"No questionnaire found with ID or name '{questionnaireId}'.");
+
+        var result = _exporter.Export(workspace, questionnaire, outputFormat);
+        if (!result.Success)
+            return BuildError(id, -32602, result.Error ?? "Export failed.");
+
+        var json = new JsonObject
+        {
+            ["filepath"]            = result.FilePath,
+            ["size_mb"]             = result.SizeMb,
+            ["corrections_applied"] = result.CorrectionsApplied
+        };
+
+        return BuildTextToolResponse(id, json.ToJsonString());
     }
 
     private const string NotLoadedMessage =

@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "timestamp": "2026-06-01T10:00:00.000Z",
+  "workspace": {
+    "id": "workspace-abc123",
+    "projects": [
+      {
+        "id": "project-p1",
+        "name": "Payment Platform",
+        "expanded": true,
+        "questionnaireIds": ["questionnaire-q1"],
+        "radar": [
+          {
+            "entryId": "arch-hlp",
+            "option": "Clean Arch",
+            "category": "Architecture",
+            "status": "Adopt",
+            "shortComment": "Works well in production",
+            "description": "Consistently applied across all services, good separation of concerns.",
+            "link": "https://example.com/clean-arch"
+          }
+        ],
+        "radarCategoryOrder": ["Architecture", "Frontend"],
+        "radarCategoryQuadrants": { "Architecture": 0, "Frontend": 1 },
+        "radarQuadrantLabels": { "0": "Techniques", "1": "Tools" },
+        "deviationSettings": { "enabled": true },
+        "visibilitySettings": { "showHidden": false },
+        "referenceQuestionnaireId": "questionnaire-q1"
+      }
+    ],
+    "questionnaires": [
+      {
+        "id": "questionnaire-q1",
+        "name": "Payment Platform Assessment",
+        "categories": [
+          {
+            "id": "solution-desc",
+            "title": "Solution Description",
+            "desc": "General information and categorization of the solution",
+            "isMetadata": true,
+            "metadata": {
+              "productName": "PayFlow",
+              "company": "Acme",
+              "department": "Payments",
+              "contactPerson": "Jane Doe",
+              "description": "Handles card payments for the online shop.",
+              "executionType": "Web Application",
+              "architecturalRole": "Domain Service / Microservice"
+            },
+            "metadataOptions": {
+              "executionType": [
+                { "label": "Not specified", "description": "Applicability is not yet determined." },
+                { "label": "Web Application", "description": "Runs in a web browser." }
+              ],
+              "architecturalRole": [
+                { "label": "Not specified", "description": "Applicability is not yet determined." },
+                {
+                  "label": "Domain Service / Microservice",
+                  "description": "A specialized service owning a specific business domain."
+                }
+              ]
+            }
+          },
+          {
+            "id": "architecture",
+            "title": "Architecture",
+            "desc": "Architectural decisions and capabilities",
+            "entries": [
+              {
+                "id": "arch-hlp",
+                "aspect": "High-Level Pattern",
+                "description": "Describes the foundational structural pattern of the application.",
+                "examples": [
+                  {
+                    "label": "Clean Arch",
+                    "description": "Concentric layers with strict dependency rules.",
+                    "tools": ["EF Core"]
+                  }
+                ],
+                "answers": [
+                  {
+                    "technology": "Clean Arch",
+                    "status": "Adopt",
+                    "comments": "Works well",
+                    "answerType": "Tool",
+                    "isRadarRef": true
+                  }
+                ],
+                "applicability": "applicable",
+                "entryComment": "Reviewed 2026-05"
+              },
+              {
+                "id": "arch-state",
+                "aspect": "Application State Model",
+                "appliesTo": { "architecturalRole": ["Domain Service / Microservice"] },
+                "examples": [
+                  {
+                    "label": "Stateless Services",
+                    "description": "No client session state is retained on the server.",
+                    "tools": []
+                  }
+                ],
+                "answers": [{ "technology": "unknown", "status": "", "comments": "", "answerType": "" }],
+                "applicability": "unknown",
+                "entryComment": ""
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "activeQuestionnaireId": "questionnaire-q1",
+  "openQuestionnaireIds": ["questionnaire-q1"],
+  "activeWorkspaceTabId": "questionnaire-q1",
+  "openProjectSummaryIds": ["project-p1"],
+  "questionnaireHiddenEntries": {
+    "questionnaire-q1": ["arch-state"]
+  }
+}

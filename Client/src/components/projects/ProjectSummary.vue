@@ -18,9 +18,7 @@
           <v-icon size="18" class="mr-2">mdi-folder</v-icon>
           <span>{{ project?.name || 'Project' }}</span>
         </div>
-        <v-chip size="x-small" variant="tonal">
-          {{ questionnaires.length }} questionnaires
-        </v-chip>
+        <v-chip size="x-small" variant="tonal"> {{ questionnaires.length }} questionnaires </v-chip>
       </v-card-title>
 
       <v-divider />
@@ -45,9 +43,7 @@
       <v-tabs-window v-model="activeTab">
         <v-tabs-window-item value="matrix">
           <v-card-text>
-            <v-alert v-if="!project" type="warning" density="compact" variant="tonal">
-              Project not found.
-            </v-alert>
+            <v-alert v-if="!project" type="warning" density="compact" variant="tonal"> Project not found. </v-alert>
             <v-alert v-else-if="!questionnaires.length" type="info" density="compact" variant="tonal">
               No questionnaires in this project.
             </v-alert>
@@ -63,9 +59,7 @@
 
         <v-tabs-window-item value="suggestions">
           <v-card-text>
-            <v-alert v-if="!project" type="warning" density="compact" variant="tonal">
-              Project not found.
-            </v-alert>
+            <v-alert v-if="!project" type="warning" density="compact" variant="tonal"> Project not found. </v-alert>
             <v-alert v-else-if="!questionnaires.length" type="info" density="compact" variant="tonal">
               No questionnaires in this project.
             </v-alert>
@@ -81,9 +75,7 @@
 
         <v-tabs-window-item value="radar">
           <v-card-text>
-            <v-alert v-if="!project" type="warning" density="compact" variant="tonal">
-              Project not found.
-            </v-alert>
+            <v-alert v-if="!project" type="warning" density="compact" variant="tonal"> Project not found. </v-alert>
             <v-alert v-else-if="!questionnaires.length" type="info" density="compact" variant="tonal">
               No questionnaires in this project.
             </v-alert>
@@ -97,7 +89,7 @@
   <!-- Category Settings Dialog -->
   <v-dialog v-model="categorySettingsOpen" max-width="620" scrollable>
     <v-card>
-      <v-card-title class="d-flex align-center" style="gap: 8px;">
+      <v-card-title class="d-flex align-center" style="gap: 8px">
         <v-icon size="18">mdi-cog</v-icon>
         Category Settings
       </v-card-title>
@@ -121,7 +113,7 @@
 </template>
 
 <script>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import ProjectMatrix from './ProjectMatrix.vue'
 import ProjectSuggestions from './ProjectSuggestions.vue'
@@ -136,14 +128,12 @@ export default {
       required: true
     }
   },
-  setup (props) {
+  setup(props) {
     const store = useWorkspaceStore()
     const activeTab = ref('matrix')
     const categorySettingsOpen = ref(false)
 
-    const project = computed(() =>
-      (store.workspace.projects || []).find((p) => p.id === props.projectId) || null
-    )
+    const project = computed(() => (store.workspace.projects || []).find((p) => p.id === props.projectId) || null)
 
     const questionnaires = computed(() => {
       if (!project.value) return []
@@ -154,20 +144,22 @@ export default {
       const catMap = new Map()
       questionnaires.value.forEach((questionnaire) => {
         const cats = Array.isArray(questionnaire?.categories) ? questionnaire.categories : []
-        cats.filter((c) => !c?.isMetadata).forEach((cat) => {
-          const catId = String(cat?.id || '').trim()
-          if (!catId) return
-          if (!catMap.has(catId)) {
-            catMap.set(catId, { id: catId, title: cat.title || catId, entries: new Map() })
-          }
-          const catData = catMap.get(catId)
-          ;(Array.isArray(cat.entries) ? cat.entries : []).forEach((entry) => {
-            const eid = String(entry?.id || '').trim()
-            if (eid && !catData.entries.has(eid)) {
-              catData.entries.set(eid, { id: eid, aspect: String(entry?.aspect || entry?.title || eid) })
+        cats
+          .filter((c) => !c?.isMetadata)
+          .forEach((cat) => {
+            const catId = String(cat?.id || '').trim()
+            if (!catId) return
+            if (!catMap.has(catId)) {
+              catMap.set(catId, { id: catId, title: cat.title || catId, entries: new Map() })
             }
+            const catData = catMap.get(catId)
+            ;(Array.isArray(cat.entries) ? cat.entries : []).forEach((entry) => {
+              const eid = String(entry?.id || '').trim()
+              if (eid && !catData.entries.has(eid)) {
+                catData.entries.set(eid, { id: eid, aspect: String(entry?.aspect || entry?.title || eid) })
+              }
+            })
           })
-        })
       })
       return Array.from(catMap.values()).map((c) => ({
         ...c,
@@ -178,11 +170,11 @@ export default {
     const deviationSettings = computed(() => project.value?.deviationSettings || {})
     const visibilitySettings = computed(() => project.value?.visibilitySettings || {})
 
-    function saveDeviationSettings (settings) {
+    function saveDeviationSettings(settings) {
       store.updateProjectDeviationSettings(props.projectId, settings)
     }
 
-    function saveVisibilitySettings (settings) {
+    function saveVisibilitySettings(settings) {
       store.updateProjectVisibilitySettings(props.projectId, settings)
     }
 
