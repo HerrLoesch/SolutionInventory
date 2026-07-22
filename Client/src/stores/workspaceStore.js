@@ -10,6 +10,7 @@ import {
   migrateCategoriesExamplesToTyped
 } from '../services/catalogService'
 import { validateCatalog } from '../schema/catalogValidation'
+import { prepareImportedCatalog } from '../services/catalogImport'
 import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
 import {
@@ -667,6 +668,30 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const project = projectId ? workspace.value.projects.find((item) => item.id === projectId) : null
     const preferred = project?.defaultCatalogId ? getCatalogById(project.defaultCatalogId) : null
     return preferred || workspace.value.catalogs?.[0] || buildStandardCatalogFromSeed(getCategoriesData())
+  }
+
+  // The reference catalog an imported catalog is compared against: the project's
+  // current default catalog (see resolveDefaultCatalog's fallbacks).
+  function getProjectDefaultCatalog(projectId) {
+    return resolveDefaultCatalog(projectId)
+  }
+
+  /**
+   * Imports an externally-authored (e.g. AI-generated) catalog and attaches it
+   * to a project. Catalogs are global (workspace.catalogs), so "attach to a
+   * project" means: add the prepared catalog to the library with a fresh id and
+   * point the project's defaultCatalogId at it. Existing questionnaires are
+   * instances and are not touched; only new ones use the new catalog.
+   * Does not validate — the caller gates on validateCatalog before calling.
+   * @returns {{ catalogId: string } | null}
+   */
+  function importCatalogToProject(projectId, rawCatalog) {
+    const project = workspace.value.projects.find((item) => item.id === projectId)
+    if (!project) return null
+    const prepared = prepareImportedCatalog(rawCatalog, getCategoriesData())
+    workspace.value.catalogs = [...(workspace.value.catalogs || []), prepared]
+    project.defaultCatalogId = prepared.id
+    return { catalogId: prepared.id }
   }
 
   function addQuestionnaire(name, categories, projectId) {
@@ -1367,6 +1392,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     duplicateCatalog,
     deleteCatalog,
     exportCatalog,
+    getProjectDefaultCatalog,
+    importCatalogToProject,
     openCatalogEditorIds,
     catalogDrafts,
     openCatalogEditor,
