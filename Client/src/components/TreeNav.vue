@@ -2,12 +2,16 @@
   <div class="project-tree-nav">
     <div class="tree-header">
       <div class="tree-title">Question Catalogs</div>
-      <div class="tree-actions">
+      <div class="tree-actions">        
+        <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
+          <v-icon>mdi-plus</v-icon>
+          <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>
+        </v-btn>
         <v-menu location="bottom end">
           <template #activator="{ props: menuProps }">
-            <v-btn icon size="x-small" variant="text" aria-label="AI schema" v-bind="menuProps">
-              <v-icon>mdi-robot-outline</v-icon>
-              <v-tooltip activator="parent" location="bottom">AI schema for catalog authoring</v-tooltip>
+            <v-btn icon size="x-small" variant="text" aria-label="Schema" v-bind="menuProps">
+              <v-icon>mdi-file-code-outline</v-icon>
+              <v-tooltip activator="parent" location="bottom">Schema for catalog authoring</v-tooltip>
             </v-btn>
           </template>
           <v-list density="compact">
@@ -25,10 +29,6 @@
             </v-list-item>
           </v-list>
         </v-menu>
-        <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
-          <v-icon>mdi-plus</v-icon>
-          <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>
-        </v-btn>
       </div>
     </div>
 
