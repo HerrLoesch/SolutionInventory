@@ -361,3 +361,121 @@ describe('exportRadarJson (ThoughtWorks BYOR format)', () => {
     vi.restoreAllMocks()
   })
 })
+
+// Reads the persisted radar entry straight from the store — the component does
+// not expose `project` on its instance, and these tests need to distinguish an
+// *uncurated* entry from an assessed one.
+function radarEntryOf(store, projectId, index = 0) {
+  return store.workspace.projects.find((p) => p.id === projectId).radar[index]
+}
+
+// Sets an answer's status *after* the blip was added. toggleProjectRadarRef
+// snapshots the answer status into entry.status at add time, so this is the
+// realistic way an entry ends up with an empty status while its answer carries
+// one — the only situation in which the inheritance below is observable.
+function setAnswerStatusAfterAdd(store, entryId, technology, status) {
+  for (const questionnaire of store.workspace.questionnaires) {
+    for (const category of questionnaire.categories || []) {
+      const entry = (category.entries || []).find((e) => e.id === entryId)
+      const answer = entry && (entry.answers || []).find((a) => a.technology === technology)
+      if (answer) {
+        answer.status = status
+        return
+      }
+    }
+  }
+  throw new Error(`no answer ${technology} on entry ${entryId}`)
+}
+
+// ── Characterization: status inheritance vs. Hold fallback ───────────────────
+//
+// Two behaviors that today produce the same visible result for a blip without
+// a curated status, but have different causes — and only ONE of them is meant
+// to change later (the ring fallback). Pinned separately so that changing the
+// fallback cannot silently take the inheritance with it.
+//
+//   1. effectiveStatus = entry.status || answer.status
+//      A blip without a curated radar status inherits the answer's status.
+//      This behavior STAYS. If a change to the ring fallback turns this red,
+//      the change went too far.
+//
+//   2. statusToRing maps an empty or unknown status to ring 3 (Hold)
+//      This behavior is DELIBERATELY REPLACED later: such blips are to be
+//      listed below the diagram instead of being placed on the Hold ring.
+//      When that happens, only this block may be rewritten — with a rationale
+//      in the commit.
+describe('status inheritance (behavior 1 — stays)', () => {
+  it('inherits the answer status when the radar entry carries none', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    setAnswerStatusAfterAdd(store, 'e1', 'Vue', 'Trial')
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    // The radar entry itself has no curated status …
+    expect(radarEntryOf(store, projectId).status).toBe('')
+    // … so the answer's status is the effective one — an *assessed* blip,
+    // not an unset one, and it lands on the ring of the inherited status.
+    expect(blip.status).toBe('Trial')
+    expect(blip.ring).toBe(1)
+    expect(blip.overrideStatus).toBe('')
+  })
+
+  it('still inherits when only the answer is assessed and the ring fallback would also yield Hold', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    setAnswerStatusAfterAdd(store, 'e1', 'Vue', 'Hold')
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    expect(radarEntryOf(store, projectId).status).toBe('')
+    // Ring 3 here is the *inherited* Hold, not the fallback. The status string
+    // is what tells the two apart, which is why it is asserted explicitly.
+    expect(blip.status).toBe('Hold')
+    expect(blip.ring).toBe(3)
+  })
+})
+
+describe('Hold fallback for status-less blips (behavior 2 — changes later)', () => {
+  it('places a blip with no status on either side on the Hold ring', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    expect(radarEntryOf(store, projectId).status).toBe('')
+    expect(blip.status).toBe('')
+    expect(blip.ring).toBe(3)
+  })
+
+  it('places a blip with an unrecognized status on the Hold ring', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    store.setRadarOverride(projectId, 'e1', 'Vue', { status: 'Evaluate', comment: '', categoryOverride: '' })
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    expect(blip.status).toBe('Evaluate')
+    expect(blip.ring).toBe(3)
+  })
+})
