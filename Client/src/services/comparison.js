@@ -197,3 +197,27 @@ export function isCellInconsistent(cell) {
   const statuses = new Set((cell?.values || []).map((value) => normalize(value.status)))
   return statuses.size > 1
 }
+
+export const COVERAGE = { ALL: 'all', PARTIAL: 'partial', UNIQUE: 'unique' }
+
+/**
+ * How many of the selected projects use a term (DE-6). Coverage and divergence
+ * are independent questions and get their own column each: how *many* projects
+ * use something says nothing about how much they agree on it.
+ *
+ *   all      present in every selected project
+ *   partial  present in at least two, but not all
+ *   unique   present in exactly one
+ *
+ * With a single selected project every term is `unique` — there is nothing to
+ * compare it against, which is why the view requires two projects.
+ */
+export function coverageOf(row, projectIds) {
+  const selected = new Set(projectIds || [])
+  let present = 0
+  for (const projectId of selected) {
+    if ((row?.cells?.get?.(projectId)?.values || []).length > 0) present++
+  }
+  if (present <= 1) return COVERAGE.UNIQUE
+  return present === selected.size ? COVERAGE.ALL : COVERAGE.PARTIAL
+}

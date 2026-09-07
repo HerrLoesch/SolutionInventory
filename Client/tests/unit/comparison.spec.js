@@ -4,6 +4,8 @@ import {
   comparisonKeyOf,
   buildRows,
   isCellInconsistent,
+  coverageOf,
+  COVERAGE,
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
@@ -360,5 +362,50 @@ describe('isCellInconsistent', () => {
 
   it('treats "rated" versus "not rated" as a contradiction too', () => {
     expect(isCellInconsistent({ values: [{ status: 'Adopt' }, { status: '' }] })).toBe(true)
+  })
+})
+
+describe('coverageOf', () => {
+  // A row is just a cell map here — coverage does not care where the cells came from.
+  function row(...projectIds) {
+    return { cells: new Map(projectIds.map((projectId) => [projectId, { projectId, values: [{ status: 'Adopt' }] }])) }
+  }
+
+  it('classifies over two projects', () => {
+    expect(coverageOf(row('a', 'b'), ['a', 'b'])).toBe(COVERAGE.ALL)
+    expect(coverageOf(row('a'), ['a', 'b'])).toBe(COVERAGE.UNIQUE)
+  })
+
+  it('classifies over three projects, where partial becomes distinguishable', () => {
+    const three = ['a', 'b', 'c']
+
+    expect(coverageOf(row('a', 'b', 'c'), three)).toBe(COVERAGE.ALL)
+    expect(coverageOf(row('a', 'b'), three)).toBe(COVERAGE.PARTIAL)
+    expect(coverageOf(row('c'), three)).toBe(COVERAGE.UNIQUE)
+  })
+
+  it('ignores projects that are not selected', () => {
+    expect(coverageOf(row('a', 'b', 'z'), ['a', 'b'])).toBe(COVERAGE.ALL)
+    expect(coverageOf(row('a', 'z'), ['a', 'b'])).toBe(COVERAGE.UNIQUE)
+  })
+
+  it('treats a cell without values as absent', () => {
+    const sparse = {
+      cells: new Map([
+        ['a', { projectId: 'a', values: [] }],
+        ['b', { projectId: 'b', values: [{ status: 'Adopt' }] }]
+      ])
+    }
+
+    expect(coverageOf(sparse, ['a', 'b'])).toBe(COVERAGE.UNIQUE)
+  })
+
+  it('is unique with a single selected project — nothing to compare against', () => {
+    expect(coverageOf(row('a'), ['a'])).toBe(COVERAGE.UNIQUE)
+  })
+
+  it('handles an empty selection and a row without cells', () => {
+    expect(coverageOf(row('a'), [])).toBe(COVERAGE.UNIQUE)
+    expect(coverageOf({}, ['a', 'b'])).toBe(COVERAGE.UNIQUE)
   })
 })
