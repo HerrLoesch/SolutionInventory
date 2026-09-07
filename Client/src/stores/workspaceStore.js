@@ -1368,7 +1368,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const target = findTerm(targetId)
     if (!source || !target || sourceId === targetId) return false
 
-    return commitVocabulary((candidate) => {
+    const merged = commitVocabulary((candidate) => {
       const mergedInto = candidate.find((entry) => entry.id === targetId)
       const keys = new Set(Array.isArray(mergedInto.aliases) ? mergedInto.aliases : [])
       termKeys(source).forEach((key) => keys.add(key))
@@ -1380,6 +1380,32 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       )
       return true
     })
+    if (merged) mergeComparisonOverrides(sourceId, targetId)
+    return merged
+  }
+
+  /**
+   * Folds the source term's override into the target's. The target's decision
+   * wins; the source's comment is appended rather than thrown away, and the
+   * result is marked as needing review by clearing the recorded context — a
+   * merged judgement was never taken about this combined term (DE-5, §5.1).
+   */
+  function mergeComparisonOverrides(sourceId, targetId) {
+    const overrides = comparisonOverrides()
+    const source = overrides[sourceId]
+    if (!source) return
+    const target = overrides[targetId]
+    if (!target) {
+      overrides[targetId] = { ...source }
+    } else if (source.comment) {
+      overrides[targetId] = {
+        ...target,
+        comment: [target.comment, source.comment].filter(Boolean).join(' — '),
+        contextProjects: [],
+        contextStatuses: {}
+      }
+    }
+    delete overrides[sourceId]
   }
 
   /**
@@ -1404,6 +1430,30 @@ export const useWorkspaceStore = defineStore('workspace', () => {
    * the UI uses it to tell the user what to clean up; the write paths above
    * refuse to create one in the first place.
    */
+  // ── Dismissed similarity suggestions ───────────────────────────────────────
+  //
+  // Stored as pairs of normalized names on workspace level, not in the session:
+  // a suggestion someone deliberately rejected must not be back on top the next
+  // time the comparison tab opens (design §5.1).
+
+  function dismissedSuggestions() {
+    if (!Array.isArray(workspace.value.dismissedSuggestions)) workspace.value.dismissedSuggestions = []
+    return workspace.value.dismissedSuggestions
+  }
+
+  function dismissSuggestion(rawName, termName) {
+    const key = [normalize(rawName), normalize(termName)].sort().join('||')
+    if (key === '||') return false
+    const list = dismissedSuggestions()
+    if (list.includes(key)) return false
+    list.push(key)
+    return true
+  }
+
+  function isSuggestionDismissed(rawName, termName) {
+    return dismissedSuggestions().includes([normalize(rawName), normalize(termName)].sort().join('||'))
+  }
+
   function vocabularyCollisions() {
     return buildAliasIndex(vocabularyList()).collisions
   }
@@ -1676,6 +1726,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     getComparisonOverride,
     setComparisonOverride,
     clearComparisonOverride,
+    dismissSuggestion,
+    isSuggestionDismissed,
     resolveTerm,
     createTerm,
     addAlias,

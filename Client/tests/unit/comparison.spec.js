@@ -20,6 +20,11 @@ import {
   isOverrideContextChanged,
   isOverrideStale,
   OVERRIDE_LEVELS,
+  coverageByProject,
+  unresolvedNames,
+  suggestionsForName,
+  exactMatchGroups,
+  dismissalKey,
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
@@ -997,5 +1002,120 @@ describe('criticality overrides', () => {
 
     expect(result.delta).toBe(DELTA.INCONSISTENT)
     expect(result.reasons).toEqual([DELTA.INCONSISTENT, DELTA.UNSET, DELTA.ACCEPTED])
+  })
+})
+
+describe('coverageByProject', () => {
+  const { index } = buildAliasIndex([{ id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] }])
+  const units = [
+    { projectId: 'a', rawName: 'Vue' },
+    { projectId: 'a', rawName: 'Vue' },
+    { projectId: 'a', rawName: 'Kafka' },
+    { projectId: 'b', rawName: 'Vue' }
+  ]
+
+  it('counts names, not units — ten blips with one unknown spelling are one problem', () => {
+    expect(coverageByProject(units, index, ['a', 'b'])).toEqual({
+      a: { total: 2, resolved: 1, unresolved: 1, percent: 50 },
+      b: { total: 1, resolved: 1, unresolved: 0, percent: 100 }
+    })
+  })
+
+  it('reports 100 % for a project without any names', () => {
+    expect(coverageByProject(units, index, ['a', 'z']).z).toEqual({
+      total: 0,
+      resolved: 0,
+      unresolved: 0,
+      percent: 100
+    })
+  })
+
+  it('ignores units of projects outside the selection', () => {
+    expect(Object.keys(coverageByProject(units, index, ['a']))).toEqual(['a'])
+  })
+})
+
+describe('unresolvedNames', () => {
+  const { index } = buildAliasIndex([{ id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] }])
+
+  it('groups spellings by their normalized form and keeps who uses which', () => {
+    const groups = unresolvedNames(
+      [
+        { projectId: 'b', rawName: 'postgres', kind: 'tool', origin: {} },
+        { projectId: 'c', rawName: 'Postgres', kind: 'unassigned', origin: {} },
+        { projectId: 'a', rawName: 'Vue', kind: 'tool', origin: {} }
+      ],
+      index
+    )
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].key).toBe('postgres')
+    expect(groups[0].spellings.map((spelling) => spelling.rawName)).toEqual(['postgres', 'Postgres'])
+    expect(groups[0].spellings[0].projectIds).toEqual(['b'])
+  })
+
+  it('takes the best kind any unit knew', () => {
+    const groups = unresolvedNames(
+      [
+        { projectId: 'a', rawName: 'Kafka', kind: 'unassigned', origin: {} },
+        { projectId: 'b', rawName: 'kafka', kind: 'tool', origin: {} }
+      ],
+      index
+    )
+
+    expect(groups[0].kind).toBe('tool')
+  })
+
+  it('leaves out everything the vocabulary already resolves', () => {
+    expect(unresolvedNames([{ projectId: 'a', rawName: 'Vue', kind: 'tool', origin: {} }], index)).toEqual([])
+  })
+})
+
+describe('suggestionsForName', () => {
+  const vocabulary = [{ id: 'term-dotnet', name: '.NET Core', kind: 'tool', aliases: [] }]
+
+  it('suggests a similar term', () => {
+    expect(suggestionsForName('dotnet core', vocabulary).map((s) => s.term.id)).toEqual(['term-dotnet'])
+  })
+
+  it('drops a pair the user dismissed, in either order', () => {
+    expect(suggestionsForName('dotnet core', vocabulary, [dismissalKey('dotnet core', '.NET Core')])).toEqual([])
+    expect(suggestionsForName('dotnet core', vocabulary, [dismissalKey('.NET Core', 'dotnet core')])).toEqual([])
+  })
+
+  it('keeps other suggestions when one pair is dismissed', () => {
+    const two = [...vocabulary, { id: 'term-dotnet-fw', name: '.NET Framework', kind: 'tool', aliases: [] }]
+
+    expect(suggestionsForName('dotnet framework', two, [dismissalKey('dotnet framework', '.NET Core')]).length).toBe(1)
+  })
+})
+
+describe('exactMatchGroups', () => {
+  it('picks the groups that differ only in case or whitespace', () => {
+    const units = [
+      { projectId: 'a', rawName: 'Serilog ', kind: 'tool', origin: {} },
+      { projectId: 'b', rawName: 'Serilog', kind: 'tool', origin: {} },
+      { projectId: 'a', rawName: 'Kafka', kind: 'tool', origin: {} }
+    ]
+
+    expect(exactMatchGroups(units, null).map((group) => group.key)).toEqual(['serilog'])
+  })
+
+  it('leaves out a group whose kind is still unassigned — kind is never guessed', () => {
+    const units = [
+      { projectId: 'a', rawName: 'Serilog ', kind: 'unassigned', origin: {} },
+      { projectId: 'b', rawName: 'Serilog', kind: 'unassigned', origin: {} }
+    ]
+
+    expect(exactMatchGroups(units, null)).toEqual([])
+  })
+
+  it('leaves out a name that appears in only one spelling — nothing to reconcile', () => {
+    const units = [
+      { projectId: 'a', rawName: 'Serilog', kind: 'tool', origin: {} },
+      { projectId: 'b', rawName: 'Serilog', kind: 'tool', origin: {} }
+    ]
+
+    expect(exactMatchGroups(units, null)).toEqual([])
   })
 })

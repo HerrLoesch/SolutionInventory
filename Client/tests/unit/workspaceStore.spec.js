@@ -1579,3 +1579,92 @@ describe('workspace comparison tab', () => {
     expect(reloaded.comparisonTabOpen).toBe(false)
   })
 })
+
+// ── Dismissed similarity suggestions (Todo 4.4) ──────────────────────────────
+describe('dismissed suggestions', () => {
+  it('records a pair and reports it as dismissed in either order', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.dismissSuggestion('dotnet core', '.NET Core')).toBe(true)
+    expect(store.isSuggestionDismissed('dotnet core', '.NET Core')).toBe(true)
+    expect(store.isSuggestionDismissed('.NET Core', 'dotnet core')).toBe(true)
+  })
+
+  it('normalizes before comparing, so spelling of the call site does not matter', () => {
+    const store = useWorkspaceStore()
+    store.dismissSuggestion('  DOTNET   core ', '.net core')
+
+    expect(store.isSuggestionDismissed('dotnet core', '.NET Core')).toBe(true)
+  })
+
+  it('records a pair only once', () => {
+    const store = useWorkspaceStore()
+    store.dismissSuggestion('a', 'b')
+
+    expect(store.dismissSuggestion('b', 'a')).toBe(false)
+    expect(store.workspace.dismissedSuggestions).toHaveLength(1)
+  })
+
+  it('refuses a pair of empty names', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.dismissSuggestion('', '   ')).toBe(false)
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('persists across a save/load round trip — not just for the session', async () => {
+    const store = useWorkspaceStore()
+    store.dismissSuggestion('dotnet core', '.NET Core')
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.isSuggestionDismissed('.NET Core', 'dotnet core')).toBe(true)
+  })
+})
+
+describe('mergeTerms and comparison overrides', () => {
+  it('moves the source override to the target when the target has none', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('.NET Core', 'tool')
+    const source = store.createTerm('Dotnet Core', 'tool')
+    store.setComparisonOverride(source, { level: 'accepted', comment: 'from source' })
+
+    store.mergeTerms(source, target)
+    expect(store.getComparisonOverride(target)).toMatchObject({ level: 'accepted', comment: 'from source' })
+    expect(store.getComparisonOverride(source)).toBeNull()
+  })
+
+  it('keeps the target’s decision and appends the source’s comment rather than dropping it', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('.NET Core', 'tool')
+    const source = store.createTerm('Dotnet Core', 'tool')
+    store.setComparisonOverride(target, {
+      level: 'accepted',
+      comment: 'target reason',
+      contextProjects: ['p1'],
+      contextStatuses: { p1: 'Adopt' }
+    })
+    store.setComparisonOverride(source, { level: 'critical', comment: 'source reason' })
+
+    store.mergeTerms(source, target)
+    const merged = store.getComparisonOverride(target)
+    expect(merged.level).toBe('accepted')
+    expect(merged.comment).toBe('target reason — source reason')
+    // The recorded context is cleared: no judgement was ever taken about the
+    // combined term, so it must show up as needing review (DE-5).
+    expect(merged.contextProjects).toEqual([])
+  })
+
+  it('leaves the target override untouched when the source has none', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('.NET Core', 'tool')
+    const source = store.createTerm('Dotnet Core', 'tool')
+    store.setComparisonOverride(target, { level: 'critical', comment: 'keep me', contextProjects: ['p1'] })
+
+    store.mergeTerms(source, target)
+    expect(store.getComparisonOverride(target)).toMatchObject({ comment: 'keep me', contextProjects: ['p1'] })
+  })
+})

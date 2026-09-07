@@ -217,3 +217,124 @@ describe('on the design’s example workspace', () => {
     expect(wrapper.vm.metrics.vocabulary.percent).toBe(82)
   })
 })
+
+// ── Vocabulary section (Todo 4.4) ────────────────────────────────────────────
+describe('vocabulary section', () => {
+  // Alpha and Beta write the same tool with different capitalization; Alpha adds
+  // one the vocabulary has never seen, without an answerType.
+  //
+  // Note the spellings differ in *case*, not whitespace: both adapters trim the
+  // raw name (as the radar always has), so a trailing-space variant like the
+  // design's "Serilog " can never reach the comparison.
+  function spellingWorkspace() {
+    const workspace = smallWorkspace()
+    workspace.projects[0].radar.push({ entryId: 'e3', option: 'serilog', status: 'Adopt' })
+    workspace.projects[1].radar.push({ entryId: 'e3', option: 'Serilog', status: 'Adopt' })
+    workspace.projects[0].radar.push({ entryId: 'e4', option: 'Wolverine', status: 'Adopt' })
+    workspace.questionnaires[0].categories[0].entries.push(
+      { id: 'e3', aspect: 'Logging', answers: [{ technology: 'serilog', status: 'Adopt', answerType: 'Tool' }] },
+      { id: 'e4', aspect: 'Messaging', answers: [{ technology: 'Wolverine', status: 'Adopt', answerType: '' }] }
+    )
+    workspace.questionnaires[1].categories[0].entries.push({
+      id: 'e3',
+      aspect: 'Logging',
+      answers: [{ technology: 'Serilog', status: 'Adopt', answerType: 'Tool' }]
+    })
+    return workspace
+  }
+
+  it('reports coverage per selected project', () => {
+    const { wrapper } = mountComparison(spellingWorkspace())
+
+    expect(wrapper.vm.coveragePerProject['p-alpha'].percent).toBe(0)
+    expect(wrapper.vm.coveragePerProject['p-gamma']).toEqual({
+      total: 0,
+      resolved: 0,
+      unresolved: 0,
+      percent: 100
+    })
+  })
+
+  it('lists the unresolved names regardless of the kind filter', () => {
+    const { wrapper } = mountComparison(spellingWorkspace())
+    const before = wrapper.vm.unresolved.map((group) => group.key).sort()
+
+    wrapper.vm.visibleKinds = ['tool']
+    // Wolverine has no kind at all — hiding "unassigned" must not hide the very
+    // names that most need assigning.
+    expect(wrapper.vm.unresolved.map((group) => group.key).sort()).toEqual(before)
+    expect(before).toContain('wolverine')
+  })
+
+  it('assigns every spelling of a group to a term at once', () => {
+    const { wrapper, store } = mountComparison(spellingWorkspace())
+    // A term under a different name, so the group is still unresolved.
+    const termId = store.createTerm('Structured Logging', 'tool')
+    const group = wrapper.vm.unresolved.find((entry) => entry.key === 'serilog')
+
+    expect(group.spellings.map((spelling) => spelling.rawName)).toEqual(['serilog', 'Serilog'])
+    wrapper.vm.assignGroup(group, termId)
+
+    expect(store.resolveTerm('serilog').id).toBe(termId)
+    expect(store.resolveTerm('Serilog').id).toBe(termId)
+    expect(wrapper.vm.unresolved.map((entry) => entry.key)).not.toContain('serilog')
+  })
+
+  it('creates a term from a group, with the remaining spellings as aliases', () => {
+    const { wrapper, store } = mountComparison(spellingWorkspace())
+    const group = wrapper.vm.unresolved.find((entry) => entry.key === 'vue')
+
+    const termId = wrapper.vm.createTermFromGroup(group)
+    expect(store.workspace.vocabulary.find((term) => term.id === termId)).toMatchObject({ name: 'Vue', kind: 'tool' })
+  })
+
+  it('keeps "create as its own term" disabled without a kind, until one is chosen', () => {
+    const { wrapper, store } = mountComparison(spellingWorkspace())
+    const group = wrapper.vm.unresolved.find((entry) => entry.key === 'wolverine')
+
+    expect(wrapper.vm.canCreateTerm(group)).toBe(false)
+    expect(wrapper.vm.createTermFromGroup(group)).toBe('')
+    expect(store.workspace.vocabulary).toEqual([])
+
+    wrapper.vm.pendingKinds[group.key] = 'tool'
+    expect(wrapper.vm.canCreateTerm(group)).toBe(true)
+    expect(wrapper.vm.createTermFromGroup(group)).toBeTruthy()
+    expect(store.workspace.vocabulary[0].kind).toBe('tool')
+  })
+
+  it('resolves all exact matches without changing the comparison result', () => {
+    const { wrapper } = mountComparison(spellingWorkspace())
+    const rowsBefore = wrapper.vm.rows.length
+    const comparedBefore = wrapper.vm.metrics.compared
+    const coverageBefore = wrapper.vm.metrics.vocabulary.percent
+
+    expect(wrapper.vm.exactMatches.map((group) => group.key)).toEqual(['serilog'])
+    wrapper.vm.resolveAllExactMatches()
+
+    // Same rows, same comparison — those spellings already met through the
+    // normalized text fallback (DE-2). Only the coverage moves.
+    expect(wrapper.vm.rows.length).toBe(rowsBefore)
+    expect(wrapper.vm.metrics.compared).toBe(comparedBefore)
+    expect(wrapper.vm.metrics.vocabulary.percent).toBeGreaterThan(coverageBefore)
+    expect(wrapper.vm.rows.find((row) => row.name === 'serilog').resolved).toBe(true)
+  })
+
+  it('offers a similarity suggestion and forgets it once dismissed', () => {
+    const { wrapper, store } = mountComparison(spellingWorkspace())
+    store.createTerm('Serilogg', 'tool')
+    const group = wrapper.vm.unresolved.find((entry) => entry.key === 'serilog')
+
+    expect(wrapper.vm.suggestionsFor(group).map((s) => s.term.name)).toEqual(['Serilogg'])
+
+    wrapper.vm.dismissSuggestion(group, { name: 'Serilogg' })
+    expect(wrapper.vm.suggestionsFor(group)).toEqual([])
+    // Persistent, not per session.
+    expect(store.workspace.dismissedSuggestions).toHaveLength(1)
+  })
+
+  it('names the projects behind a spelling', () => {
+    const { wrapper } = mountComparison(spellingWorkspace())
+
+    expect(wrapper.vm.projectNamesOf(['p-alpha', 'p-beta'])).toBe('Alpha · Beta')
+  })
+})

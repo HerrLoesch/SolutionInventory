@@ -13,7 +13,7 @@
 // travel through the whole engine (design §4.3).
 
 import { buildEntryLookup, deriveBlipJoin, deriveKind } from './blipJoin'
-import { normalize } from './vocabulary'
+import { normalize, findSimilarTerms } from './vocabulary'
 
 export const DATA_SOURCES = ['radar', 'answers']
 
@@ -500,4 +500,98 @@ export function isOverrideStale(override, row, delta, projectIds) {
   if (!override) return false
   if (!canOverride(row, delta)) return true
   return isOverrideContextChanged(override, row, projectIds)
+}
+
+/**
+ * Vocabulary coverage per project: resolved distinct names over distinct names.
+ * Counts *names*, not comparison units — ten blips carrying the same unknown
+ * spelling are one problem, not ten (design §5.1).
+ *
+ * Like the workspace-wide figure it follows the data source and ignores the kind
+ * filter, so the caller passes in the unfiltered units.
+ */
+export function coverageByProject(units, aliasIndex, projectIds) {
+  const perProject = new Map((projectIds || []).map((projectId) => [projectId, new Map()]))
+  for (const unit of units || []) {
+    const names = perProject.get(unit.projectId)
+    if (!names) continue
+    const normalized = normalize(unit.rawName)
+    if (normalized === '' || names.has(normalized)) continue
+    names.set(normalized, Boolean(aliasIndex instanceof Map && aliasIndex.get(normalized)))
+  }
+  const result = {}
+  for (const [projectId, names] of perProject) {
+    const total = names.size
+    const resolved = [...names.values()].filter(Boolean).length
+    result[projectId] = {
+      total,
+      resolved,
+      unresolved: total - resolved,
+      percent: total === 0 ? 100 : Math.round((resolved / total) * 100)
+    }
+  }
+  return result
+}
+
+/**
+ * Every name the vocabulary does not resolve, grouped by its normalized form —
+ * the work list of the vocabulary section.
+ *
+ * `spellings` keeps each distinct raw writing with the projects that use it, so
+ * the UI can show "postgres (Beta)" next to "Postgre SQL (Gamma)". `kind` is the
+ * best kind any unit knew, which is what pre-fills "create as its own term".
+ */
+export function unresolvedNames(units, aliasIndex) {
+  const groups = new Map()
+  for (const unit of units || []) {
+    const key = normalize(unit.rawName)
+    if (key === '') continue
+    if (aliasIndex instanceof Map && aliasIndex.get(key)) continue
+
+    if (!groups.has(key)) groups.set(key, { key, kind: 'unassigned', spellings: new Map() })
+    const group = groups.get(key)
+    if (group.kind === 'unassigned' && unit.kind !== 'unassigned') group.kind = unit.kind
+    if (!group.spellings.has(unit.rawName)) {
+      group.spellings.set(unit.rawName, { rawName: unit.rawName, projectIds: [], origins: [] })
+    }
+    const spelling = group.spellings.get(unit.rawName)
+    if (!spelling.projectIds.includes(unit.projectId)) spelling.projectIds.push(unit.projectId)
+    spelling.origins.push(unit.origin)
+  }
+  return [...groups.values()].map((group) => ({ ...group, spellings: [...group.spellings.values()] }))
+}
+
+/** Stable key for a dismissed suggestion: the two normalized names, order-independent. */
+export function dismissalKey(rawName, termName) {
+  return [normalize(rawName), normalize(termName)].sort().join('||')
+}
+
+/**
+ * Similarity suggestions for one unresolved group, minus anything the user has
+ * already dismissed. A dismissed pair stays dismissed across sessions — a
+ * suggestion someone deliberately rejected must not be back on top next time
+ * the tab opens (design §5.1).
+ */
+export function suggestionsForName(key, vocabulary, dismissedSuggestions = []) {
+  const dismissed = new Set(dismissedSuggestions || [])
+  return findSimilarTerms(key, vocabulary).filter(
+    (suggestion) => !dismissed.has(dismissalKey(key, suggestion.term.name))
+  )
+}
+
+/**
+ * Groups that differ only in case or whitespace — "Serilog " and "Serilog".
+ * These are the ones "resolve all exact matches" can turn into terms without
+ * asking: pure typing and spacing variants, no similarity guessing.
+ *
+ * Such names already meet in one row through the normalized text fallback
+ * (DE-2), so the action does **not** change the comparison result. What it
+ * changes is coverage: the row loses its `◌`, is reported as dependable and can
+ * carry an override (DE-5).
+ *
+ * A group whose kind is still unassigned is left out. Kind is mandatory on a
+ * term and must not be guessed — even here, where the name itself is certain.
+ */
+export function exactMatchGroups(units, aliasIndex) {
+  return unresolvedNames(units, aliasIndex).filter((group) => group.spellings.length > 1 && group.kind !== 'unassigned')
 }

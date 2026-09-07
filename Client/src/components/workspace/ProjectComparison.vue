@@ -74,6 +74,74 @@
         </template>
       </v-alert>
 
+      <!-- Vocabulary: coverage per project and the work list of names the
+           vocabulary does not know yet. Ignores the kind filter on purpose —
+           following it would hide exactly the names that most need assigning. -->
+      <v-card variant="outlined" class="mt-4">
+        <v-card-title class="text-subtitle-2 d-flex align-center justify-space-between">
+          <span>Vocabulary</span>
+          <v-btn size="x-small" variant="tonal" :disabled="!exactMatches.length" @click="resolveAllExactMatches">
+            Resolve all exact matches ({{ exactMatches.length }})
+          </v-btn>
+        </v-card-title>
+        <v-card-text>
+          <div class="coverage-row">
+            <span v-for="project in selectedProjects" :key="project.id" class="coverage-chip">
+              {{ project.name }}
+              <strong>{{ (coveragePerProject[project.id] || {}).percent }} %</strong>
+              <span class="text-medium-emphasis">
+                ({{ (coveragePerProject[project.id] || {}).unresolved }} unresolved)
+              </span>
+            </span>
+          </div>
+
+          <div v-if="!unresolved.length" class="text-caption text-medium-emphasis mt-2">
+            Every name in this selection is in the vocabulary.
+          </div>
+
+          <div v-for="group in unresolved" :key="group.key" class="unresolved-group">
+            <div class="unresolved-spellings">
+              <span v-for="spelling in group.spellings" :key="spelling.rawName" class="text-body-2">
+                "{{ spelling.rawName }}"
+                <span class="text-caption text-medium-emphasis">{{ projectNamesOf(spelling.projectIds) }}</span>
+              </span>
+            </div>
+
+            <div v-if="suggestionsFor(group).length" class="unresolved-actions">
+              <template v-for="suggestion in suggestionsFor(group)" :key="suggestion.term.id">
+                <v-chip size="small" variant="outlined" @click="assignGroup(group, suggestion.term.id)">
+                  Assign to {{ suggestion.term.name }}
+                </v-chip>
+                <v-btn size="x-small" variant="text" @click="dismissSuggestion(group, suggestion.term)"> Later </v-btn>
+              </template>
+            </div>
+            <div v-else class="text-caption text-medium-emphasis">No suggestion.</div>
+
+            <div class="unresolved-actions">
+              <v-select
+                v-if="group.kind === 'unassigned'"
+                :model-value="pendingKinds[group.key] || null"
+                :items="['tool', 'practice']"
+                label="Kind"
+                density="compact"
+                variant="outlined"
+                hide-details
+                style="max-width: 150px"
+                @update:model-value="pendingKinds[group.key] = $event"
+              />
+              <v-btn
+                size="x-small"
+                variant="tonal"
+                :disabled="!canCreateTerm(group)"
+                @click="createTermFromGroup(group)"
+              >
+                Create as its own term
+              </v-btn>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+
       <div class="text-caption text-medium-emphasis mt-3">
         {{ rows.length }} terms · {{ metrics.compared }} compared · vocabulary coverage
         {{ metrics.vocabulary.percent }} %
@@ -86,7 +154,17 @@
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { buildAliasIndex } from '../../services/vocabulary'
-import { collectUnits, buildRows, computeMetrics, vocabularyCoverage, DATA_SOURCES } from '../../services/comparison'
+import {
+  collectUnits,
+  buildRows,
+  computeMetrics,
+  vocabularyCoverage,
+  coverageByProject,
+  unresolvedNames,
+  suggestionsForName,
+  exactMatchGroups,
+  DATA_SOURCES
+} from '../../services/comparison'
 
 // The workspace comparison tab. Renders what services/comparison.js returns and
 // computes nothing of its own (plan §5) — anything that looks like arithmetic
@@ -161,6 +239,84 @@ export default {
       selectedProjectIds.value = selectedProjectIds.value.filter((id) => id !== projectId)
     }
 
+    // ── Vocabulary section ───────────────────────────────────────────────────
+    //
+    // The one section that ignores the kind filter: following it would hide the
+    // names with neither term nor answerType — exactly the ones that most need
+    // assigning (design §5.1). It does follow the data source.
+
+    const selectedProjects = computed(() =>
+      projects.value.filter((project) => selectedProjectIds.value.includes(project.id))
+    )
+
+    const coveragePerProject = computed(() =>
+      coverageByProject(allUnits.value, aliasIndex.value, selectedProjectIds.value)
+    )
+
+    const unresolved = computed(() => unresolvedNames(allUnits.value, aliasIndex.value))
+    const exactMatches = computed(() => exactMatchGroups(allUnits.value, aliasIndex.value))
+
+    // Kind chosen by hand for a group whose units carry no answerType.
+    const pendingKinds = ref({})
+
+    function suggestionsFor(group) {
+      return suggestionsForName(group.key, store.workspace.vocabulary || [], store.workspace.dismissedSuggestions || [])
+    }
+
+    function projectNamesOf(projectIds) {
+      return projects.value
+        .filter((project) => projectIds.includes(project.id))
+        .map((project) => project.name)
+        .join(' · ')
+    }
+
+    function kindFor(group) {
+      return group.kind !== 'unassigned' ? group.kind : pendingKinds.value[group.key] || ''
+    }
+
+    function canCreateTerm(group) {
+      return ['tool', 'practice'].includes(kindFor(group))
+    }
+
+    /** Hangs every spelling of the group onto an existing term. */
+    function assignGroup(group, termId) {
+      group.spellings.forEach((spelling) => store.addAlias(termId, spelling.rawName))
+      return true
+    }
+
+    /**
+     * Creates a term from the group. The first spelling becomes the canonical
+     * name; the others are attached as aliases, so nothing keeps resolving by
+     * text fallback alone.
+     */
+    function createTermFromGroup(group) {
+      if (!canCreateTerm(group)) return ''
+      const [first, ...rest] = group.spellings
+      const termId = store.createTerm(first.rawName, kindFor(group))
+      if (!termId) return ''
+      rest.forEach((spelling) => store.addAlias(termId, spelling.rawName))
+      delete pendingKinds.value[group.key]
+      return termId
+    }
+
+    /**
+     * Turns every pure spelling variant into a term at once. Does *not* change
+     * the comparison result — those names already share a row through the
+     * normalized text fallback (DE-2). What it changes is coverage.
+     */
+    function resolveAllExactMatches() {
+      const created = []
+      exactMatches.value.forEach((group) => {
+        const termId = createTermFromGroup(group)
+        if (termId) created.push(termId)
+      })
+      return created
+    }
+
+    function dismissSuggestion(group, term) {
+      return store.dismissSuggestion(group.key, term.name)
+    }
+
     return {
       projects,
       projectItems,
@@ -173,7 +329,19 @@ export default {
       rows,
       metrics,
       projectsWithoutEntries,
-      deselectProject
+      deselectProject,
+      selectedProjects,
+      coveragePerProject,
+      unresolved,
+      exactMatches,
+      pendingKinds,
+      suggestionsFor,
+      projectNamesOf,
+      canCreateTerm,
+      assignGroup,
+      createTermFromGroup,
+      resolveAllExactMatches,
+      dismissSuggestion
     }
   }
 }
@@ -197,5 +365,37 @@ export default {
 
 .toolbar-source {
   max-width: 240px;
+}
+
+.coverage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.coverage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.unresolved-group {
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.unresolved-spellings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.unresolved-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
 }
 </style>
