@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { normalize, isSameName, TERM_KINDS, termKeys, buildAliasIndex, resolve } from '../../src/services/vocabulary'
+import {
+  normalize,
+  isSameName,
+  TERM_KINDS,
+  termKeys,
+  buildAliasIndex,
+  resolve,
+  assertNoAliasCollisions,
+  AliasCollisionError
+} from '../../src/services/vocabulary'
 
 describe('normalize', () => {
   it('lower-cases and trims', () => {
@@ -118,6 +127,74 @@ describe('buildAliasIndex', () => {
     const { collisions } = buildAliasIndex([term('t1', 'Redis', ['redis', 'Redis'])])
 
     expect(collisions).toEqual([])
+  })
+})
+
+// Invariant from design §3.1: an alias belongs to at most one term. A collision
+// must be *reported*, never silently resolved by array order — otherwise two
+// terms swap identities when the vocabulary is merely reordered.
+describe('buildAliasIndex — alias collisions', () => {
+  it('reports an alias claimed by two different terms', () => {
+    const { collisions } = buildAliasIndex([
+      term('t1', '.NET Core', ['netcore']),
+      term('t2', '.NET Framework', ['netcore'])
+    ])
+
+    expect(collisions).toEqual([{ key: 'netcore', termId: 't1', conflictingTermId: 't2' }])
+  })
+
+  it("reports a collision between one term's name and another term's alias", () => {
+    const { collisions } = buildAliasIndex([term('t1', 'Redis'), term('t2', 'Cache', ['redis'])])
+
+    expect(collisions).toEqual([{ key: 'redis', termId: 't1', conflictingTermId: 't2' }])
+  })
+
+  it('reports two terms sharing a name that differs only in case and spacing', () => {
+    const { collisions } = buildAliasIndex([term('t1', 'Azure DevOps'), term('t2', '  azure   devops ')])
+
+    expect(collisions).toEqual([{ key: 'azure devops', termId: 't1', conflictingTermId: 't2' }])
+  })
+
+  it('keeps the first claimant so a colliding vocabulary stays usable', () => {
+    const { index, collisions } = buildAliasIndex([
+      term('t1', '.NET Core', ['netcore']),
+      term('t2', '.NET Framework', ['netcore'])
+    ])
+
+    expect(collisions).toHaveLength(1)
+    expect(index.get('netcore').id).toBe('t1')
+    expect(index.get('.net framework').id).toBe('t2')
+  })
+
+  it('reports every colliding key, not just the first', () => {
+    const { collisions } = buildAliasIndex([term('t1', 'A', ['x', 'y']), term('t2', 'B', ['x', 'y'])])
+
+    expect(collisions.map((collision) => collision.key)).toEqual(['x', 'y'])
+  })
+})
+
+// Write paths must fail loudly rather than produce a colliding vocabulary.
+describe('assertNoAliasCollisions', () => {
+  it('passes for a vocabulary without collisions', () => {
+    expect(() => assertNoAliasCollisions([term('t1', 'Redis'), term('t2', '.NET Core', ['netcore'])])).not.toThrow()
+  })
+
+  it('passes for an empty or missing vocabulary', () => {
+    expect(() => assertNoAliasCollisions([])).not.toThrow()
+    expect(() => assertNoAliasCollisions(undefined)).not.toThrow()
+  })
+
+  it('throws a typed error carrying every collision', () => {
+    const colliding = [term('t1', 'A', ['x']), term('t2', 'B', ['x'])]
+
+    expect(() => assertNoAliasCollisions(colliding)).toThrow(AliasCollisionError)
+    try {
+      assertNoAliasCollisions(colliding)
+    } catch (error) {
+      expect(error.name).toBe('AliasCollisionError')
+      expect(error.collisions).toEqual([{ key: 'x', termId: 't1', conflictingTermId: 't2' }])
+      expect(error.message).toContain('"x"')
+    }
   })
 })
 

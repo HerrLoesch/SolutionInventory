@@ -95,6 +95,35 @@ export function buildAliasIndex(vocabulary) {
 }
 
 /**
+ * The defined failure for every write path that would break the "an alias
+ * belongs to at most one term" invariant. A distinct class rather than a plain
+ * Error so callers can tell a rejected merge from an unexpected crash and show
+ * the user which key collided with which term.
+ */
+export class AliasCollisionError extends Error {
+  constructor(collisions) {
+    const keys = collisions.map((collision) => `"${collision.key}"`).join(', ')
+    super(`alias collision: ${keys} claimed by more than one term`)
+    this.name = 'AliasCollisionError'
+    this.collisions = collisions
+  }
+}
+
+/**
+ * Guard for write paths (create, rename, add alias, merge). Read paths use
+ * buildAliasIndex directly and keep working with the first claimant, because a
+ * workspace that somehow acquired a collision must stay openable. A *write*,
+ * however, must not be the step that introduces one — it either succeeds
+ * cleanly or fails with a defined error the caller can present.
+ *
+ * @throws {AliasCollisionError}
+ */
+export function assertNoAliasCollisions(vocabulary) {
+  const { collisions } = buildAliasIndex(vocabulary)
+  if (collisions.length > 0) throw new AliasCollisionError(collisions)
+}
+
+/**
  * Resolves a raw name (a radar blip's `option` or an answer's `technology`) to
  * its term, or null when the vocabulary does not know it. An unresolved name is
  * a defined state, not an error: the comparison keeps carrying it under its raw
