@@ -18,6 +18,7 @@ import {
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
+import designExample from '../data/comparison/design-example-workspace.json'
 
 // A two-project workspace whose projects use *different* catalogs — the main
 // reason the comparison is term-centric rather than entry-centric (DE-1).
@@ -791,5 +792,68 @@ describe('computeMetrics', () => {
     const coverage = { total: 10, resolved: 8, unresolved: 2, percent: 80 }
 
     expect(computeMetrics([], TWO, { vocabulary: coverage }).vocabulary).toEqual(coverage)
+  })
+})
+
+// The example dataset from design §5.2, as a fixture. Its only job is to hold
+// the design document and the engine together: if either drifts, this test
+// names the exact figure that moved.
+describe('the design’s example dataset', () => {
+  const PROJECTS = ['project-alpha', 'project-beta', 'project-gamma']
+
+  function metricsOf(source) {
+    const { index } = buildAliasIndex(designExample.vocabulary)
+    const units = collectUnits(designExample, PROJECTS, { source, aliasIndex: index })
+    const rows = buildRows(units, index)
+    return computeMetrics(rows, PROJECTS, {
+      overrides: designExample.comparisonOverrides,
+      vocabulary: vocabularyCoverage(units, index)
+    })
+  }
+
+  it('reproduces every figure from design §5.2 exactly', () => {
+    expect(metricsOf('radar')).toMatchObject({
+      total: 38,
+      all: 24,
+      partial: 8,
+      unique: 6,
+      allPercent: 63,
+      compared: 32,
+      excluded: 5,
+      unset: 2,
+      inconsistent: 1,
+      accepted: 2,
+      comparable: 27,
+      matches: 20,
+      minor: 4,
+      significant: 2,
+      critical: 1,
+      agreementPercent: 74,
+      agreementLevel: 'moderate'
+    })
+  })
+
+  it('reproduces the vocabulary coverage — 82 % with 13 unresolved names', () => {
+    expect(metricsOf('radar').vocabulary).toEqual({ total: 72, resolved: 59, unresolved: 13, percent: 82 })
+  })
+
+  it('satisfies the three DE-8 invariants on the real dataset', () => {
+    const metrics = metricsOf('radar')
+
+    expect(metrics.matches + metrics.minor + metrics.significant + metrics.critical).toBe(metrics.comparable)
+    expect(metrics.compared + metrics.unique).toBe(metrics.total)
+    expect(metrics.unset + metrics.inconsistent + metrics.accepted).toBe(metrics.excluded)
+  })
+
+  it('runs in the answers mode too — the fixture mirrors its radar in the questionnaires', () => {
+    // Same figures here only because the fixture was built that way; the point
+    // is that the second adapter is exercised, not left as a dead option.
+    expect(metricsOf('answers')).toMatchObject({ total: 38, compared: 32, comparable: 27, agreementPercent: 74 })
+  })
+
+  it('is a v3-shaped workspace carrying the three additive fields', () => {
+    expect(Array.isArray(designExample.vocabulary)).toBe(true)
+    expect(Array.isArray(designExample.dismissedSuggestions)).toBe(true)
+    expect(Object.keys(designExample.comparisonOverrides)).toHaveLength(2)
   })
 })

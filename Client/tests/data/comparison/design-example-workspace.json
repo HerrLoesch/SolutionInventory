@@ -1,0 +1,2398 @@
+{
+  "id": "workspace-design-example",
+  "vocabulary": [
+    {
+      "id": "term-t01",
+      "name": "Term t01",
+      "kind": "practice",
+      "aliases": ["term-t01-alt", "t01 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t02",
+      "name": "Term t02",
+      "kind": "tool",
+      "aliases": ["term-t02-alt", "t02 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t03",
+      "name": "Term t03",
+      "kind": "tool",
+      "aliases": ["term-t03-alt", "t03 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t04",
+      "name": "Term t04",
+      "kind": "practice",
+      "aliases": ["term-t04-alt", "t04 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t05",
+      "name": "Term t05",
+      "kind": "tool",
+      "aliases": ["term-t05-alt", "t05 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t06",
+      "name": "Term t06",
+      "kind": "tool",
+      "aliases": ["term-t06-alt", "t06 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t07",
+      "name": "Term t07",
+      "kind": "practice",
+      "aliases": ["term-t07-alt", "t07 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t08",
+      "name": "Term t08",
+      "kind": "tool",
+      "aliases": ["term-t08-alt", "t08 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t09",
+      "name": "Term t09",
+      "kind": "tool",
+      "aliases": ["term-t09-alt", "t09 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t10",
+      "name": "Term t10",
+      "kind": "practice",
+      "aliases": ["term-t10-alt", "t10 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t11",
+      "name": "Term t11",
+      "kind": "tool",
+      "aliases": ["term-t11-alt", "t11 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t12",
+      "name": "Term t12",
+      "kind": "tool",
+      "aliases": ["term-t12-alt", "t12 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t13",
+      "name": "Term t13",
+      "kind": "practice",
+      "aliases": ["term-t13-alt", "t13 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t14",
+      "name": "Term t14",
+      "kind": "tool",
+      "aliases": ["term-t14-alt", "t14 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t15",
+      "name": "Term t15",
+      "kind": "tool",
+      "aliases": ["term-t15-alt", "t15 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t16",
+      "name": "Term t16",
+      "kind": "practice",
+      "aliases": ["term-t16-alt", "t16 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t17",
+      "name": "Term t17",
+      "kind": "tool",
+      "aliases": ["term-t17-alt", "t17 variant"],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t18",
+      "name": "Term t18",
+      "kind": "tool",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t19",
+      "name": "Term t19",
+      "kind": "practice",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t25",
+      "name": "Term t25",
+      "kind": "practice",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t26",
+      "name": "Term t26",
+      "kind": "tool",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t27",
+      "name": "Term t27",
+      "kind": "tool",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t28",
+      "name": "Term t28",
+      "kind": "practice",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t33",
+      "name": "Term t33",
+      "kind": "tool",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "term-t34",
+      "name": "Term t34",
+      "kind": "practice",
+      "aliases": [],
+      "note": "",
+      "createdAt": "2026-08-26T10:00:00.000Z"
+    }
+  ],
+  "comparisonOverrides": {
+    "term-t01": {
+      "level": "accepted",
+      "comment": "Legacy service, migration is commissioned",
+      "setAt": "2026-08-26T10:12:00.000Z",
+      "contextProjects": ["project-alpha", "project-beta", "project-gamma"],
+      "contextStatuses": {
+        "project-alpha": "Trial",
+        "project-beta": "Hold",
+        "project-gamma": "Trial"
+      }
+    },
+    "term-t02": {
+      "level": "accepted",
+      "comment": "Legacy service, migration is commissioned",
+      "setAt": "2026-08-26T10:12:00.000Z",
+      "contextProjects": ["project-alpha", "project-beta", "project-gamma"],
+      "contextStatuses": {
+        "project-alpha": "Trial",
+        "project-beta": "Hold",
+        "project-gamma": "Trial"
+      }
+    }
+  },
+  "dismissedSuggestions": [],
+  "projects": [
+    {
+      "id": "project-alpha",
+      "name": "Alpha",
+      "questionnaireIds": ["q-project-alpha"],
+      "defaultCatalogId": "catalog-house",
+      "radar": [
+        {
+          "entryId": "e1",
+          "option": "Term t01",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e4",
+          "option": "Term t02",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e7",
+          "option": "Term t03",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e10",
+          "option": "Term t04",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e13",
+          "option": "Term t05",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e16",
+          "option": "Term t06",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e19",
+          "option": "Term t07",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e22",
+          "option": "Term t08",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e25",
+          "option": "Term t09",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e28",
+          "option": "Term t10",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e31",
+          "option": "Term t11",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e34",
+          "option": "Term t12",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e37",
+          "option": "Term t13",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e40",
+          "option": "Term t14",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e43",
+          "option": "Term t15",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e46",
+          "option": "Term t16",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e49",
+          "option": "Term t17",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e52",
+          "option": "Term t18",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e55",
+          "option": "Term t19",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e58",
+          "option": "Raw t20",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e61",
+          "option": "Raw t21",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e64",
+          "option": "Raw t22",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e67",
+          "option": "Raw t23",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e70",
+          "option": "Raw t24",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e73",
+          "option": "Term t25",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e75",
+          "option": "Term t26",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e77",
+          "option": "Term t27",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e79",
+          "option": "Term t28",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e81",
+          "option": "Raw t29",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e83",
+          "option": "Raw t30",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e85",
+          "option": "Raw t31",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e87",
+          "option": "Raw t32",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e89",
+          "option": "Raw t32",
+          "category": "",
+          "status": "Hold",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        }
+      ]
+    },
+    {
+      "id": "project-beta",
+      "name": "Beta",
+      "questionnaireIds": ["q-project-beta"],
+      "defaultCatalogId": "catalog-house",
+      "radar": [
+        {
+          "entryId": "e2",
+          "option": "term-t01-alt",
+          "category": "",
+          "status": "Hold",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e5",
+          "option": "term-t02-alt",
+          "category": "",
+          "status": "Hold",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e8",
+          "option": "term-t03-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e11",
+          "option": "term-t04-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e14",
+          "option": "term-t05-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e17",
+          "option": "term-t06-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e20",
+          "option": "term-t07-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e23",
+          "option": "term-t08-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e26",
+          "option": "term-t09-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e29",
+          "option": "term-t10-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e32",
+          "option": "term-t11-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e35",
+          "option": "term-t12-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e38",
+          "option": "term-t13-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e41",
+          "option": "term-t14-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e44",
+          "option": "term-t15-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e47",
+          "option": "term-t16-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e50",
+          "option": "term-t17-alt",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e53",
+          "option": "Term t18",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e56",
+          "option": "Term t19",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e59",
+          "option": "Raw t20",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e62",
+          "option": "Raw t21",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e65",
+          "option": "Raw t22",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e68",
+          "option": "Raw t23",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e71",
+          "option": "Raw t24",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e74",
+          "option": "Term t25",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e76",
+          "option": "Term t26",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e78",
+          "option": "Term t27",
+          "category": "",
+          "status": "Assess",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e80",
+          "option": "Term t28",
+          "category": "",
+          "status": "Assess",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e82",
+          "option": "Raw t29",
+          "category": "",
+          "status": "Retire",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e84",
+          "option": "Raw t30",
+          "category": "",
+          "status": "",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e86",
+          "option": "Raw t31",
+          "category": "",
+          "status": "",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e88",
+          "option": "Raw t32",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        }
+      ]
+    },
+    {
+      "id": "project-gamma",
+      "name": "Gamma",
+      "questionnaireIds": ["q-project-gamma"],
+      "defaultCatalogId": "catalog-house",
+      "radar": [
+        {
+          "entryId": "e3",
+          "option": "t01 variant",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e6",
+          "option": "t02 variant",
+          "category": "",
+          "status": "Trial",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e9",
+          "option": "t03 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e12",
+          "option": "t04 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e15",
+          "option": "t05 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e18",
+          "option": "t06 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e21",
+          "option": "t07 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e24",
+          "option": "t08 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e27",
+          "option": "t09 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e30",
+          "option": "t10 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e33",
+          "option": "t11 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e36",
+          "option": "t12 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e39",
+          "option": "t13 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e42",
+          "option": "t14 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e45",
+          "option": "t15 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e48",
+          "option": "t16 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e51",
+          "option": "t17 variant",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e54",
+          "option": "Term t18",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e57",
+          "option": "Term t19",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e60",
+          "option": "Raw t20",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e63",
+          "option": "Raw t21",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e66",
+          "option": "Raw t22",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e69",
+          "option": "Raw t23",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e72",
+          "option": "Raw t24",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e90",
+          "option": "Term t33",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e91",
+          "option": "Term t34",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e92",
+          "option": "Raw t35",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e93",
+          "option": "Raw t36",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e94",
+          "option": "Raw t37",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        },
+        {
+          "entryId": "e95",
+          "option": "Raw t38",
+          "category": "",
+          "status": "Adopt",
+          "shortComment": "",
+          "description": "",
+          "link": ""
+        }
+      ]
+    }
+  ],
+  "questionnaires": [
+    {
+      "id": "q-project-alpha",
+      "name": "Alpha Assessment",
+      "catalogId": "catalog-house",
+      "categories": [
+        {
+          "id": "cat-main",
+          "title": "Technology",
+          "entries": [
+            {
+              "id": "e1",
+              "aspect": "Aspect e1",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t01",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e4",
+              "aspect": "Aspect e4",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t02",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e7",
+              "aspect": "Aspect e7",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t03",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e10",
+              "aspect": "Aspect e10",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t04",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e13",
+              "aspect": "Aspect e13",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t05",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e16",
+              "aspect": "Aspect e16",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t06",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e19",
+              "aspect": "Aspect e19",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t07",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e22",
+              "aspect": "Aspect e22",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t08",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e25",
+              "aspect": "Aspect e25",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t09",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e28",
+              "aspect": "Aspect e28",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t10",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e31",
+              "aspect": "Aspect e31",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t11",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e34",
+              "aspect": "Aspect e34",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t12",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e37",
+              "aspect": "Aspect e37",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t13",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e40",
+              "aspect": "Aspect e40",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t14",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e43",
+              "aspect": "Aspect e43",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t15",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e46",
+              "aspect": "Aspect e46",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t16",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e49",
+              "aspect": "Aspect e49",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t17",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e52",
+              "aspect": "Aspect e52",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t18",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e55",
+              "aspect": "Aspect e55",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t19",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e58",
+              "aspect": "Aspect e58",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t20",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e61",
+              "aspect": "Aspect e61",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t21",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e64",
+              "aspect": "Aspect e64",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t22",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e67",
+              "aspect": "Aspect e67",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t23",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e70",
+              "aspect": "Aspect e70",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t24",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e73",
+              "aspect": "Aspect e73",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t25",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e75",
+              "aspect": "Aspect e75",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t26",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e77",
+              "aspect": "Aspect e77",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t27",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e79",
+              "aspect": "Aspect e79",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t28",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e81",
+              "aspect": "Aspect e81",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t29",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e83",
+              "aspect": "Aspect e83",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t30",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e85",
+              "aspect": "Aspect e85",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t31",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e87",
+              "aspect": "Aspect e87",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t32",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e89",
+              "aspect": "Aspect e89",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t32",
+                  "status": "Hold",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q-project-beta",
+      "name": "Beta Assessment",
+      "catalogId": "catalog-house",
+      "categories": [
+        {
+          "id": "cat-main",
+          "title": "Technology",
+          "entries": [
+            {
+              "id": "e2",
+              "aspect": "Aspect e2",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t01-alt",
+                  "status": "Hold",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e5",
+              "aspect": "Aspect e5",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t02-alt",
+                  "status": "Hold",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e8",
+              "aspect": "Aspect e8",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t03-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e11",
+              "aspect": "Aspect e11",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t04-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e14",
+              "aspect": "Aspect e14",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t05-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e17",
+              "aspect": "Aspect e17",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t06-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e20",
+              "aspect": "Aspect e20",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t07-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e23",
+              "aspect": "Aspect e23",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t08-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e26",
+              "aspect": "Aspect e26",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t09-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e29",
+              "aspect": "Aspect e29",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t10-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e32",
+              "aspect": "Aspect e32",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t11-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e35",
+              "aspect": "Aspect e35",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t12-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e38",
+              "aspect": "Aspect e38",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t13-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e41",
+              "aspect": "Aspect e41",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t14-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e44",
+              "aspect": "Aspect e44",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t15-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e47",
+              "aspect": "Aspect e47",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t16-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e50",
+              "aspect": "Aspect e50",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "term-t17-alt",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e53",
+              "aspect": "Aspect e53",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t18",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e56",
+              "aspect": "Aspect e56",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t19",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e59",
+              "aspect": "Aspect e59",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t20",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e62",
+              "aspect": "Aspect e62",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t21",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e65",
+              "aspect": "Aspect e65",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t22",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e68",
+              "aspect": "Aspect e68",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t23",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e71",
+              "aspect": "Aspect e71",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t24",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e74",
+              "aspect": "Aspect e74",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t25",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e76",
+              "aspect": "Aspect e76",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t26",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e78",
+              "aspect": "Aspect e78",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t27",
+                  "status": "Assess",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e80",
+              "aspect": "Aspect e80",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t28",
+                  "status": "Assess",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e82",
+              "aspect": "Aspect e82",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t29",
+                  "status": "Retire",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e84",
+              "aspect": "Aspect e84",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t30",
+                  "status": "",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e86",
+              "aspect": "Aspect e86",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t31",
+                  "status": "",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e88",
+              "aspect": "Aspect e88",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t32",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q-project-gamma",
+      "name": "Gamma Assessment",
+      "catalogId": "catalog-house",
+      "categories": [
+        {
+          "id": "cat-main",
+          "title": "Technology",
+          "entries": [
+            {
+              "id": "e3",
+              "aspect": "Aspect e3",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t01 variant",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e6",
+              "aspect": "Aspect e6",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t02 variant",
+                  "status": "Trial",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e9",
+              "aspect": "Aspect e9",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t03 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e12",
+              "aspect": "Aspect e12",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t04 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e15",
+              "aspect": "Aspect e15",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t05 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e18",
+              "aspect": "Aspect e18",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t06 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e21",
+              "aspect": "Aspect e21",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t07 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e24",
+              "aspect": "Aspect e24",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t08 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e27",
+              "aspect": "Aspect e27",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t09 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e30",
+              "aspect": "Aspect e30",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t10 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e33",
+              "aspect": "Aspect e33",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t11 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e36",
+              "aspect": "Aspect e36",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t12 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e39",
+              "aspect": "Aspect e39",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t13 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e42",
+              "aspect": "Aspect e42",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t14 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e45",
+              "aspect": "Aspect e45",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t15 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e48",
+              "aspect": "Aspect e48",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t16 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e51",
+              "aspect": "Aspect e51",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "t17 variant",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e54",
+              "aspect": "Aspect e54",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t18",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e57",
+              "aspect": "Aspect e57",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t19",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e60",
+              "aspect": "Aspect e60",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t20",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e63",
+              "aspect": "Aspect e63",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t21",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e66",
+              "aspect": "Aspect e66",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t22",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e69",
+              "aspect": "Aspect e69",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t23",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e72",
+              "aspect": "Aspect e72",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t24",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e90",
+              "aspect": "Aspect e90",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t33",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e91",
+              "aspect": "Aspect e91",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Term t34",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e92",
+              "aspect": "Aspect e92",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t35",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e93",
+              "aspect": "Aspect e93",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t36",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            },
+            {
+              "id": "e94",
+              "aspect": "Aspect e94",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t37",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Practice"
+                }
+              ]
+            },
+            {
+              "id": "e95",
+              "aspect": "Aspect e95",
+              "applicability": "applicable",
+              "answers": [
+                {
+                  "technology": "Raw t38",
+                  "status": "Adopt",
+                  "comments": "",
+                  "answerType": "Tool"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "catalogs": [
+    {
+      "id": "catalog-house",
+      "name": "House Catalog",
+      "version": 1,
+      "description": "Placeholder catalog so the workspace is self-contained.",
+      "statusOptions": ["Adopt", "Trial", "Assess", "Hold", "Retire"],
+      "applicabilityOptions": ["applicable"],
+      "categories": []
+    }
+  ]
+}
