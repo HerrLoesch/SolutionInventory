@@ -1015,3 +1015,341 @@ describe('importCatalogToProject', () => {
     expect(reference.id).toBe(result.catalogId)
   })
 })
+
+// ── Vocabulary mutations (design §3.1) ───────────────────────────────────────
+//
+// These are the only write paths into workspace.vocabulary. Each one must keep
+// the "an alias belongs to at most one term" invariant, and a rejected mutation
+// must leave the workspace exactly as it was — no half-applied change.
+describe('vocabulary mutations', () => {
+  describe('createTerm', () => {
+    it('creates a term with a readable id, the canonical name and an empty alias list', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(id).toBe('term-net-core')
+      expect(store.workspace.vocabulary).toHaveLength(1)
+      const term = store.workspace.vocabulary[0]
+      expect(term.name).toBe('.NET Core')
+      expect(term.kind).toBe('tool')
+      expect(term.aliases).toEqual([])
+      expect(term.createdAt).toBeTruthy()
+    })
+
+    it('trims the name but keeps its canonical casing', () => {
+      const store = useWorkspaceStore()
+      store.createTerm('  Azure DevOps  ', 'practice')
+
+      expect(store.workspace.vocabulary[0].name).toBe('Azure DevOps')
+    })
+
+    it('refuses an empty name', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.createTerm('', 'tool')).toBe('')
+      expect(store.createTerm('   ', 'tool')).toBe('')
+      expect(store.workspace.vocabulary).toEqual([])
+    })
+
+    it('refuses a missing or unknown kind — kind is mandatory and never guessed', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.createTerm('Redis', '')).toBe('')
+      expect(store.createTerm('Redis', 'Tool')).toBe('')
+      expect(store.createTerm('Redis', 'framework')).toBe('')
+      expect(store.workspace.vocabulary).toEqual([])
+    })
+
+    it('refuses a name that already resolves — by canonical name or by alias', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'dotnet core')
+
+      expect(store.createTerm('.net  CORE', 'tool')).toBe('')
+      expect(store.createTerm('Dotnet Core', 'practice')).toBe('')
+      expect(store.workspace.vocabulary).toHaveLength(1)
+    })
+
+    it('disambiguates ids when two different names slugify to the same base', () => {
+      const store = useWorkspaceStore()
+      const first = store.createTerm('.NET Core', 'tool')
+      const second = store.createTerm('#NET Core', 'tool')
+
+      expect(first).toBe('term-net-core')
+      expect(second).toBe('term-net-core-2')
+    })
+  })
+
+  describe('addAlias / removeAlias', () => {
+    it('stores an alias normalized', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.addAlias(id, '  Dotnet   CORE ')).toBe(true)
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['dotnet core'])
+      expect(store.resolveTerm('DOTNET core').id).toBe(id)
+    })
+
+    it('does not store the canonical name a second time — it is an implicit alias', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.addAlias(id, '.net core')).toBe(false)
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+    })
+
+    it('does not store the same alias twice', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'netcore')
+
+      expect(store.addAlias(id, 'NETCORE')).toBe(false)
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['netcore'])
+    })
+
+    it('refuses an empty alias or an unknown term', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.addAlias(id, '   ')).toBe(false)
+      expect(store.addAlias('term-nope', 'x')).toBe(false)
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+    })
+
+    it('throws when the alias already belongs to a different term, leaving both untouched', () => {
+      const store = useWorkspaceStore()
+      const core = store.createTerm('.NET Core', 'tool')
+      const framework = store.createTerm('.NET Framework', 'tool')
+      store.addAlias(framework, 'netfx')
+
+      expect(() => store.addAlias(core, 'netfx')).toThrow(/alias collision/)
+      expect(store.workspace.vocabulary.find((term) => term.id === core).aliases).toEqual([])
+      expect(store.workspace.vocabulary.find((term) => term.id === framework).aliases).toEqual(['netfx'])
+    })
+
+    it('throws when the alias is another term’s canonical name', () => {
+      const store = useWorkspaceStore()
+      const core = store.createTerm('.NET Core', 'tool')
+      store.createTerm('Redis', 'tool')
+
+      expect(() => store.addAlias(core, 'redis')).toThrow(/alias collision/)
+      expect(store.resolveTerm('Redis').name).toBe('Redis')
+    })
+
+    it('removes an alias regardless of how it is spelled at the call site', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'netcore')
+
+      expect(store.removeAlias(id, ' NetCore ')).toBe(true)
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+      expect(store.resolveTerm('netcore')).toBeNull()
+    })
+
+    it('returns false when removing an alias the term does not have', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.removeAlias(id, 'nope')).toBe(false)
+    })
+  })
+
+  describe('renameTerm', () => {
+    it('keeps the id stable and turns the old name into an alias', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.renameTerm(id, '.NET')).toBe(true)
+      const term = store.workspace.vocabulary[0]
+      expect(term.id).toBe(id)
+      expect(term.name).toBe('.NET')
+      // Data written under the old name must keep resolving.
+      expect(store.resolveTerm('.NET Core').id).toBe(id)
+      expect(store.resolveTerm('.NET').id).toBe(id)
+    })
+
+    it('changes only the display form when the normalized name stays the same', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('dotnet core', 'tool')
+
+      expect(store.renameTerm(id, 'Dotnet Core')).toBe(true)
+      expect(store.workspace.vocabulary[0].name).toBe('Dotnet Core')
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+    })
+
+    it('does not keep the new canonical name as an explicit alias as well', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'dotnet')
+
+      store.renameTerm(id, 'Dotnet')
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['.net core'])
+    })
+
+    it('refuses an empty name, an unknown term, and a name owned by another term', () => {
+      const store = useWorkspaceStore()
+      const core = store.createTerm('.NET Core', 'tool')
+      store.createTerm('Redis', 'tool')
+
+      expect(store.renameTerm(core, '  ')).toBe(false)
+      expect(store.renameTerm('term-nope', 'X')).toBe(false)
+      expect(store.renameTerm(core, 'redis')).toBe(false)
+      expect(store.workspace.vocabulary.find((term) => term.id === core).name).toBe('.NET Core')
+    })
+  })
+
+  describe('setTermKind / setTermNote', () => {
+    it('changes the kind', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Trunk Based Development', 'tool')
+
+      expect(store.setTermKind(id, 'practice')).toBe(true)
+      expect(store.workspace.vocabulary[0].kind).toBe('practice')
+    })
+
+    it('refuses an unknown kind or an unknown term', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.setTermKind(id, 'Practice')).toBe(false)
+      expect(store.setTermKind('term-nope', 'practice')).toBe(false)
+      expect(store.workspace.vocabulary[0].kind).toBe('tool')
+    })
+
+    it('stores a note', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.setTermNote(id, 'Ab Version 5 als .NET geführt.')).toBe(true)
+      expect(store.workspace.vocabulary[0].note).toBe('Ab Version 5 als .NET geführt.')
+    })
+  })
+
+  describe('mergeTerms', () => {
+    it('moves the source name and all its aliases onto the target and deletes the source', () => {
+      const store = useWorkspaceStore()
+      const target = store.createTerm('.NET Core', 'tool')
+      const source = store.createTerm('Dotnet Core', 'tool')
+      store.addAlias(source, 'netcore')
+
+      expect(store.mergeTerms(source, target)).toBe(true)
+      expect(store.workspace.vocabulary).toHaveLength(1)
+      const merged = store.workspace.vocabulary[0]
+      expect(merged.id).toBe(target)
+      expect(merged.name).toBe('.NET Core')
+      expect(merged.aliases.sort()).toEqual(['dotnet core', 'netcore'])
+    })
+
+    it('makes every former spelling resolve to the target', () => {
+      const store = useWorkspaceStore()
+      const target = store.createTerm('.NET Core', 'tool')
+      const source = store.createTerm('Dotnet Core', 'tool')
+
+      store.mergeTerms(source, target)
+      expect(store.resolveTerm('dotnet core').id).toBe(target)
+      expect(store.resolveTerm('.NET Core').id).toBe(target)
+    })
+
+    it('keeps the target’s own kind — merging is not adopting the other identity', () => {
+      const store = useWorkspaceStore()
+      const target = store.createTerm('Pair Programming', 'practice')
+      const source = store.createTerm('Pairing', 'tool')
+
+      store.mergeTerms(source, target)
+      expect(store.workspace.vocabulary[0].kind).toBe('practice')
+    })
+
+    it('does not leave the target’s own name in its alias list', () => {
+      const store = useWorkspaceStore()
+      // A redundant self-alias is not a collision (termKeys deduplicates), so it
+      // can legitimately arrive from imported or hand-edited data.
+      store.workspace.vocabulary = [
+        { id: 'term-redis', name: 'Redis', kind: 'tool', aliases: ['redis'] },
+        { id: 'term-redis-cache', name: 'Redis Cache', kind: 'tool', aliases: [] }
+      ]
+
+      expect(store.mergeTerms('term-redis-cache', 'term-redis')).toBe(true)
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['redis cache'])
+    })
+
+    it('aborts and changes nothing when the result would collide with a third term', () => {
+      const store = useWorkspaceStore()
+      // Reachable only from stored data that already carries a collision — the
+      // store's own write paths refuse to create one. commitVocabulary validates
+      // regardless, so a merge cannot make such a workspace worse.
+      store.workspace.vocabulary = [
+        { id: 'term-a', name: 'A', kind: 'tool', aliases: [] },
+        { id: 'term-b', name: 'B', kind: 'tool', aliases: ['shared'] },
+        { id: 'term-c', name: 'C', kind: 'tool', aliases: ['shared'] }
+      ]
+      const before = JSON.parse(JSON.stringify(store.workspace.vocabulary))
+
+      expect(() => store.mergeTerms('term-b', 'term-a')).toThrow(/alias collision/)
+      expect(store.workspace.vocabulary).toEqual(before)
+    })
+
+    it('refuses an unknown term and a merge of a term into itself', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.mergeTerms(id, id)).toBe(false)
+      expect(store.mergeTerms('term-nope', id)).toBe(false)
+      expect(store.mergeTerms(id, 'term-nope')).toBe(false)
+      expect(store.workspace.vocabulary).toHaveLength(1)
+    })
+  })
+
+  describe('deleteTerm', () => {
+    it('removes the term and stops resolving its names', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'netcore')
+
+      expect(store.deleteTerm(id)).toBe(true)
+      expect(store.workspace.vocabulary).toEqual([])
+      expect(store.resolveTerm('netcore')).toBeNull()
+    })
+
+    it('returns false for an unknown term', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.deleteTerm('term-nope')).toBe(false)
+    })
+  })
+
+  describe('resolveTerm and vocabularyCollisions', () => {
+    it('resolves nothing on a fresh workspace and reports no collisions', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.workspace.vocabulary).toEqual([])
+      expect(store.resolveTerm('Redis')).toBeNull()
+      expect(store.vocabularyCollisions()).toEqual([])
+    })
+
+    it('reports a collision that came in with stored data, without refusing to load it', () => {
+      const store = useWorkspaceStore()
+      store.workspace.vocabulary = [
+        { id: 'term-a', name: 'A', kind: 'tool', aliases: ['x'] },
+        { id: 'term-b', name: 'B', kind: 'tool', aliases: ['x'] }
+      ]
+
+      expect(store.vocabularyCollisions()).toEqual([{ key: 'x', termId: 'term-a', conflictingTermId: 'term-b' }])
+      // First claimant wins on the read path, so the workspace stays usable.
+      expect(store.resolveTerm('x').id).toBe('term-a')
+    })
+  })
+
+  it('persists the vocabulary through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    const id = store.createTerm('.NET Core', 'tool')
+    store.addAlias(id, 'dotnet core')
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.resolveTerm('DOTNET CORE').id).toBe(id)
+    expect(reloaded.workspace.vocabulary[0].name).toBe('.NET Core')
+  })
+})

@@ -10,8 +10,16 @@ import {
   migrateCategoriesExamplesToTyped
 } from '../services/catalogService'
 import { validateCatalog } from '../schema/catalogValidation'
+import {
+  normalize,
+  termKeys,
+  buildAliasIndex,
+  resolve,
+  assertNoAliasCollisions,
+  TERM_KINDS
+} from '../services/vocabulary'
 import { prepareImportedCatalog } from '../services/catalogImport'
-import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
+import { createWorkspace, createProject, createQuestionnaire, generateSlugId } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
 import {
   migrateProjectRadar,
@@ -1106,6 +1114,209 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return project.radar.find((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm) || null
   }
 
+  // ── Vocabulary ─────────────────────────────────────────────────────────────
+  //
+  // The workspace vocabulary is a resolution layer over the free-text answers
+  // and radar blips (see src/services/vocabulary.js). These are its only write
+  // paths; every one of them keeps the "an alias belongs to at most one term"
+  // invariant by validating a *candidate* vocabulary first and only assigning it
+  // once it holds. A rejected mutation leaves the workspace exactly as it was.
+
+  function vocabularyList() {
+    if (!Array.isArray(workspace.value.vocabulary)) workspace.value.vocabulary = []
+    return workspace.value.vocabulary
+  }
+
+  // Applies `mutate` to a deep copy and adopts the result only if it is still
+  // collision-free. Cheaper to reason about than undoing a partial mutation, and
+  // the vocabulary is far too small for the copy to matter.
+  function commitVocabulary(mutate) {
+    const candidate = JSON.parse(JSON.stringify(vocabularyList()))
+    const result = mutate(candidate)
+    assertNoAliasCollisions(candidate)
+    workspace.value.vocabulary = candidate
+    return result
+  }
+
+  function findTerm(termId) {
+    return vocabularyList().find((term) => term.id === termId) || null
+  }
+
+  /**
+   * Resolves a raw name (a blip's `option`, an answer's `technology`) against the
+   * current vocabulary. Returns the term or null.
+   */
+  function resolveTerm(rawName) {
+    return resolve(rawName, vocabularyList())
+  }
+
+  /**
+   * Creates a term. `kind` is mandatory and never guessed — design §5.1 makes
+   * this the one thing the UI must ask for when answerType cannot supply it.
+   * Returns the new term's id, or '' when the name is empty or already taken.
+   */
+  function createTerm(name, kind) {
+    const canonical = String(name || '').trim()
+    if (!canonical) return ''
+    if (!TERM_KINDS.includes(kind)) return ''
+    if (resolveTerm(canonical)) return ''
+
+    const existingIds = vocabularyList().map((term) => term.id)
+    const id = `term-${generateSlugId(
+      canonical,
+      existingIds.map((termId) => termId.replace(/^term-/, ''))
+    )}`
+    return commitVocabulary((candidate) => {
+      candidate.push({
+        id,
+        name: canonical,
+        kind,
+        aliases: [],
+        note: '',
+        createdAt: new Date().toISOString()
+      })
+      return id
+    })
+  }
+
+  /**
+   * Adds a raw name as an alias of `termId`. No-op when the name already resolves
+   * to that same term (the canonical name counts as an implicit alias, so it is
+   * never stored twice). Throws AliasCollisionError when the name belongs to a
+   * different term — the user has to resolve that, it is not ours to overwrite.
+   */
+  function addAlias(termId, rawName) {
+    const term = findTerm(termId)
+    const key = normalize(rawName)
+    if (!term || key === '') return false
+    if (termKeys(term).includes(key)) return false
+
+    return commitVocabulary((candidate) => {
+      const target = candidate.find((entry) => entry.id === termId)
+      if (!Array.isArray(target.aliases)) target.aliases = []
+      target.aliases.push(key)
+      return true
+    })
+  }
+
+  function removeAlias(termId, rawName) {
+    const key = normalize(rawName)
+    if (!findTerm(termId) || key === '') return false
+    return commitVocabulary((candidate) => {
+      const target = candidate.find((entry) => entry.id === termId)
+      const aliases = Array.isArray(target.aliases) ? target.aliases : []
+      const index = aliases.indexOf(key)
+      if (index === -1) return false
+      aliases.splice(index, 1)
+      target.aliases = aliases
+      return true
+    })
+  }
+
+  /**
+   * Renames a term. `id` stays put on purpose (design DE-5): blips resolve
+   * through the alias index and overrides are keyed by id, so both survive.
+   * The *old* name is kept as an alias — data written under it must keep
+   * resolving, which is the whole point of the vocabulary.
+   */
+  function renameTerm(termId, name) {
+    const term = findTerm(termId)
+    const canonical = String(name || '').trim()
+    if (!term || !canonical) return false
+    if (normalize(term.name) === normalize(canonical)) {
+      // Same term, only spelling/casing of the display form changes.
+      return commitVocabulary((candidate) => {
+        candidate.find((entry) => entry.id === termId).name = canonical
+        return true
+      })
+    }
+    const owner = resolveTerm(canonical)
+    if (owner && owner.id !== termId) return false
+
+    return commitVocabulary((candidate) => {
+      const target = candidate.find((entry) => entry.id === termId)
+      const previousKey = normalize(target.name)
+      if (!Array.isArray(target.aliases)) target.aliases = []
+      if (previousKey && !target.aliases.includes(previousKey)) target.aliases.push(previousKey)
+      target.name = canonical
+      // The new canonical name is an implicit alias; drop any explicit copy.
+      target.aliases = target.aliases.filter((alias) => alias !== normalize(canonical))
+      return true
+    })
+  }
+
+  function setTermKind(termId, kind) {
+    if (!findTerm(termId) || !TERM_KINDS.includes(kind)) return false
+    return commitVocabulary((candidate) => {
+      candidate.find((entry) => entry.id === termId).kind = kind
+      return true
+    })
+  }
+
+  function setTermNote(termId, note) {
+    if (!findTerm(termId)) return false
+    return commitVocabulary((candidate) => {
+      candidate.find((entry) => entry.id === termId).note = String(note || '')
+      return true
+    })
+  }
+
+  /**
+   * Merges `sourceId` into `targetId`: the source's canonical name and all its
+   * aliases become aliases of the target, then the source is deleted. The target
+   * keeps its own name and kind — merging is "these spellings mean the same
+   * thing", not "adopt the other term's identity".
+   *
+   * Aborts (returning false) if either term is missing or if source and target
+   * are the same. A collision with a *third* term cannot arise from this
+   * operation alone, but commitVocabulary still validates, so a workspace that
+   * already carried one is not made worse by the merge.
+   */
+  function mergeTerms(sourceId, targetId) {
+    const source = findTerm(sourceId)
+    const target = findTerm(targetId)
+    if (!source || !target || sourceId === targetId) return false
+
+    return commitVocabulary((candidate) => {
+      const mergedInto = candidate.find((entry) => entry.id === targetId)
+      const keys = new Set(Array.isArray(mergedInto.aliases) ? mergedInto.aliases : [])
+      termKeys(source).forEach((key) => keys.add(key))
+      keys.delete(normalize(mergedInto.name))
+      mergedInto.aliases = [...keys]
+      candidate.splice(
+        candidate.findIndex((entry) => entry.id === sourceId),
+        1
+      )
+      return true
+    })
+  }
+
+  /**
+   * Deletes a term. Deliberately does not touch comparisonOverrides: an override
+   * keyed by a now-missing term is inert, and keeping it means an accidental
+   * delete followed by re-creating the same term does not silently lose the
+   * user's reasoning.
+   */
+  function deleteTerm(termId) {
+    if (!findTerm(termId)) return false
+    return commitVocabulary((candidate) => {
+      candidate.splice(
+        candidate.findIndex((entry) => entry.id === termId),
+        1
+      )
+      return true
+    })
+  }
+
+  /**
+   * Every collision currently present in the workspace vocabulary. Read-only —
+   * the UI uses it to tell the user what to clean up; the write paths above
+   * refuse to create one in the first place.
+   */
+  function vocabularyCollisions() {
+    return buildAliasIndex(vocabularyList()).collisions
+  }
+
   function setRadarOverride(
     projectId,
     entryId,
@@ -1368,6 +1579,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isProjectRadarRef,
     getRadarOverride,
     setRadarOverride,
+    resolveTerm,
+    createTerm,
+    addAlias,
+    removeAlias,
+    renameTerm,
+    setTermKind,
+    setTermNote,
+    mergeTerms,
+    deleteTerm,
+    vocabularyCollisions,
     setProjectRadarCategoryOrder,
     getProjectRadarCategoryOrder,
     setProjectRadarCategoryQuadrants,
