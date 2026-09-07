@@ -15,6 +15,11 @@ import {
   computeMetrics,
   vocabularyCoverage,
   agreementLevel,
+  canOverride,
+  overrideContextOf,
+  isOverrideContextChanged,
+  isOverrideStale,
+  OVERRIDE_LEVELS,
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
@@ -855,5 +860,142 @@ describe('the design’s example dataset', () => {
     expect(Array.isArray(designExample.vocabulary)).toBe(true)
     expect(Array.isArray(designExample.dismissedSuggestions)).toBe(true)
     expect(Object.keys(designExample.comparisonOverrides)).toHaveLength(2)
+  })
+})
+
+// DE-5: an override belongs to a term, is valid workspace-wide, and may only be
+// set where there is an automatic classification to override.
+describe('criticality overrides', () => {
+  const TWO = ['a', 'b']
+  const term = { id: 'term-x', name: 'X', kind: 'tool', aliases: [] }
+
+  function rowOf(byProject, resolved = true) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      const statuses = Array.isArray(status) ? status : [status]
+      cells.set(projectId, { projectId, values: statuses.map((one) => ({ status: one, origin: {} })) })
+    }
+    return { key: resolved ? 'term:term-x' : 'raw:x', term: resolved ? term : null, resolved, name: 'X', cells }
+  }
+
+  it('names the two levels the design defines', () => {
+    expect(OVERRIDE_LEVELS).toEqual(['accepted', 'critical'])
+  })
+
+  describe('canOverride', () => {
+    it('allows it on a resolved, comparable row', () => {
+      const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+      expect(canOverride(row, deltaOf(row, TWO).delta)).toBe(true)
+    })
+
+    it('refuses it on an unresolved row — the UI offers the assignment first', () => {
+      const row = rowOf({ a: 'Adopt', b: 'Retire' }, false)
+
+      expect(canOverride(row, deltaOf(row, TWO).delta)).toBe(false)
+    })
+
+    it('refuses it on unique, inconsistent and unset rows — there is nothing to override', () => {
+      const unique = rowOf({ a: 'Adopt' })
+      const inconsistent = rowOf({ a: ['Adopt', 'Hold'], b: 'Trial' })
+      const unset = rowOf({ a: 'Adopt', b: '' })
+
+      expect(canOverride(unique, deltaOf(unique, TWO).delta)).toBe(false)
+      expect(canOverride(inconsistent, deltaOf(inconsistent, TWO).delta)).toBe(false)
+      expect(canOverride(unset, deltaOf(unset, TWO).delta)).toBe(false)
+    })
+
+    it('allows it on a matching row too — accepting agreement is pointless but not wrong', () => {
+      const row = rowOf({ a: 'Adopt', b: 'Adopt' })
+
+      expect(canOverride(row, deltaOf(row, TWO).delta)).toBe(true)
+    })
+  })
+
+  describe('overrideContextOf', () => {
+    it('records the participating projects and their statuses', () => {
+      expect(overrideContextOf(rowOf({ a: 'Trial', b: 'Hold' }), TWO)).toEqual({
+        contextProjects: ['a', 'b'],
+        contextStatuses: { a: 'Trial', b: 'Hold' }
+      })
+    })
+
+    it('leaves out a project that does not use the term', () => {
+      expect(overrideContextOf(rowOf({ a: 'Trial' }), TWO)).toEqual({
+        contextProjects: ['a'],
+        contextStatuses: { a: 'Trial' }
+      })
+    })
+  })
+
+  describe('isOverrideContextChanged', () => {
+    const row = rowOf({ a: 'Trial', b: 'Hold' })
+    const stored = { level: 'accepted', contextProjects: ['a', 'b'], contextStatuses: { a: 'Trial', b: 'Hold' } }
+
+    it('is false while nothing moved', () => {
+      expect(isOverrideContextChanged(stored, row, TWO)).toBe(false)
+    })
+
+    it('is false when only the spelling of a status changed', () => {
+      expect(isOverrideContextChanged({ ...stored, contextStatuses: { a: 'trial', b: ' HOLD ' } }, row, TWO)).toBe(
+        false
+      )
+    })
+
+    it('is true when a status changed', () => {
+      expect(isOverrideContextChanged(stored, rowOf({ a: 'Trial', b: 'Retire' }), TWO)).toBe(true)
+    })
+
+    it('is true when a project joined or left', () => {
+      expect(isOverrideContextChanged(stored, rowOf({ a: 'Trial' }), TWO)).toBe(true)
+      expect(isOverrideContextChanged({ ...stored, contextProjects: ['a'] }, row, TWO)).toBe(true)
+    })
+
+    it('is false without an override at all', () => {
+      expect(isOverrideContextChanged(null, row, TWO)).toBe(false)
+    })
+  })
+
+  describe('isOverrideStale', () => {
+    const stored = { level: 'accepted', contextProjects: ['a', 'b'], contextStatuses: { a: 'Trial', b: 'Hold' } }
+
+    it('is false while the row still qualifies and the context holds', () => {
+      const row = rowOf({ a: 'Trial', b: 'Hold' })
+
+      expect(isOverrideStale(stored, row, deltaOf(row, TWO, { override: stored }).delta, TWO)).toBe(false)
+    })
+
+    it('is true once the row tipped into inconsistent — the override is kept but overruled', () => {
+      const row = rowOf({ a: ['Trial', 'Adopt'], b: 'Hold' })
+      const { delta } = deltaOf(row, TWO, { override: stored })
+
+      expect(delta).toBe(DELTA.INCONSISTENT)
+      expect(isOverrideStale(stored, row, delta, TWO)).toBe(true)
+    })
+
+    it('is true once the row tipped into unset', () => {
+      const row = rowOf({ a: 'Trial', b: '' })
+      const { delta } = deltaOf(row, TWO, { override: stored })
+
+      expect(delta).toBe(DELTA.UNSET)
+      expect(isOverrideStale(stored, row, delta, TWO)).toBe(true)
+    })
+
+    it('is true when only the context moved, while the override still applies', () => {
+      const row = rowOf({ a: 'Trial', b: 'Retire' })
+      const { delta } = deltaOf(row, TWO, { override: stored })
+
+      expect(delta).toBe(DELTA.ACCEPTED)
+      expect(isOverrideStale(stored, row, delta, TWO)).toBe(true)
+    })
+  })
+
+  it('never lets a term count in two exclusion reasons, even with a stale override', () => {
+    const row = rowOf({ a: ['Trial', 'Adopt'], b: '' })
+    const override = { level: 'accepted', contextProjects: ['a', 'b'], contextStatuses: {} }
+    const result = deltaOf(row, TWO, { override })
+
+    expect(result.delta).toBe(DELTA.INCONSISTENT)
+    expect(result.reasons).toEqual([DELTA.INCONSISTENT, DELTA.UNSET, DELTA.ACCEPTED])
   })
 })

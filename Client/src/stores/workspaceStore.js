@@ -1114,6 +1114,54 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return project.radar.find((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm) || null
   }
 
+  // ── Comparison overrides ───────────────────────────────────────────────────
+  //
+  // Manual re-classification of a divergence, keyed by term.id and valid
+  // workspace-wide. Because the id survives renaming and merging, so does the
+  // override (DE-5).
+  //
+  // Deliberately NOT setRadarOverride — that one curates a single blip inside
+  // one project's radar. This one records a judgement about a term across
+  // projects and lives in workspace.comparisonOverrides.
+
+  function comparisonOverrides() {
+    if (!workspace.value.comparisonOverrides || typeof workspace.value.comparisonOverrides !== 'object') {
+      workspace.value.comparisonOverrides = {}
+    }
+    return workspace.value.comparisonOverrides
+  }
+
+  function getComparisonOverride(termId) {
+    return comparisonOverrides()[termId] || null
+  }
+
+  /**
+   * Records a decision about a term. `context` is the situation it was taken in
+   * (which projects, which statuses) so a later divergence cannot hide behind an
+   * accepted one — the engine compares it back and flags a changed context.
+   *
+   * Whether the row is even *allowed* an override is the view's call via
+   * canOverride(): the store does not have the comparison in front of it.
+   */
+  function setComparisonOverride(termId, { level, comment = '', contextProjects = [], contextStatuses = {} }) {
+    if (!termId || !['accepted', 'critical'].includes(level)) return false
+    comparisonOverrides()[termId] = {
+      level,
+      comment: String(comment || ''),
+      setAt: new Date().toISOString(),
+      contextProjects: [...contextProjects],
+      contextStatuses: { ...contextStatuses }
+    }
+    return true
+  }
+
+  function clearComparisonOverride(termId) {
+    const overrides = comparisonOverrides()
+    if (!(termId in overrides)) return false
+    delete overrides[termId]
+    return true
+  }
+
   // ── Vocabulary ─────────────────────────────────────────────────────────────
   //
   // The workspace vocabulary is a resolution layer over the free-text answers
@@ -1579,6 +1627,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isProjectRadarRef,
     getRadarOverride,
     setRadarOverride,
+    getComparisonOverride,
+    setComparisonOverride,
+    clearComparisonOverride,
     resolveTerm,
     createTerm,
     addAlias,

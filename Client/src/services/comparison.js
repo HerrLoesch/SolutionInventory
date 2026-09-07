@@ -436,3 +436,68 @@ export function computeMetrics(rows, projectIds, { overrides = {}, vocabulary = 
   if (vocabulary) counts.vocabulary = vocabulary
   return counts
 }
+
+export const OVERRIDE_LEVELS = ['accepted', 'critical']
+
+/**
+ * Whether a criticality override may be *set* on a row (DE-5).
+ *
+ * Only on a term that is resolved **and** comparable. Not on a `◌` row — the UI
+ * offers the vocabulary assignment first there, which keeps overrides from being
+ * orphaned on a spelling that disappears a moment later. And not on a row that
+ * already falls out of `Comparable` for another reason (`⚠ inconsistent`,
+ * `⊘ unset`) or is not compared at all (`◑ unique`): there is no automatic
+ * classification to override.
+ */
+export function canOverride(row, delta) {
+  if (!row?.resolved || !row?.term?.id) return false
+  return delta !== DELTA.NONE && delta !== DELTA.INCONSISTENT && delta !== DELTA.UNSET
+}
+
+/**
+ * The context an override was set in: which projects took part and what each of
+ * them said. Stored alongside the decision so a later divergence cannot hide
+ * behind an accepted one.
+ */
+export function overrideContextOf(row, projectIds) {
+  const contextProjects = []
+  const contextStatuses = {}
+  for (const projectId of projectIds || []) {
+    const values = row?.cells?.get?.(projectId)?.values || []
+    if (!values.length) continue
+    contextProjects.push(projectId)
+    contextStatuses[projectId] = values[0].status
+  }
+  return { contextProjects, contextStatuses }
+}
+
+/**
+ * Whether the situation has moved on since the override was set — a different
+ * set of projects, or a different status in one of them.
+ *
+ * The override stays in force either way; the UI only labels it
+ * "manually set — context has changed" so it can be reviewed (DE-5).
+ */
+export function isOverrideContextChanged(override, row, projectIds) {
+  if (!override) return false
+  const current = overrideContextOf(row, projectIds)
+  const stored = {
+    contextProjects: Array.isArray(override.contextProjects) ? override.contextProjects : [],
+    contextStatuses: override.contextStatuses || {}
+  }
+  if ([...current.contextProjects].sort().join('|') !== [...stored.contextProjects].sort().join('|')) return true
+  return current.contextProjects.some(
+    (projectId) => normalize(current.contextStatuses[projectId]) !== normalize(stored.contextStatuses[projectId])
+  )
+}
+
+/**
+ * True when an override is still stored but the row has since tipped into a
+ * state that overrules it (design §5.3). The override is kept — it is the
+ * user's reasoning — but it needs a look.
+ */
+export function isOverrideStale(override, row, delta, projectIds) {
+  if (!override) return false
+  if (!canOverride(row, delta)) return true
+  return isOverrideContextChanged(override, row, projectIds)
+}

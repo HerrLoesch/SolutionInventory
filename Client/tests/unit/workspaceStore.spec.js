@@ -1353,3 +1353,108 @@ describe('vocabulary mutations', () => {
     expect(reloaded.workspace.vocabulary[0].name).toBe('.NET Core')
   })
 })
+
+// ── Comparison overrides (Todo 3.8) ──────────────────────────────────────────
+//
+// Keyed by term.id and stored inside `workspace`, so the passthrough argument
+// from design §7.1 applies and no STORAGE_VERSION bump is needed. Not to be
+// confused with setRadarOverride, which curates a single blip in one project.
+describe('comparison overrides', () => {
+  it('stores a decision with its comment and the context it was taken in', () => {
+    const store = useWorkspaceStore()
+    const termId = store.createTerm('Azure DevOps', 'tool')
+
+    expect(
+      store.setComparisonOverride(termId, {
+        level: 'accepted',
+        comment: 'Legacy service, migration is commissioned',
+        contextProjects: ['p1', 'p2'],
+        contextStatuses: { p1: 'Trial', p2: 'Hold' }
+      })
+    ).toBe(true)
+
+    const stored = store.getComparisonOverride(termId)
+    expect(stored).toMatchObject({
+      level: 'accepted',
+      comment: 'Legacy service, migration is commissioned',
+      contextProjects: ['p1', 'p2'],
+      contextStatuses: { p1: 'Trial', p2: 'Hold' }
+    })
+    expect(stored.setAt).toBeTruthy()
+  })
+
+  it('refuses an unknown level and an empty term id', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonOverride('term-x', { level: 'maybe' })).toBe(false)
+    expect(store.setComparisonOverride('', { level: 'accepted' })).toBe(false)
+    expect(store.workspace.comparisonOverrides).toEqual({})
+  })
+
+  it('returns null for a term without an override', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.getComparisonOverride('term-nope')).toBeNull()
+  })
+
+  it('clears an override, and reports when there was none', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonOverride('term-x', { level: 'critical' })
+
+    expect(store.clearComparisonOverride('term-x')).toBe(true)
+    expect(store.getComparisonOverride('term-x')).toBeNull()
+    expect(store.clearComparisonOverride('term-x')).toBe(false)
+  })
+
+  it('survives renaming the term, because it is keyed by id (DE-5)', () => {
+    const store = useWorkspaceStore()
+    const termId = store.createTerm('Azure DevOps', 'tool')
+    store.setComparisonOverride(termId, { level: 'accepted' })
+
+    store.renameTerm(termId, 'Azure Pipelines')
+    expect(store.getComparisonOverride(termId).level).toBe('accepted')
+  })
+
+  it('survives merging another spelling into the term', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('Azure DevOps', 'tool')
+    const source = store.createTerm('AzureDevops Server', 'tool')
+    store.setComparisonOverride(target, { level: 'accepted' })
+
+    store.mergeTerms(source, target)
+    expect(store.getComparisonOverride(target).level).toBe('accepted')
+  })
+
+  it('is kept when the term is deleted — an accidental delete must not lose the reasoning', () => {
+    const store = useWorkspaceStore()
+    const termId = store.createTerm('Azure DevOps', 'tool')
+    store.setComparisonOverride(termId, { level: 'accepted', comment: 'why' })
+
+    store.deleteTerm(termId)
+    expect(store.getComparisonOverride(termId).comment).toBe('why')
+  })
+
+  it('is not the same thing as setRadarOverride', () => {
+    const store = useWorkspaceStore()
+    const { projectId, questionnaireId } = seedProjectWithQuestionnaire(store)
+    store.toggleProjectRadarRef(projectId, 'arch-hlp', 'Vue', questionnaireId)
+    store.setRadarOverride(projectId, 'arch-hlp', 'Vue', { status: 'Retire', comment: '' })
+    store.setComparisonOverride('term-vue', { level: 'accepted' })
+
+    expect(store.getRadarOverride(projectId, 'arch-hlp', 'Vue').status).toBe('Retire')
+    expect(store.getComparisonOverride('term-vue').level).toBe('accepted')
+    expect(store.workspace.comparisonOverrides).toEqual({ 'term-vue': expect.objectContaining({ level: 'accepted' }) })
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonOverride('term-x', { level: 'critical', comment: 'must be resolved' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.getComparisonOverride('term-x')).toMatchObject({ level: 'critical', comment: 'must be resolved' })
+  })
+})
