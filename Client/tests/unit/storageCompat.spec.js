@@ -1,4 +1,4 @@
-// Golden-Master compatibility tests, see docs/spec-fragenkataloge.md §6.2.
+// Golden-Master compatibility tests.
 //
 // The fixtures under tests/data/storage/ are frozen contracts: real shapes of
 // data written to disk/localStorage by earlier app versions. They must never be
@@ -194,7 +194,7 @@ describe('storage compatibility (Golden Master)', () => {
     })
   })
 
-  describe('catalog migration (docs/spec-fragenkataloge.md §3.3.2 / Phase 6)', () => {
+  describe('catalog migration (see the STORAGE_VERSION history in src/stores/migrations.js)', () => {
     it('loading a v1 payload adds both built-in catalogs and stamps defaultCatalogId on projects, without touching existing data', () => {
       const store = useWorkspaceStore()
       const ok = store.loadFromData(clone(v1WorkspaceFull))
@@ -296,7 +296,7 @@ describe('storage compatibility (Golden Master)', () => {
 
       const persistedRaw = JSON.parse(localStorage.getItem(STORAGE_KEY))
       expect(persistedRaw.version).toBe(3)
-      // Records which app release wrote this file (see docs/spec-fragenkataloge.md §3.3.3).
+      // Records which app release wrote this file (see buildSnapshot in src/stores/persistence.js).
       expect(persistedRaw.appVersion).toBe(pkg.version)
 
       setActivePinia(createPinia())
@@ -360,7 +360,7 @@ describe('storage compatibility (Golden Master)', () => {
     })
   })
 
-  describe('B1 fix — unreadable/unrecognized workspace data is preserved, not silently discarded (docs/refactoring.md §2.0)', () => {
+  describe('B1 fix — unreadable/unrecognized workspace data is preserved, not silently discarded', () => {
     it('web: a payload with an unrecognized version sets workspaceLoadError instead of seeding', async () => {
       const payloadWithNewerVersion = { ...clone(v1WorkspaceFull), version: 999 }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadWithNewerVersion))

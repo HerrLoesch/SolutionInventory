@@ -1,6 +1,7 @@
-// Pure, framework-agnostic migration steps for older storage formats. See
-// docs/spec-fragenkataloge.md §3.3 for the compatibility strategy this
-// implements. None of these functions touch localStorage/Electron I/O
+// Pure, framework-agnostic migration steps for older storage formats. The
+// compatibility strategy they implement is the STORAGE_VERSION history table
+// below, pinned by the golden-master fixtures in tests/unit/storageCompat.spec.js.
+// None of these functions touch localStorage/Electron I/O
 // directly (that lives in persistence.js) — they only transform data that
 // has already been read.
 //
@@ -61,13 +62,13 @@ export function buildWorkspaceFromLegacyCategoriesFormat(categories) {
 }
 
 /**
- * Migrates a v1 workspace (no catalog concept) to v2 in place. See
- * docs/spec-fragenkataloge.md §3.3.2. Additive and idempotent:
+ * Migrates a v1 workspace (no catalog concept) to v2 in place. See the
+ * STORAGE_VERSION history at the top of this file. Additive and idempotent:
  * - Adds `standardCatalog` to `workspace.catalogs` if not already present.
  * - Gives every project a `defaultCatalogId` if it doesn't have one yet.
  * Existing questionnaires are deliberately left as-is (no `catalogId`
  * stamped) — they become legacy instances rather than being assigned a
- * provenance the app cannot actually verify (see spec §7 point 6). Their
+ * provenance the app cannot actually verify. Their
  * structure and answers are untouched either way.
  */
 export function migrateWorkspaceToV2(workspace, standardCatalog) {

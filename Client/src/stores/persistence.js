@@ -1,8 +1,8 @@
 // Storage I/O for the workspace: localStorage (web) and the Electron-managed
 // data file. Deliberately thin and side-effect-scoped so the store can decide
 // what to do with success/failure (seed, show workspaceLoadError, etc.) —
-// see docs/spec-fragenkataloge.md §3.3.1 and docs/refactoring.md §2.0 for why
-// that decision must not default to silently overwriting unreadable data.
+// see the "B1 fix" block in tests/unit/storageCompat.spec.js for why that
+// decision must not default to silently overwriting unreadable data.
 
 export function buildSnapshot({
   version,

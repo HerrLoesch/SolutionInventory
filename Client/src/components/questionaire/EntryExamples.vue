@@ -36,7 +36,7 @@ const items = computed(() => {
     // expandExamplesToTyped tolerantly reads both the typed
     // { type, label, description } shape and legacy { label, tools[] }
     // examples, flattening each into its own displayed item — see
-    // catalogService.js and docs/spec-fragenkataloge.md §3.1.
+    // expandExamplesToTyped in catalogService.js.
     return expandExamplesToTyped(props.examples)
       .map((example) => {
         const label = String(example.label || '').trim()

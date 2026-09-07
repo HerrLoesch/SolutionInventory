@@ -2,7 +2,7 @@
   <div class="project-tree-nav">
     <div class="tree-header">
       <div class="tree-title">Question Catalogs</div>
-      <div class="tree-actions">        
+      <div class="tree-actions">
         <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
           <v-icon>mdi-plus</v-icon>
           <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>

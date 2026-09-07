@@ -1,4 +1,5 @@
-// Catalog (Fragenkatalog) template handling — see docs/spec-fragenkataloge.md §3.
+// Catalog (Fragenkatalog) template handling — the structure it produces is
+// described in src/schema/catalog.schema.json.
 // A Catalog is a reusable template (structure only, no answers); a
 // Questionnaire is an instance of a Catalog with answers filled in.
 
@@ -47,7 +48,7 @@ export function buildStandardCatalogFromSeed(categoriesData) {
 
 /**
  * Builds the additional, interview-optimized catalog shipped alongside the
- * Standard Catalog (see docs/spec-fragenkataloge.md Phase 6). Its seed is
+ * Standard Catalog. Its seed is
  * already in catalog shape with typed examples (interviewCatalogData.js), so
  * unlike the standard catalog there are no answers to strip. A fresh clone is
  * returned on every call so callers can freely mutate it (e.g. as an editor
@@ -119,7 +120,8 @@ export function duplicateCatalogTemplate(catalog, name) {
  * ({ type: 'practice' | 'tool', label, description }) passes through
  * unchanged. A legacy example ({ label, description, tools[] }, no `type`)
  * becomes one 'practice' example plus one 'tool' example per entry in
- * `tools[]` — see docs/spec-fragenkataloge.md §3.1. Pure — never mutates
+ * `tools[]` — see the `examples` definition in src/schema/catalog.schema.json.
+ * Pure — never mutates
  * its input, so it's safe to use on data at rest (Questionnaire instances,
  * which are never bulk-migrated, only read tolerantly).
  */

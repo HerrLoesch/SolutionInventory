@@ -285,7 +285,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
    * Explicit, user-triggered recovery from a workspaceLoadError: discards the
    * unreadable data in memory and starts a fresh seeded workspace. Never
    * called automatically — the caller must have shown the error to the user
-   * first, since this is the point of no silent data loss (see docs/spec-fragenkataloge.md §3.3.1).
+   * first, since this is the point of no silent data loss (see the "B1 fix"
+   * block in tests/unit/storageCompat.spec.js).
    */
   function resolveWorkspaceLoadErrorWithFreshWorkspace() {
     if (!workspaceLoadError.value) return

@@ -35,7 +35,7 @@ export function createQuestionnaire(name, categories = []) {
  * Slugifies `text` into an id, disambiguating collisions with a numeric
  * suffix (-2, -3, …). Used for stable, human-readable catalog/category/entry
  * ids that only change when the editor's explicit "regenerate id" action is
- * used — not automatically on every title edit (see docs/spec-fragenkataloge.md §4.5).
+ * used — not automatically on every title edit.
  */
 export function generateSlugId(text, existingIds = []) {
   const base =

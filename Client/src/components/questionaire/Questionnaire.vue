@@ -660,7 +660,7 @@ export default {
       // expandExamplesToTyped tolerantly reads both the typed
       // { type: 'practice' | 'tool', label } shape and legacy
       // { label, tools[] } examples (never mutates entry.examples) — see
-      // catalogService.js and docs/spec-fragenkataloge.md §3.1.
+      // expandExamplesToTyped in catalogService.js.
       // No answerType chosen yet (fresh answer row) shows both kinds
       // combined, narrowing down once the user picks Tool or Practice.
       const includePractice = answerType !== 'Tool'
