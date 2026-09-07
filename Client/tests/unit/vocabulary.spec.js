@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalize, isSameName, TERM_KINDS } from '../../src/services/vocabulary'
+import { normalize, isSameName, TERM_KINDS, termKeys, buildAliasIndex, resolve } from '../../src/services/vocabulary'
 
 describe('normalize', () => {
   it('lower-cases and trims', () => {
@@ -53,5 +53,110 @@ describe('isSameName', () => {
 describe('TERM_KINDS', () => {
   it('holds exactly the two kinds a term may carry, lower-cased', () => {
     expect(TERM_KINDS).toEqual(['tool', 'practice'])
+  })
+})
+
+function term(id, name, aliases = [], kind = 'tool') {
+  return { id, name, kind, aliases }
+}
+
+describe('termKeys', () => {
+  it('includes the normalized name as an implicit alias', () => {
+    expect(termKeys(term('t1', '.NET Core', ['dotnet core']))).toEqual(['.net core', 'dotnet core'])
+  })
+
+  it('deduplicates an alias that repeats the name', () => {
+    expect(termKeys(term('t1', '.NET Core', ['.net core', 'dotnet core']))).toEqual(['.net core', 'dotnet core'])
+  })
+
+  it('drops empty and whitespace-only aliases', () => {
+    expect(termKeys(term('t1', 'Redis', ['', '   ', 'redis-cache']))).toEqual(['redis', 'redis-cache'])
+  })
+
+  it('tolerates a term without an alias array', () => {
+    expect(termKeys({ id: 't1', name: 'Redis' })).toEqual(['redis'])
+  })
+
+  it('returns nothing for a nameless term with no aliases', () => {
+    expect(termKeys({ id: 't1', name: '' })).toEqual([])
+  })
+})
+
+describe('buildAliasIndex', () => {
+  it('maps every name and alias to its term', () => {
+    const vocabulary = [term('t1', '.NET Core', ['dotnet core', 'netcore']), term('t2', 'Redis')]
+    const { index, collisions } = buildAliasIndex(vocabulary)
+
+    expect(collisions).toEqual([])
+    expect(index.get('.net core').id).toBe('t1')
+    expect(index.get('dotnet core').id).toBe('t1')
+    expect(index.get('netcore').id).toBe('t1')
+    expect(index.get('redis').id).toBe('t2')
+  })
+
+  it('normalizes keys, so a sloppily written alias is still found', () => {
+    const { index } = buildAliasIndex([term('t1', '  Azure   DevOps ', ['  ADO  '])])
+
+    expect(index.get('azure devops').id).toBe('t1')
+    expect(index.get('ado').id).toBe('t1')
+  })
+
+  it('returns an empty index for an empty, missing or non-array vocabulary', () => {
+    expect(buildAliasIndex([]).index.size).toBe(0)
+    expect(buildAliasIndex(undefined).index.size).toBe(0)
+    expect(buildAliasIndex('nope').index.size).toBe(0)
+  })
+
+  it('skips entries without an id instead of indexing them', () => {
+    const { index } = buildAliasIndex([{ name: 'Ghost', aliases: [] }, term('t1', 'Redis')])
+
+    expect(index.has('ghost')).toBe(false)
+    expect(index.get('redis').id).toBe('t1')
+  })
+
+  it('tolerates the same key listed twice on one term without reporting a collision', () => {
+    const { collisions } = buildAliasIndex([term('t1', 'Redis', ['redis', 'Redis'])])
+
+    expect(collisions).toEqual([])
+  })
+})
+
+describe('resolve', () => {
+  const vocabulary = [term('t1', '.NET Core', ['dotnet core', 'netcore']), term('t2', 'Redis')]
+
+  it('resolves by canonical name', () => {
+    expect(resolve('.NET Core', vocabulary).id).toBe('t1')
+  })
+
+  it('resolves by alias', () => {
+    expect(resolve('Dotnet Core', vocabulary).id).toBe('t1')
+    expect(resolve('NETCORE', vocabulary).id).toBe('t1')
+  })
+
+  it('resolves regardless of case and surrounding or doubled whitespace', () => {
+    expect(resolve('  .net   CORE  ', vocabulary).id).toBe('t1')
+  })
+
+  it('returns null for a name the vocabulary does not know', () => {
+    expect(resolve('Redux', vocabulary)).toBeNull()
+  })
+
+  it('returns null for empty, whitespace-only and non-string names', () => {
+    expect(resolve('', vocabulary)).toBeNull()
+    expect(resolve('   ', vocabulary)).toBeNull()
+    expect(resolve(null, vocabulary)).toBeNull()
+    expect(resolve(undefined, vocabulary)).toBeNull()
+  })
+
+  it('returns null for an empty or missing vocabulary', () => {
+    expect(resolve('Redis', [])).toBeNull()
+    expect(resolve('Redis', undefined)).toBeNull()
+  })
+
+  it('accepts a prebuilt index so a caller can build it once for many lookups', () => {
+    const { index } = buildAliasIndex(vocabulary)
+
+    expect(resolve('netcore', index).id).toBe('t1')
+    expect(resolve('Redux', index)).toBeNull()
   })
 })
