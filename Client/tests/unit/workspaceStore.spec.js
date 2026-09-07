@@ -1458,3 +1458,124 @@ describe('comparison overrides', () => {
     expect(reloaded.getComparisonOverride('term-x')).toMatchObject({ level: 'critical', comment: 'must be resolved' })
   })
 })
+
+// ── Workspace comparison tab (Todo 4.2) ──────────────────────────────────────
+describe('workspace comparison tab', () => {
+  function twoProjects(store) {
+    store.addProject('Alpha')
+    store.addProject('Beta')
+  }
+
+  it('is closed on a fresh workspace', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.comparisonTabOpen).toBe(false)
+    expect(store.workspaceTabs.some((tab) => tab.type === 'workspace-comparison')).toBe(false)
+  })
+
+  it('refuses to open below two projects', () => {
+    const store = useWorkspaceStore()
+    store.addProject('Only one')
+
+    expect(store.openWorkspaceComparison()).toBe(false)
+    expect(store.comparisonTabOpen).toBe(false)
+  })
+
+  it('opens as the first tab and becomes active', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+
+    expect(store.openWorkspaceComparison()).toBe(true)
+    expect(store.workspaceTabs[0]).toMatchObject({ type: 'workspace-comparison', label: 'Comparison' })
+    expect(store.activeWorkspaceTabId).toBe(store.COMPARISON_TAB_ID)
+  })
+
+  it('opens only once however often it is triggered', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    store.openWorkspaceComparison()
+
+    expect(store.workspaceTabs.filter((tab) => tab.type === 'workspace-comparison')).toHaveLength(1)
+  })
+
+  it('closes and hands the active tab on to whatever is left', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    const projectId = store.workspace.projects[0].id
+    store.openProjectSummary(projectId)
+    store.openWorkspaceComparison()
+
+    store.closeWorkspaceTab(store.COMPARISON_TAB_ID)
+    expect(store.comparisonTabOpen).toBe(false)
+    expect(store.activeWorkspaceTabId).not.toBe(store.COMPARISON_TAB_ID)
+    expect(store.workspaceTabs.some((tab) => tab.type === 'project-summary')).toBe(true)
+  })
+
+  it('cannot be activated while it is closed', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.setActiveWorkspaceTab(store.COMPARISON_TAB_ID)
+
+    expect(store.activeWorkspaceTabId).not.toBe(store.COMPARISON_TAB_ID)
+  })
+
+  it('persists its open state at save-data level, outside the workspace object', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    await store.persist()
+
+    const stored = JSON.parse(localStorage.getItem('solution-inventory-data'))
+    expect(stored.comparisonTabOpen).toBe(true)
+    // Deliberately *not* inside `workspace`: applyStoredData passes the
+    // workspace through whole, and an older build should not carry along the
+    // open state of a tab it cannot render (design §7.1).
+    expect('comparisonTabOpen' in stored.workspace).toBe(false)
+    expect(stored.version).toBe(3)
+  })
+
+  it('restores its open state on load', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.comparisonTabOpen).toBe(true)
+  })
+
+  it('stays closed when loading a file written before the tab existed', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    await store.persist()
+    const stored = JSON.parse(localStorage.getItem('solution-inventory-data'))
+    delete stored.comparisonTabOpen
+    localStorage.setItem('solution-inventory-data', JSON.stringify(stored))
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.comparisonTabOpen).toBe(false)
+  })
+
+  it('stays closed when the stored workspace has dropped below two projects', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    await store.persist()
+    const stored = JSON.parse(localStorage.getItem('solution-inventory-data'))
+    stored.workspace.projects = stored.workspace.projects.slice(0, 1)
+    localStorage.setItem('solution-inventory-data', JSON.stringify(stored))
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.comparisonTabOpen).toBe(false)
+  })
+})

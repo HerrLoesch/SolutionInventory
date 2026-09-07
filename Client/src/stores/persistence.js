@@ -12,6 +12,7 @@ export function buildSnapshot({
   openQuestionnaireIds,
   activeWorkspaceTabId,
   openProjectSummaryIds,
+  comparisonTabOpen,
   questionnaireHiddenEntries
 }) {
   return {
@@ -27,6 +28,11 @@ export function buildSnapshot({
     openQuestionnaireIds,
     activeWorkspaceTabId,
     openProjectSummaryIds,
+    // Whether the workspace comparison tab is open. Sits at *save-data* level,
+    // not inside `workspace`, so applyStoredData does not pass it through — an
+    // older build loses at most the open state of a tab it cannot render anyway
+    // (design §7.1). That is also why it needs no STORAGE_VERSION bump.
+    comparisonTabOpen,
     questionnaireHiddenEntries
   }
 }

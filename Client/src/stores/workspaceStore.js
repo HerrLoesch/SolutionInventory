@@ -46,6 +46,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const openQuestionnaireIds = ref([])
   const activeWorkspaceTabId = ref('')
   const openProjectSummaryIds = ref([])
+  // The workspace comparison tab is a singleton — there is only one workspace,
+  // so an open flag says everything an id list would.
+  const comparisonTabOpen = ref(false)
   const openCatalogEditorIds = ref([])
   // Draft state for open catalog editors, keyed by catalog id — session-only
   // (not persisted): { [catalogId]: { draft: Catalog, dirty: boolean } }.
@@ -91,7 +94,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }))
   })
 
+  const COMPARISON_TAB_ID = 'workspace:comparison'
+
   const workspaceTabs = computed(() => {
+    // The workspace comparison tab. First in the list because it is about the
+    // workspace as a whole, not about one of the things below it.
+    const comparisonTabs = comparisonTabOpen.value
+      ? [{ id: COMPARISON_TAB_ID, type: 'workspace-comparison', label: 'Comparison' }]
+      : []
+
     const projectTabs = openProjectSummaryIds.value
       .map((projectId) => workspace.value.projects.find((project) => project.id === projectId))
       .filter(Boolean)
@@ -123,7 +134,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         categories: questionnaire.categories
       }))
 
-    return [...projectTabs, ...catalogEditorTabs, ...questionnaireTabs]
+    return [...comparisonTabs, ...projectTabs, ...catalogEditorTabs, ...questionnaireTabs]
   })
 
   // Versions this app can load. Tolerant loading (§3.3.1): any of these are
@@ -203,6 +214,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         : restoredOpen[0] || ''
       const existingProjectIds = new Set(data.workspace.projects?.map((p) => p.id) || [])
       openProjectSummaryIds.value = (data.openProjectSummaryIds || []).filter((id) => existingProjectIds.has(id))
+      // Absent in files written by builds that predate the comparison tab, and
+      // pointless below two projects — either way the tab starts closed.
+      comparisonTabOpen.value = data.comparisonTabOpen === true && existingProjectIds.size >= 2
       activeWorkspaceTabId.value = data.activeWorkspaceTabId || activeQuestionnaireId.value
       questionnaireHiddenEntries.value = data.questionnaireHiddenEntries || {}
       hydrateLastSaved(data.timestamp)
@@ -219,6 +233,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds.value = []
       activeWorkspaceTabId.value = ''
       openProjectSummaryIds.value = []
+      comparisonTabOpen.value = false
       questionnaireHiddenEntries.value = {}
       hydrateLastSaved(data.timestamp)
       return true
@@ -350,6 +365,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds.value = []
     activeWorkspaceTabId.value = ''
     openProjectSummaryIds.value = []
+    comparisonTabOpen.value = false
   }
 
   let persistDebounceTimer = null
@@ -389,6 +405,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
       openProjectSummaryIds: openProjectSummaryIds.value,
+      comparisonTabOpen: comparisonTabOpen.value,
       questionnaireHiddenEntries: questionnaireHiddenEntries.value
     })
 
@@ -433,6 +450,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds.value = []
     activeWorkspaceTabId.value = ''
     openProjectSummaryIds.value = []
+    comparisonTabOpen.value = false
     questionnaireHiddenEntries.value = {}
     lastSaved.value = ''
   }
@@ -458,6 +476,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
       openProjectSummaryIds: openProjectSummaryIds.value,
+      comparisonTabOpen: comparisonTabOpen.value,
       questionnaireHiddenEntries: questionnaireHiddenEntries.value
     })
     try {
@@ -511,6 +530,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  /**
+   * Opens the workspace comparison tab. Refused below two projects — comparing
+   * a workspace against itself has no meaning, and the TreeNav entry is disabled
+   * for the same reason.
+   */
+  function openWorkspaceComparison() {
+    if ((workspace.value.projects || []).length < 2) return false
+    comparisonTabOpen.value = true
+    activeWorkspaceTabId.value = COMPARISON_TAB_ID
+    return true
+  }
+
   function openProjectSummary(projectId) {
     const project = workspace.value.projects.find((item) => item.id === projectId)
     if (!project) return
@@ -522,6 +553,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function setActiveWorkspaceTab(tabId) {
     if (!tabId) return
+    if (tabId === COMPARISON_TAB_ID) {
+      if (!comparisonTabOpen.value) return
+      activeWorkspaceTabId.value = tabId
+      return
+    }
     if (isProjectTabId(tabId)) {
       const projectId = fromProjectTabId(tabId)
       if (!openProjectSummaryIds.value.includes(projectId)) return
@@ -547,6 +583,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // Workspace.vue).
   function closeWorkspaceTab(tabId) {
     if (!tabId) return
+
+    if (tabId === COMPARISON_TAB_ID) {
+      comparisonTabOpen.value = false
+      if (activeWorkspaceTabId.value !== tabId) return
+      activeWorkspaceTabId.value = workspaceTabs.value[0]?.id || ''
+      return
+    }
 
     if (isProjectTabId(tabId)) {
       const projectId = fromProjectTabId(tabId)
@@ -1596,6 +1639,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds,
     activeWorkspaceTabId,
     openProjectSummaryIds,
+    comparisonTabOpen,
+    COMPARISON_TAB_ID,
+    openWorkspaceComparison,
     lastSaved,
     workspaceDirNeeded,
     workspaceLoadError,
