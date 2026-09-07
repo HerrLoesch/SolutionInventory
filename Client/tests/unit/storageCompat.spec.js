@@ -16,6 +16,7 @@ import { buildInterviewCatalog } from '../../src/services/catalogService'
 import v1WorkspaceFull from '../data/storage/v1-workspace-full.json'
 import v1WorkspaceLegacyRadar from '../data/storage/v1-workspace-legacy-radar.json'
 import v1CategoriesOnly from '../data/storage/v1-categories-only.json'
+import v3WorkspaceRadar from '../data/storage/v3-workspace-radar.json'
 import pkg from '../../package.json'
 
 // Builds a v3 payload whose stored interview catalog is an intentionally stale,
@@ -461,5 +462,45 @@ describe('storage compatibility (Golden Master)', () => {
       expect(store.workspaceLoadError).toEqual(expect.objectContaining({ reason: 'unsupported-version' }))
       expect(store.workspace.projects).toHaveLength(0)
     })
+  })
+})
+
+describe('v3 workspace with radar data loads byte-identically', () => {
+  // A workspace already stored at the current STORAGE_VERSION, carrying curated
+  // radar data and a workspace-owned catalog (so no built-in refresh applies).
+  // Nothing in the load path may touch it: no migration step targets v3, and
+  // the additive normalization added later must leave every existing field
+  // exactly as written. This fixture is the "before" side of that proof.
+  it('leaves every stored workspace field untouched', () => {
+    const store = useWorkspaceStore()
+    const ok = store.loadFromData(clone(v3WorkspaceRadar))
+
+    expect(ok).toBe(true)
+    expect(store.workspace).toEqual(v3WorkspaceRadar.workspace)
+  })
+
+  it('restores the tab state from the stored payload', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    expect(store.activeQuestionnaireId).toBe('questionnaire-alpha')
+    expect(store.openQuestionnaireIds).toEqual(['questionnaire-alpha', 'questionnaire-beta'])
+    expect(store.openProjectSummaryIds).toEqual(['project-alpha'])
+  })
+
+  it('adds no built-in catalog to a v3 workspace that owns its catalogs', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    expect(store.workspace.catalogs.map((catalog) => catalog.id)).toEqual(['catalog-house'])
+  })
+
+  it('keeps radar entries with an empty status as stored — they are not filled in on load', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    const alpha = store.workspace.projects.find((project) => project.id === 'project-alpha')
+    expect(alpha.radar.find((blip) => blip.option === '.NET Core').status).toBe('')
+    expect(alpha.radar.find((blip) => blip.option === 'Redis').status).toBe('')
   })
 })
