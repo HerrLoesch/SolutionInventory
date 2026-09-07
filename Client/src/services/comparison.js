@@ -140,3 +140,60 @@ export function comparisonKeyOf(rawName, aliasIndex) {
   const term = aliasIndex instanceof Map ? aliasIndex.get(normalized) : null
   return term ? { key: `term:${term.id}`, term } : { key: `raw:${normalized}`, term: null }
 }
+
+/**
+ * Condenses units into one row per term. A row is the unit of the comparison
+ * view: terms, not catalog entries, because different projects use different
+ * catalogs and may file the same term under different categories (DE-1).
+ *
+ * Each row carries a cell per project. A cell holds *all* of that project's
+ * takes on the term — a project can rate the same term twice under two entries,
+ * and that case is not defined away but surfaced (DE-3).
+ *
+ * @returns {Array<{
+ *   key: string, term: object|null, name: string, resolved: boolean, kind: string,
+ *   cells: Map<string, { projectId, values: Array<{ status, origin }> }>
+ * }>}
+ */
+export function buildRows(units, aliasIndex) {
+  const rows = new Map()
+
+  for (const unit of units || []) {
+    const { key, term } = comparisonKeyOf(unit.rawName, aliasIndex)
+    if (key === 'raw:') continue
+
+    if (!rows.has(key)) {
+      rows.set(key, {
+        key,
+        term,
+        // The canonical name for a resolved term, the first raw spelling seen
+        // otherwise — an unresolved row is carried under its own text, marked,
+        // and never dropped (DE-2).
+        name: term ? term.name : unit.rawName,
+        resolved: Boolean(term),
+        kind: unit.kind,
+        cells: new Map()
+      })
+    }
+    const row = rows.get(key)
+    // A row's kind is 'unassigned' only if nothing that landed in it knew better.
+    if (row.kind === 'unassigned' && unit.kind !== 'unassigned') row.kind = unit.kind
+
+    if (!row.cells.has(unit.projectId)) {
+      row.cells.set(unit.projectId, { projectId: unit.projectId, values: [] })
+    }
+    row.cells.get(unit.projectId).values.push({ status: unit.status, origin: unit.origin })
+  }
+
+  return [...rows.values()]
+}
+
+/**
+ * Whether a project rates a term inconsistently with itself: two takes on the
+ * same term that disagree on status (DE-3). Two takes that *agree* are merely a
+ * duplicate entry, not a contradiction, and must not be reported as one.
+ */
+export function isCellInconsistent(cell) {
+  const statuses = new Set((cell?.values || []).map((value) => normalize(value.status)))
+  return statuses.size > 1
+}

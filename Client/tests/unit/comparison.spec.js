@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { collectUnits, comparisonKeyOf, DATA_SOURCES } from '../../src/services/comparison'
+import {
+  collectUnits,
+  comparisonKeyOf,
+  buildRows,
+  isCellInconsistent,
+  DATA_SOURCES
+} from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
 
 // A two-project workspace whose projects use *different* catalogs — the main
@@ -252,5 +258,107 @@ describe('comparisonKeyOf', () => {
 
   it('works without a vocabulary at all', () => {
     expect(comparisonKeyOf('Redis', null).key).toBe('raw:redis')
+  })
+})
+
+describe('buildRows', () => {
+  function rowsOf(workspace, vocabulary = [], options = {}) {
+    const { index } = buildAliasIndex(vocabulary)
+    return buildRows(collectUnits(workspace, ALL, { ...options, aliasIndex: index }), index)
+  }
+
+  it('makes one row per term, with a cell per project that uses it', () => {
+    const rows = rowsOf(makeWorkspace())
+    const cleanArch = rows.find((row) => row.name === 'Clean Arch')
+
+    expect([...cleanArch.cells.keys()].sort()).toEqual(['p-alpha', 'p-beta'])
+    expect(cleanArch.cells.get('p-alpha').values[0].status).toBe('Adopt')
+    expect(cleanArch.cells.get('p-beta').values[0].status).toBe('Trial')
+  })
+
+  it('joins two spellings into one row once the vocabulary resolves both (DE-2)', () => {
+    const vocabulary = [{ id: 'term-dotnet', name: '.NET Core', kind: 'tool', aliases: ['dotnet core'] }]
+    const rows = rowsOf(makeWorkspace(), vocabulary, { source: 'answers' })
+    const dotnet = rows.filter((row) => row.key === 'term:term-dotnet')
+
+    expect(dotnet).toHaveLength(1)
+    expect(dotnet[0].name).toBe('.NET Core')
+    expect(dotnet[0].resolved).toBe(true)
+    expect([...dotnet[0].cells.keys()].sort()).toEqual(['p-alpha', 'p-beta'])
+  })
+
+  it('keeps the two spellings apart while the vocabulary does not know them', () => {
+    const rows = rowsOf(makeWorkspace(), [], { source: 'answers' })
+
+    expect(rows.filter((row) => row.name === '.NET Core')).toHaveLength(1)
+    expect(rows.filter((row) => row.name === 'dotnet core')).toHaveLength(1)
+  })
+
+  it('carries an unresolved row under its own raw text and marks it (DE-2)', () => {
+    const redis = rowsOf(makeWorkspace(), [], { source: 'answers' }).find((row) => row.name === 'Redis')
+
+    expect(redis.resolved).toBe(false)
+    expect(redis.term).toBeNull()
+    expect(redis.key).toBe('raw:redis')
+  })
+
+  it('keeps entry and raw-text provenance per project cell', () => {
+    const vocabulary = [{ id: 'term-dotnet', name: '.NET Core', kind: 'tool', aliases: ['dotnet core'] }]
+    const rows = rowsOf(makeWorkspace(), vocabulary, { source: 'answers' })
+    const beta = rows.find((row) => row.key === 'term:term-dotnet').cells.get('p-beta')
+
+    expect(beta.values[0].origin).toMatchObject({ entryId: 'runtime2', entryTitle: 'Runtime', rawName: 'dotnet core' })
+  })
+
+  it('collects several takes of one project in the same cell (DE-3)', () => {
+    const workspace = makeWorkspace()
+    workspace.projects[0].radar.push({ entryId: 'data', option: 'Clean Arch', status: 'Hold' })
+    workspace.questionnaires[0].categories[1].entries.push({
+      id: 'data',
+      aspect: 'Data Access',
+      answers: [{ technology: 'Clean Arch', status: 'Hold', answerType: 'Practice' }]
+    })
+    const alpha = rowsOf(workspace)
+      .find((row) => row.name === 'Clean Arch')
+      .cells.get('p-alpha')
+
+    expect(alpha.values.map((value) => value.status)).toEqual(['Adopt', 'Hold'])
+    expect(alpha.values.map((value) => value.origin.entryTitle)).toEqual(['Pattern', 'Data Access'])
+  })
+
+  it('takes the kind from whichever unit knew one', () => {
+    const workspace = makeWorkspace()
+    workspace.questionnaires[0].categories[1].entries[0].answers[0].answerType = ''
+    const rows = rowsOf(workspace)
+
+    // Alpha has no answerType, Beta says Practice — the row is a practice.
+    expect(rows.find((row) => row.name === 'Clean Arch').kind).toBe('practice')
+  })
+
+  it('returns nothing for no units, and drops units whose name normalizes away', () => {
+    expect(buildRows([], null)).toEqual([])
+    expect(buildRows(undefined, null)).toEqual([])
+    expect(buildRows([{ projectId: 'p', rawName: '  ', status: 'Adopt', kind: 'tool', origin: {} }], null)).toEqual([])
+  })
+})
+
+describe('isCellInconsistent', () => {
+  it('is true when one project rates the same term two different ways (DE-3)', () => {
+    expect(isCellInconsistent({ values: [{ status: 'Adopt' }, { status: 'Hold' }] })).toBe(true)
+  })
+
+  it('is false for a duplicate that agrees with itself — that is not a contradiction', () => {
+    expect(isCellInconsistent({ values: [{ status: 'Adopt' }, { status: 'adopt' }] })).toBe(false)
+    expect(isCellInconsistent({ values: [{ status: 'Adopt' }, { status: '  ADOPT ' }] })).toBe(false)
+  })
+
+  it('is false for a single value or none at all', () => {
+    expect(isCellInconsistent({ values: [{ status: 'Adopt' }] })).toBe(false)
+    expect(isCellInconsistent({ values: [] })).toBe(false)
+    expect(isCellInconsistent(undefined)).toBe(false)
+  })
+
+  it('treats "rated" versus "not rated" as a contradiction too', () => {
+    expect(isCellInconsistent({ values: [{ status: 'Adopt' }, { status: '' }] })).toBe(true)
   })
 })
