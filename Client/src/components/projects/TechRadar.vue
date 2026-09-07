@@ -392,6 +392,26 @@
             </div>
           </div>
 
+          <!-- Blips the diagram cannot place. Listed rather than parked on the
+               Hold ring, which used to assert a judgement nobody made. -->
+          <div v-if="blipsWithoutStatus.length" class="without-status mt-3">
+            <div class="text-caption font-weight-medium mb-1">
+              <v-icon size="12" class="mr-1">mdi-circle-off-outline</v-icon>
+              Without status ({{ blipsWithoutStatus.length }})
+            </div>
+            <div class="d-flex flex-wrap" style="gap: 6px">
+              <v-chip
+                v-for="blip in blipsWithoutStatus"
+                :key="blip.key"
+                size="x-small"
+                variant="outlined"
+                @click="openDetail(blip)"
+              >
+                {{ blip.name }}
+              </v-chip>
+            </div>
+          </div>
+
           <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
             <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
             <span v-else
@@ -979,6 +999,16 @@ function getSlots(qIdx, rIdx, rings) {
 }
 
 // ── Status / type mapping helpers ────────────────────────────────────────────
+//
+// A blip with no effectiveStatus at all — neither curated on the blip nor
+// inherited from its answer — has no ring. It used to fall back to Hold, which
+// silently asserted a judgement nobody made; such blips are now listed below the
+// diagram instead (design §5.4). -1 marks that state.
+//
+// This is only about the *ring*. The inheritance `entry.status || answer.status`
+// is untouched: a blip that inherits Hold still lands on the Hold ring.
+const RING_NONE = -1
+
 function statusToRing(status) {
   const s = String(status || '')
     .trim()
@@ -988,7 +1018,9 @@ function statusToRing(status) {
   if (s === 'assess') return 2
   if (s === 'hold') return 3
   if (s === 'retire') return 4
-  return 3
+  // An unrecognized status is still a judgement, just not one on this scale —
+  // it keeps the old Hold fallback. Only an *empty* status has no ring.
+  return s === '' ? RING_NONE : 3
 }
 
 function statusLabel(status) {
@@ -1319,6 +1351,13 @@ export default {
       })
     })
 
+    // Blips the diagram cannot place: no curated status and no inherited one.
+    // Shown as a list under the radar so they are visible and reachable rather
+    // than quietly parked on the Hold ring.
+    const blipsWithoutStatus = computed(() =>
+      allBlips.value.filter((blip) => blip.ring === RING_NONE && visibleKinds.value.has(blip.kind))
+    )
+
     // All unique categories that have at least one radar blip
     const availableCategories = computed(() => {
       const categories = new Set()
@@ -1517,6 +1556,10 @@ export default {
       // Filter out categories not assigned to any quadrant
       const mapping = categoryToQuadrant.value
       blips = blips.filter((b) => mapping.has(b.categoryTitle))
+
+      // Blips without any status have no ring and are not plotted; they are
+      // listed under the diagram instead (design §5.4).
+      blips = blips.filter((b) => b.ring !== RING_NONE)
 
       // Filter by visible statuses
       blips = blips.filter((b) => {
@@ -2057,6 +2100,7 @@ export default {
       handleUnassignedDrop,
       toggleStatusVisibility,
       isStatusVisible,
+      blipsWithoutStatus,
       visibleKinds,
       toggleKindVisibility,
       isKindVisible,

@@ -41,6 +41,11 @@ Given('I answer the first entry with the tool {string}', async function (technol
   await solution.press('Enter')
   await solution.blur()
   await expect(solution).toHaveValue(technology)
+  // A status is needed for the blip to be plotted at all: since Todo 5.2 a blip
+  // without any status is listed below the radar instead of sitting on the Hold
+  // ring. This scenario is about the vocabulary, so it uses an assessed blip.
+  await openSelect(this.page, 'Status')
+  await this.page.getByRole('option', { name: 'Adopt', exact: false }).first().click()
 })
 
 When('I add {string} to the tech radar of {string}', async function (technology, projectName) {

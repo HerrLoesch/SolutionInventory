@@ -399,11 +399,11 @@ function setAnswerStatusAfterAdd(store, entryId, technology, status) {
 //      This behavior STAYS. If a change to the ring fallback turns this red,
 //      the change went too far.
 //
-//   2. statusToRing maps an empty or unknown status to ring 3 (Hold)
-//      This behavior is DELIBERATELY REPLACED later: such blips are to be
-//      listed below the diagram instead of being placed on the Hold ring.
-//      When that happens, only this block may be rewritten — with a rationale
-//      in the commit.
+//   2. statusToRing and the empty status
+//      This behavior WAS DELIBERATELY REPLACED in Todo 5.2: a blip with no
+//      status at all no longer lands on the Hold ring but is listed below the
+//      diagram. The block below was rewritten there, and only that block —
+//      behavior 1 stayed green throughout, which is what the split was for.
 describe('status inheritance (behavior 1 — stays)', () => {
   it('inherits the answer status when the radar entry carries none', () => {
     const { pinia, store, projectId } = seedProjectWithRadarRefs([
@@ -446,8 +446,8 @@ describe('status inheritance (behavior 1 — stays)', () => {
   })
 })
 
-describe('Hold fallback for status-less blips (behavior 2 — changes later)', () => {
-  it('places a blip with no status on either side on the Hold ring', () => {
+describe('blips without any status (behavior 2 — changed in Todo 5.2)', () => {
+  it('gives a blip with no status on either side no ring, and does not plot it', () => {
     const { pinia, store, projectId } = seedProjectWithRadarRefs([
       {
         title: 'Architecture',
@@ -460,10 +460,43 @@ describe('Hold fallback for status-less blips (behavior 2 — changes later)', (
     const blip = wrapper.vm.allBlips[0]
     expect(radarEntryOf(store, projectId).status).toBe('')
     expect(blip.status).toBe('')
-    expect(blip.ring).toBe(3)
+    // Was ring 3 (Hold) before Todo 5.2 — a judgement nobody had made.
+    expect(blip.ring).toBe(-1)
+    expect(wrapper.vm.positionedBlips).toEqual([])
   })
 
-  it('places a blip with an unrecognized status on the Hold ring', () => {
+  it('lists such a blip below the diagram instead', () => {
+    const { pinia, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [
+          { technology: 'Vue', status: '', comments: '', answerType: 'Tool' },
+          { technology: 'Scrum', status: 'Adopt', comments: '', answerType: 'Practice' }
+        ]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    expect(wrapper.vm.blipsWithoutStatus.map((blip) => blip.name)).toEqual(['Vue'])
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name)).toEqual(['Scrum'])
+  })
+
+  it('follows the kind filter, so the list does not contradict the diagram', () => {
+    const { pinia, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId }, pinia)
+    wrapper.vm.toggleKindVisibility('tool')
+
+    expect(wrapper.vm.blipsWithoutStatus).toEqual([])
+  })
+
+  it('still places a blip with an unrecognized status on the Hold ring', () => {
     const { pinia, store, projectId } = seedProjectWithRadarRefs([
       {
         title: 'Architecture',
@@ -475,8 +508,11 @@ describe('Hold fallback for status-less blips (behavior 2 — changes later)', (
     const { wrapper } = mountRadar({ projectId }, pinia)
 
     const blip = wrapper.vm.allBlips[0]
+    // An unrecognized status is still a judgement, just not one on this scale —
+    // it keeps the old fallback. Only an *empty* status has no ring.
     expect(blip.status).toBe('Evaluate')
     expect(blip.ring).toBe(3)
+    expect(wrapper.vm.blipsWithoutStatus).toEqual([])
   })
 })
 
