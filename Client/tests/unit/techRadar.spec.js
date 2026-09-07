@@ -479,3 +479,135 @@ describe('Hold fallback for status-less blips (behavior 2 — changes later)', (
     expect(blip.ring).toBe(3)
   })
 })
+
+// ── Vocabulary assignment in the blip detail dialog (Todo 2.2) ───────────────
+//
+// Tested through wrapper.vm, not markup — Vuetify is deliberately not installed
+// in these tests, so only the exposed logic is meaningful.
+describe('blip detail — vocabulary assignment', () => {
+  function seedBlip({ status = 'Adopt', answerType = 'Tool', technology = 'Dotnet Core' } = {}) {
+    const seeded = seedProjectWithRadarRefs([
+      {
+        title: 'Stack',
+        entryId: 'e1',
+        answers: [{ technology, status, comments: '', answerType }]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId: seeded.projectId }, seeded.pinia)
+    return { ...seeded, wrapper }
+  }
+
+  it('reports a blip whose name is not in the vocabulary as unresolved', () => {
+    const { wrapper } = seedBlip()
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTerm).toBeNull()
+    expect(wrapper.vm.allBlips[0].termId).toBe('')
+  })
+
+  it('resolves a blip through the vocabulary, by name and by alias', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    store.addAlias(termId, 'dotnet core')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTerm.id).toBe(termId)
+    expect(wrapper.vm.allBlips[0].termId).toBe(termId)
+    expect(wrapper.vm.allBlips[0].termName).toBe('.NET Core')
+  })
+
+  it('offers a similar term as a suggestion, without assigning anything', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermSuggestions.map((suggestion) => suggestion.term.id)).toEqual([termId])
+    // Still unresolved — a suggestion is not an assignment.
+    expect(wrapper.vm.detailTerm).toBeNull()
+  })
+
+  it('offers no suggestion once the name resolves', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    store.addAlias(termId, 'dotnet core')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermSuggestions).toEqual([])
+  })
+
+  it('assigns the blip to a term, after which it resolves', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.assignDetailBlipToTerm(termId)).toBe(true)
+    expect(wrapper.vm.detailTerm.id).toBe(termId)
+    expect(store.workspace.vocabulary[0].aliases).toEqual(['dotnet core'])
+  })
+
+  it('pre-fills the kind from answerType and creates the term straight away', () => {
+    const { wrapper, store } = seedBlip({ answerType: 'Practice' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermKind).toBe('practice')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(true)
+
+    const termId = wrapper.vm.createTermFromDetailBlip()
+    expect(store.workspace.vocabulary).toHaveLength(1)
+    expect(store.workspace.vocabulary[0]).toMatchObject({ id: termId, name: 'Dotnet Core', kind: 'practice' })
+  })
+
+  it('stays disabled without an answerType until a kind is chosen — kind is never guessed', () => {
+    const { wrapper, store } = seedBlip({ answerType: '' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermKind).toBe('')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+    expect(wrapper.vm.createTermFromDetailBlip()).toBe('')
+    expect(store.workspace.vocabulary).toEqual([])
+
+    wrapper.vm.pendingTermKind = 'tool'
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(true)
+    wrapper.vm.createTermFromDetailBlip()
+    expect(store.workspace.vocabulary[0].kind).toBe('tool')
+  })
+
+  it('ignores an answerType that is neither Tool nor Practice', () => {
+    const { wrapper } = seedBlip({ answerType: 'Framework' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermKind).toBe('')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+  })
+
+  it('does not carry a pending kind over to the next blip opened', () => {
+    const { wrapper } = seedBlip({ answerType: '' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+    wrapper.vm.pendingTermKind = 'tool'
+
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+    expect(wrapper.vm.pendingTermKind).toBe('')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+  })
+
+  it('refuses to create a term whose name already resolves', () => {
+    const { wrapper, store } = seedBlip()
+    store.createTerm('Dotnet Core', 'tool')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    // detailTerm resolves, so the create path is closed off entirely.
+    expect(wrapper.vm.detailTerm).not.toBeNull()
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+    expect(store.workspace.vocabulary).toHaveLength(1)
+  })
+
+  it('exposes the blip kind following the DE-11 precedence', () => {
+    const { wrapper, store } = seedBlip({ answerType: 'Tool' })
+    expect(wrapper.vm.allBlips[0].kind).toBe('tool')
+
+    const termId = store.createTerm('Dotnet Core', 'practice')
+    expect(termId).toBeTruthy()
+    // The resolved term wins over answerType.
+    expect(wrapper.vm.allBlips[0].kind).toBe('practice')
+  })
+})

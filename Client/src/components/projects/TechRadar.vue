@@ -515,6 +515,19 @@
                 <div class="detail-label">Questionnaire</div>
                 <div class="text-body-2">{{ detailBlip.questionnaireName || '—' }}</div>
               </div>
+              <!-- Vocabulary: what this blip is called across all projects -->
+              <div class="detail-field">
+                <div class="detail-label">Vocabulary</div>
+                <div v-if="detailTerm" class="text-body-2 d-flex align-center" style="gap: 4px">
+                  <v-icon size="12">mdi-check-circle-outline</v-icon>
+                  {{ detailTerm.name }}
+                  <span class="text-caption text-medium-emphasis">({{ detailTerm.kind }})</span>
+                </div>
+                <div v-else class="text-body-2 text-medium-emphasis d-flex align-center" style="gap: 4px">
+                  <v-icon size="12">mdi-circle-outline</v-icon>
+                  Not in the vocabulary
+                </div>
+              </div>
               <div v-if="detailBlip.infoUrl" class="detail-field">
                 <div class="detail-label">Further information</div>
                 <a :href="detailBlip.infoUrl" target="_blank" rel="noopener noreferrer" class="detail-link">
@@ -548,6 +561,54 @@
             >
               No comments available.
             </div>
+
+            <!-- Assigning the blip to a vocabulary term. Suggestions are only
+                 ever offered — a match becomes real when a person confirms it. -->
+            <template v-if="!detailTerm">
+              <v-divider class="my-3" />
+              <div class="detail-label mb-2">Assign to a vocabulary term</div>
+
+              <div v-if="detailTermSuggestions.length" class="mb-3">
+                <div class="text-caption text-medium-emphasis mb-1">Similar terms</div>
+                <div class="d-flex flex-wrap" style="gap: 6px">
+                  <v-chip
+                    v-for="suggestion in detailTermSuggestions"
+                    :key="suggestion.term.id"
+                    size="small"
+                    variant="outlined"
+                    prepend-icon="mdi-link-variant"
+                    @click="assignDetailBlipToTerm(suggestion.term.id)"
+                  >
+                    {{ suggestion.term.name }}
+                  </v-chip>
+                </div>
+              </div>
+
+              <div class="d-flex align-center flex-wrap" style="gap: 8px">
+                <v-select
+                  v-if="!detailBlip.answerType"
+                  v-model="pendingTermKind"
+                  :items="['tool', 'practice']"
+                  label="Kind"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                  style="max-width: 160px"
+                />
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  prepend-icon="mdi-plus"
+                  :disabled="!canCreateTermFromDetail"
+                  @click="createTermFromDetailBlip"
+                >
+                  Create as its own term
+                </v-btn>
+                <span v-if="!canCreateTermFromDetail" class="text-caption text-medium-emphasis">
+                  Choose a kind first — it cannot be guessed.
+                </span>
+              </div>
+            </template>
           </v-card-text>
 
           <v-divider />
@@ -794,7 +855,7 @@ import { computed, ref, watch } from 'vue'
 import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { buildEntryLookup, deriveBlipJoin, deriveKind } from '../../services/blipJoin'
-import { buildAliasIndex, resolve } from '../../services/vocabulary'
+import { buildAliasIndex, resolve, findSimilarTerms, TERM_KINDS } from '../../services/vocabulary'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { exportRadarHtml as _exportRadarHtml } from '../../utils/techRadarExport'
 import CustomHtmlExportDialog from './CustomHtmlExportDialog.vue'
@@ -1622,7 +1683,55 @@ export default {
 
     function openDetail(blip) {
       detailBlip.value = blip
+      // A fresh dialog never carries the previous blip's pending kind choice.
+      pendingTermKind.value = ''
       detailDialog.value = true
+    }
+
+    // ── Vocabulary assignment for the blip in the detail dialog ───────────────
+    //
+    // A blip's name is free text; the vocabulary decides whether two projects
+    // are talking about the same thing. This is where that link is made, at the
+    // point where the user is already looking at the blip.
+
+    // Kind chosen by hand for a blip whose answer carries no answerType. Kind is
+    // mandatory on a term (design §5.1) and must not be guessed, so "create as
+    // its own term" stays disabled until this is filled in.
+    const pendingTermKind = ref('')
+
+    const detailTerm = computed(() => (detailBlip.value ? store.resolveTerm(detailBlip.value.name) : null))
+
+    const detailTermSuggestions = computed(() => {
+      if (!detailBlip.value || detailTerm.value) return []
+      return findSimilarTerms(detailBlip.value.name, store.workspace.vocabulary || [])
+    })
+
+    // Pre-filled from answerType when there is one; otherwise the user's choice.
+    const detailTermKind = computed(() => {
+      if (!detailBlip.value) return ''
+      const fromAnswer = String(detailBlip.value.answerType || '')
+        .trim()
+        .toLowerCase()
+      if (fromAnswer === 'tool' || fromAnswer === 'practice') return fromAnswer
+      return pendingTermKind.value
+    })
+
+    // Disabled rather than guessing: an unassigned kind would silently pick a
+    // side of the tool/practice filter for every project that reuses the term.
+    const canCreateTermFromDetail = computed(
+      () => Boolean(detailBlip.value) && !detailTerm.value && TERM_KINDS.includes(detailTermKind.value)
+    )
+
+    function assignDetailBlipToTerm(termId) {
+      if (!detailBlip.value || !termId) return false
+      return store.addAlias(termId, detailBlip.value.name)
+    }
+
+    function createTermFromDetailBlip() {
+      if (!canCreateTermFromDetail.value) return ''
+      const termId = store.createTerm(detailBlip.value.name, detailTermKind.value)
+      if (termId) pendingTermKind.value = ''
+      return termId
     }
 
     // Drag-and-drop handlers for category<->quadrant assignment
@@ -1886,6 +1995,13 @@ export default {
       detailDialog,
       detailBlip,
       openDetail,
+      pendingTermKind,
+      detailTerm,
+      detailTermSuggestions,
+      detailTermKind,
+      canCreateTermFromDetail,
+      assignDetailBlipToTerm,
+      createTermFromDetailBlip,
       quadrantConfigDialog,
       handleCategoryDragStart,
       handleCategoryDragEnd,
