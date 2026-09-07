@@ -595,3 +595,69 @@ export function suggestionsForName(key, vocabulary, dismissedSuggestions = []) {
 export function exactMatchGroups(units, aliasIndex) {
   return unresolvedNames(units, aliasIndex).filter((group) => group.spellings.length > 1 && group.kind !== 'unassigned')
 }
+
+/**
+ * The `⁉` marker for a possible false difference (DE-6): a `◑ unique` row whose
+ * name the vocabulary does not resolve, *and* the resolved counterpart it
+ * resembles. Marking only the unresolved half would leave the other half looking
+ * clean, which is exactly half the problem.
+ *
+ * Deliberately not `⚠` in the UI — that character already stands for
+ * `inconsistent` in the same column (design §5.3).
+ */
+export function markPossibleFalseDifferences(decorated, vocabulary) {
+  const unresolvedUnique = decorated.filter((row) => row.coverage === COVERAGE.UNIQUE && !row.resolved)
+  const flagged = new Set(unresolvedUnique.map((row) => row.key))
+
+  for (const row of unresolvedUnique) {
+    for (const suggestion of findSimilarTerms(row.key.replace(/^raw:/, ''), vocabulary)) {
+      const counterpart = decorated.find(
+        (other) => other.coverage === COVERAGE.UNIQUE && other.term?.id === suggestion.term.id
+      )
+      if (counterpart) flagged.add(counterpart.key)
+    }
+  }
+  return flagged
+}
+
+/**
+ * The full comparison result: one decorated row per term, plus the metrics. This
+ * is what the view renders — it may sort and filter, but must not compute.
+ */
+export function buildComparison(workspace, projectIds, { source = 'radar', visibleKinds = null, aliasIndex } = {}) {
+  const allUnits = collectUnits(workspace, projectIds, { source, aliasIndex })
+  const units = visibleKinds ? allUnits.filter((unit) => visibleKinds.includes(unit.kind)) : allUnits
+  const overrides = workspace?.comparisonOverrides || {}
+
+  const rows = buildRows(units, aliasIndex)
+  const decorated = rows.map((row) => {
+    const coverage = coverageOf(row, projectIds)
+    const override = row.term ? overrides[row.term.id] || null : null
+    const { delta, distance, reasons } = deltaOf(row, projectIds, { coverage, override })
+    return {
+      ...row,
+      coverage,
+      delta,
+      distance,
+      reasons,
+      override,
+      overrideStale: isOverrideStale(override, row, delta, projectIds),
+      canOverride: canOverride(row, delta)
+    }
+  })
+
+  const flagged = markPossibleFalseDifferences(decorated, workspace?.vocabulary || [])
+  decorated.forEach((row) => {
+    row.possibleFalseDifference = flagged.has(row.key)
+  })
+
+  return {
+    allUnits,
+    units,
+    rows: decorated,
+    metrics: computeMetrics(rows, projectIds, {
+      overrides,
+      vocabulary: vocabularyCoverage(allUnits, aliasIndex)
+    })
+  }
+}

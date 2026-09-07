@@ -338,3 +338,247 @@ describe('vocabulary section', () => {
     expect(wrapper.vm.projectNamesOf(['p-alpha', 'p-beta'])).toBe('Alpha · Beta')
   })
 })
+
+// ── Summary card (Todo 4.5) ──────────────────────────────────────────────────
+describe('summary card', () => {
+  it('renders only what the engine computed — the same object, not a recomputation', () => {
+    const { wrapper } = mountComparison(designExample)
+
+    // Everything the card shows comes off this one object.
+    expect(Object.keys(wrapper.vm.metrics)).toEqual(
+      expect.arrayContaining([
+        'total',
+        'all',
+        'partial',
+        'unique',
+        'allPercent',
+        'compared',
+        'excluded',
+        'unset',
+        'inconsistent',
+        'accepted',
+        'comparable',
+        'matches',
+        'minor',
+        'significant',
+        'critical',
+        'agreementPercent',
+        'agreementLevel',
+        'vocabulary'
+      ])
+    )
+  })
+
+  it('labels coverage and Δ states with the design’s symbols', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.coverageLabel('all')).toBe('◉ all')
+    expect(wrapper.vm.coverageLabel('partial')).toBe('◐ partial')
+    expect(wrapper.vm.coverageLabel('unique')).toBe('◑ unique')
+    expect(wrapper.vm.deltaLabel('critical')).toBe('▲▲▲ critical')
+    expect(wrapper.vm.deltaLabel('inconsistent')).toBe('⚠ inconsistent')
+    expect(wrapper.vm.deltaLabel('none')).toBe('—')
+  })
+})
+
+// ── Comparison matrix (Todo 4.6) ─────────────────────────────────────────────
+describe('comparison matrix', () => {
+  it('decorates every row with coverage, Δ and the reasons behind it', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const vue = wrapper.vm.rows.find((row) => row.name === 'Vue')
+
+    // Vue is in Alpha and Beta but not in Gamma, and all three are selected.
+    expect(vue).toMatchObject({ coverage: 'partial', delta: 'critical', distance: 4, resolved: false })
+  })
+
+  it('sorts by term, by coverage and by divergence', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Scrum', 'Vue'])
+
+    wrapper.vm.sortBy = 'delta'
+    // The critical row comes before the uncompared one.
+    expect(wrapper.vm.visibleRows[0].name).toBe('Vue')
+
+    wrapper.vm.sortBy = 'coverage'
+    // Widest coverage first: partial (Vue) before unique (Scrum).
+    expect(wrapper.vm.visibleRows.map((row) => row.coverage)).toEqual(['partial', 'unique'])
+  })
+
+  it('filters by coverage', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.coverageFilter = 'unique'
+
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Scrum'])
+  })
+
+  it('filters on the visible badge, not on an outranked condition', () => {
+    const workspace = smallWorkspace()
+    // Alpha rates Vue twice and differently: inconsistent outranks the distance.
+    workspace.projects[0].radar.push({ entryId: 'e5', option: 'Vue', status: 'Trial' })
+    workspace.questionnaires[0].categories[0].entries.push({
+      id: 'e5',
+      aspect: 'UI again',
+      answers: [{ technology: 'Vue', status: 'Trial', answerType: 'Tool' }]
+    })
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').delta).toBe('inconsistent')
+
+    wrapper.vm.deltaFilter = 'critical'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual([])
+
+    wrapper.vm.deltaFilter = 'inconsistent'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue'])
+  })
+
+  it('filters down to deviations, and to unresolved rows', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    wrapper.vm.deltaFilter = 'deviating'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue'])
+
+    wrapper.vm.deltaFilter = ''
+    wrapper.vm.unresolvedOnly = true
+    expect(wrapper.vm.visibleRows.map((row) => row.name).sort()).toEqual(['Scrum', 'Vue'])
+  })
+
+  it('searches terms, aliases and entry provenance', () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const termId = store.createTerm('Vue', 'tool')
+    store.addAlias(termId, 'vuejs')
+
+    wrapper.vm.search = 'vuejs'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue'])
+
+    wrapper.vm.search = 'Process'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Scrum'])
+  })
+
+  it('marks an unresolved unique row and its resolved counterpart as a possible false difference', () => {
+    const workspace = smallWorkspace()
+    // Alpha calls it "PostgreSQL", Gamma "Postgre SQL"; only the first resolves.
+    workspace.vocabulary = [{ id: 'term-pg', name: 'PostgreSQL', kind: 'tool', aliases: [] }]
+    workspace.projects[0].radar.push({ entryId: 'e6', option: 'PostgreSQL', status: 'Adopt' })
+    workspace.projects[2].radar.push({ entryId: 'e7', option: 'Postgre SQL', status: 'Adopt' })
+    const { wrapper } = mountComparison(workspace)
+
+    const unresolvedSide = wrapper.vm.rows.find((row) => row.name === 'Postgre SQL')
+    const resolvedSide = wrapper.vm.rows.find((row) => row.name === 'PostgreSQL')
+
+    expect(unresolvedSide.coverage).toBe('unique')
+    expect(unresolvedSide.possibleFalseDifference).toBe(true)
+    // Marking only the unresolved half would leave the other half looking clean.
+    expect(resolvedSide.possibleFalseDifference).toBe(true)
+  })
+
+  it('does not mark a plain unique row that resolves cleanly', () => {
+    const workspace = smallWorkspace()
+    workspace.vocabulary = [{ id: 'term-scrum', name: 'Scrum', kind: 'practice', aliases: [] }]
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.rows.find((row) => row.name === 'Scrum').possibleFalseDifference).toBe(false)
+  })
+
+  it('returns the cell of a project, and null where it has none', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const scrum = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+
+    expect(wrapper.vm.cellFor(scrum, 'p-alpha').values[0].status).toBe('Adopt')
+    expect(wrapper.vm.cellFor(scrum, 'p-beta')).toBeNull()
+  })
+
+  it('opens the project’s summary when a cell is clicked', () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    wrapper.vm.openProjectRadar('p-beta')
+
+    expect(store.openProjectSummaryIds).toContain('p-beta')
+  })
+})
+
+// ── Criticality override in the UI (Todo 4.7) ────────────────────────────────
+describe('criticality override', () => {
+  function resolvedWorkspace() {
+    const workspace = smallWorkspace()
+    workspace.vocabulary = [{ id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] }]
+    return workspace
+  }
+
+  it('offers the action on a resolved, comparable row', () => {
+    const { wrapper } = mountComparison(resolvedWorkspace())
+
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').canOverride).toBe(true)
+  })
+
+  it('refuses it on an unresolved row — the assignment comes first', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+
+    expect(row.canOverride).toBe(false)
+    expect(wrapper.vm.openOverrideDialog(row)).toBe(false)
+    expect(wrapper.vm.overrideDialog).toBe(false)
+  })
+
+  it('refuses it on unique, inconsistent and unset rows', () => {
+    const workspace = resolvedWorkspace()
+    workspace.projects[1].radar[0].status = ''
+    workspace.questionnaires[1].categories[0].entries[0].answers[0].status = ''
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').delta).toBe('unset')
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').canOverride).toBe(false)
+    expect(wrapper.vm.rows.find((row) => row.name === 'Scrum').canOverride).toBe(false)
+  })
+
+  it('saves an accepted override with its comment and the current context', () => {
+    const { wrapper, store } = mountComparison(resolvedWorkspace())
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+
+    wrapper.vm.openOverrideDialog(row)
+    wrapper.vm.overrideLevel = 'accepted'
+    wrapper.vm.overrideComment = 'Legacy service'
+    expect(wrapper.vm.saveOverride()).toBe(true)
+
+    expect(store.getComparisonOverride('term-vue')).toMatchObject({
+      level: 'accepted',
+      comment: 'Legacy service',
+      contextProjects: ['p-alpha', 'p-beta'],
+      contextStatuses: { 'p-alpha': 'Adopt', 'p-beta': 'Retire' }
+    })
+    // The badge follows immediately.
+    expect(wrapper.vm.rows.find((entry) => entry.name === 'Vue').delta).toBe('accepted')
+  })
+
+  it('an upgrade to critical keeps the row in Comparable', () => {
+    const { wrapper } = mountComparison(resolvedWorkspace())
+    wrapper.vm.openOverrideDialog(wrapper.vm.rows.find((entry) => entry.name === 'Vue'))
+    wrapper.vm.overrideLevel = 'critical'
+    wrapper.vm.saveOverride()
+
+    expect(wrapper.vm.metrics.critical).toBe(1)
+    expect(wrapper.vm.metrics.comparable).toBe(1)
+    expect(wrapper.vm.metrics.excluded).toBe(0)
+  })
+
+  it('reports a changed context while keeping the override in force', () => {
+    const { wrapper, store } = mountComparison(resolvedWorkspace())
+    wrapper.vm.openOverrideDialog(wrapper.vm.rows.find((entry) => entry.name === 'Vue'))
+    wrapper.vm.saveOverride()
+    expect(wrapper.vm.rows.find((entry) => entry.name === 'Vue').overrideStale).toBe(false)
+
+    store.workspace.projects[1].radar[0].status = 'Hold'
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+    expect(row.delta).toBe('accepted')
+    expect(row.overrideStale).toBe(true)
+  })
+
+  it('removes an override again', () => {
+    const { wrapper, store } = mountComparison(resolvedWorkspace())
+    wrapper.vm.openOverrideDialog(wrapper.vm.rows.find((entry) => entry.name === 'Vue'))
+    wrapper.vm.saveOverride()
+
+    expect(wrapper.vm.clearOverride(wrapper.vm.rows.find((entry) => entry.name === 'Vue'))).toBe(true)
+    expect(store.getComparisonOverride('term-vue')).toBeNull()
+    expect(wrapper.vm.rows.find((entry) => entry.name === 'Vue').delta).toBe('critical')
+  })
+})
