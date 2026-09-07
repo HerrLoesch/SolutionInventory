@@ -793,6 +793,8 @@
 import { computed, ref, watch } from 'vue'
 import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { buildEntryLookup, deriveBlipJoin, deriveKind } from '../../services/blipJoin'
+import { buildAliasIndex, resolve } from '../../services/vocabulary'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { exportRadarHtml as _exportRadarHtml } from '../../utils/techRadarExport'
 import CustomHtmlExportDialog from './CustomHtmlExportDialog.vue'
@@ -1177,57 +1179,12 @@ export default {
     const project = computed(() => (store.workspace.projects || []).find((p) => p.id === props.projectId) || null)
 
     // Lookup table: entryId -> { categoryTitle, entryTitle, candidates }
-    // Only rebuilds when questionnaires change (not on every radar ref update)
+    // Only rebuilds when questionnaires change (not on every radar ref update).
+    // The join itself lives in services/blipJoin.js so the comparison engine can
+    // reuse it instead of deriving answerType and effectiveStatus a second time.
     const entryLookup = computed(() => {
       if (!project.value) return new Map()
-      const questionnaires = store.getProjectQuestionnaires(project.value)
-      const lookup = new Map()
-
-      for (const q of questionnaires) {
-        const cats = q?.categories
-        if (!Array.isArray(cats)) continue
-
-        for (const cat of cats) {
-          if (cat?.isMetadata) continue
-
-          const catTitle = String(cat?.title || '').trim()
-          const entries = cat?.entries
-          if (!Array.isArray(entries)) continue
-
-          for (const entry of entries) {
-            const entryId = String(entry?.id || '').trim()
-            if (!entryId) continue
-
-            const entryTitle = String(entry?.aspect || entry?.title || entryId).trim()
-
-            if (!lookup.has(entryId)) {
-              lookup.set(entryId, {
-                categoryTitle: catTitle,
-                entryTitle,
-                candidates: []
-              })
-            }
-
-            const entryData = lookup.get(entryId)
-            const answers = entry?.answers
-            if (!Array.isArray(answers)) continue
-
-            for (const a of answers) {
-              const tech = String(a?.technology || '').trim()
-              if (!tech) continue
-
-              entryData.candidates.push({
-                tech,
-                answer: a,
-                questionnaireName: q.name || q.id,
-                questionnaireId: q.id
-              })
-            }
-          }
-        }
-      }
-
-      return lookup
+      return buildEntryLookup(store.getProjectQuestionnaires(project.value))
     })
 
     // All radar-referenced blips (unfiltered), includes categoryTitle
@@ -1237,60 +1194,41 @@ export default {
       if (!entries.length) return []
 
       const lookup = entryLookup.value
-      const result = []
+      const vocabulary = store.workspace.vocabulary || []
+      const { index } = buildAliasIndex(vocabulary)
 
-      for (const entry of entries) {
-        const norm = String(entry.option || '')
-          .trim()
-          .toLowerCase()
-        const entryData = lookup.get(entry.entryId)
-        const candidates = entryData?.candidates || []
+      return entries.map((entry) => {
+        const joined = deriveBlipJoin(entry, lookup)
+        const option = String(entry.option || '').trim()
+        const term = resolve(option, index)
 
-        // Find matching answer for type and questionnaire info
-        let match = null
-        for (const c of candidates) {
-          if (c.tech.toLowerCase() === norm) {
-            match = c
-            break
-          }
-        }
-
-        const answer = match?.answer
-        const questionnaireStatus = String(answer?.status || '').trim()
-        const questionnaireCategory = entryData?.categoryTitle || ''
-        const radarStatus = (entry.status || '').trim()
-        const radarCategory = (entry.category || '').trim()
-
-        const effectiveStatus = radarStatus || questionnaireStatus
-        const effectiveCategory = radarCategory || questionnaireCategory
-
-        // Flags for "has user override" indicator (pencil icon)
-        const overrideStatus = radarStatus && radarStatus !== questionnaireStatus ? radarStatus : ''
-        const overrideCategoryTitle = radarCategory && radarCategory !== questionnaireCategory ? radarCategory : ''
-
-        result.push({
+        return {
           key: `${entry.entryId}||${entry.option}`,
           entryId: entry.entryId,
-          option: String(entry.option || '').trim(),
-          name: String(entry.option || '').trim(),
-          status: effectiveStatus,
-          answerType: String(answer?.answerType || '').trim(),
-          comment: String(answer?.comments || '').trim(),
+          option,
+          name: option,
+          status: joined.effectiveStatus,
+          answerType: joined.answerType,
+          comment: String(joined.answer?.comments || '').trim(),
           radarComment: String(entry.description || '').trim(),
           shortComment: String(entry.shortComment || '').trim(),
           infoUrl: String(entry.link || '').trim(),
           mandatory: entry.mandatory === true,
-          overrideStatus,
-          overrideCategoryTitle,
-          naturalCategoryTitle: questionnaireCategory,
-          questionnaireName: match?.questionnaireName || '',
-          categoryTitle: effectiveCategory,
-          entryTitle: entryData?.entryTitle || '',
-          ring: statusToRing(effectiveStatus)
-        })
-      }
-
-      return result
+          overrideStatus: joined.overrideStatus,
+          overrideCategoryTitle: joined.overrideCategoryTitle,
+          naturalCategoryTitle: joined.naturalCategoryTitle,
+          questionnaireName: joined.questionnaireName,
+          categoryTitle: joined.effectiveCategory,
+          entryTitle: joined.entryTitle,
+          // Vocabulary view of the blip. `termId` is empty for a name the
+          // vocabulary does not know (marked ◌ in the comparison); `kind` follows
+          // the DE-11 precedence and is never guessed from the name itself.
+          termId: term?.id || '',
+          termName: term?.name || '',
+          kind: deriveKind(option, joined.answerType, index),
+          ring: statusToRing(joined.effectiveStatus)
+        }
+      })
     })
 
     // All unique categories that have at least one radar blip
