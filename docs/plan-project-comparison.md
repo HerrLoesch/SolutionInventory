@@ -383,7 +383,7 @@ Wird während der Umsetzung ausgefüllt.
 | Zeitpunkt | Unit-Tests | Laufzeit | Lint | E2E |
 |---|---|---|---|---|
 | Baseline (Todo 0.1) | 285 (15 Dateien) | 1,12 s | grün; `format:check` **rot**: `src/components/TreeNav.vue` (Vorbefund, siehe unten) | 9 Szenarien / 65 Schritte grün, 19,8 s |
-| Ende Phase 1 | | | | |
+| Ende Phase 1 | 389 (16 Dateien) | 1,05 s | grün | 9 / 65 grün, 18,4 s |
 | Ende Phase 2 | | | | |
 | Ende Phase 3 | | | | |
 | Ende Phase 4 | | | | |
