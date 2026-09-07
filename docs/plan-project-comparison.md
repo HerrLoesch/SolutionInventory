@@ -387,7 +387,7 @@ Wird während der Umsetzung ausgefüllt.
 | Ende Phase 2 | 426 (17 Dateien) | ~1,1 s | grün | 10 / 83 grün, 27,7 s |
 | Ende Phase 3 | 534 (18 Dateien) | 1,02 s | grün | 10 / 83 grün, 28,1 s |
 | Ende Phase 4 | 607 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün, 28,7 s |
-| Ende Phase 5 | | | | |
+| Ende Phase 5 | 633 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün |
 | Ende Phase 6 | | | | |
 | Abnahme (Todo 7.6) | | | | |
 
