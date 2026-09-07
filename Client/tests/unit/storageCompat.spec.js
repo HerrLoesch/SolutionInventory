@@ -468,15 +468,68 @@ describe('storage compatibility (Golden Master)', () => {
 describe('v3 workspace with radar data loads byte-identically', () => {
   // A workspace already stored at the current STORAGE_VERSION, carrying curated
   // radar data and a workspace-owned catalog (so no built-in refresh applies).
-  // Nothing in the load path may touch it: no migration step targets v3, and
-  // the additive normalization added later must leave every existing field
-  // exactly as written. This fixture is the "before" side of that proof.
+  // No migration step targets v3, so the only thing the load path may do to this
+  // file is *add* the three vocabulary/comparison fields — never change one that
+  // is already there.
+  const ADDED_ON_LOAD = ['vocabulary', 'comparisonOverrides', 'dismissedSuggestions']
+
   it('leaves every stored workspace field untouched', () => {
     const store = useWorkspaceStore()
     const ok = store.loadFromData(clone(v3WorkspaceRadar))
 
     expect(ok).toBe(true)
-    expect(store.workspace).toEqual(v3WorkspaceRadar.workspace)
+    const loaded = { ...store.workspace }
+    ADDED_ON_LOAD.forEach((field) => delete loaded[field])
+    expect(loaded).toEqual(v3WorkspaceRadar.workspace)
+  })
+
+  it('adds exactly the three vocabulary/comparison fields and nothing else', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    const added = Object.keys(store.workspace).filter((key) => !(key in v3WorkspaceRadar.workspace))
+    expect(added.sort()).toEqual([...ADDED_ON_LOAD].sort())
+    expect(store.workspace.vocabulary).toEqual([])
+    expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('keeps the stored version at 3 when the workspace is written back', async () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+    await store.persist()
+
+    // The three fields are additive, so STORAGE_VERSION stays where it is —
+    // bumping it would make older builds reject the file outright.
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(3)
+  })
+
+  it('does not overwrite vocabulary data that is already stored', () => {
+    const stored = clone(v3WorkspaceRadar)
+    stored.workspace.vocabulary = [{ id: 'term-x', name: 'X', kind: 'tool', aliases: ['x'] }]
+    stored.workspace.comparisonOverrides = { 'term-x': { decision: 'accepted' } }
+    stored.workspace.dismissedSuggestions = [['a', 'b']]
+
+    const store = useWorkspaceStore()
+    store.loadFromData(stored)
+
+    expect(store.workspace.vocabulary).toEqual([{ id: 'term-x', name: 'X', kind: 'tool', aliases: ['x'] }])
+    expect(store.workspace.comparisonOverrides).toEqual({ 'term-x': { decision: 'accepted' } })
+    expect(store.workspace.dismissedSuggestions).toEqual([['a', 'b']])
+  })
+
+  it('replaces a field of the wrong type rather than trusting it', () => {
+    const stored = clone(v3WorkspaceRadar)
+    stored.workspace.vocabulary = 'not an array'
+    stored.workspace.comparisonOverrides = null
+    stored.workspace.dismissedSuggestions = 7
+
+    const store = useWorkspaceStore()
+    store.loadFromData(stored)
+
+    expect(store.workspace.vocabulary).toEqual([])
+    expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.dismissedSuggestions).toEqual([])
   })
 
   it('restores the tab state from the stored payload', () => {

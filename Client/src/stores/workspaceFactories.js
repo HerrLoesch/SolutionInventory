@@ -10,7 +10,13 @@ export function createWorkspace(projects = [], questionnaires = []) {
   return {
     id: createId('workspace'),
     projects: Array.isArray(projects) ? projects : [],
-    questionnaires: Array.isArray(questionnaires) ? questionnaires : []
+    questionnaires: Array.isArray(questionnaires) ? questionnaires : [],
+    // Vocabulary and comparison state. A freshly created workspace carries them
+    // from the start so callers never have to guard; a *stored* workspace that
+    // predates them gets them from normalizeWorkspaceVocabularyFields on load.
+    vocabulary: [],
+    comparisonOverrides: {},
+    dismissedSuggestions: []
   }
 }
 

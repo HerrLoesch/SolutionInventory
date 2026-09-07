@@ -15,6 +15,7 @@ import { createWorkspace, createProject, createQuestionnaire } from './workspace
 import { normalizeCategories } from './normalizeCategories'
 import {
   migrateProjectRadar,
+  normalizeWorkspaceVocabularyFields,
   buildWorkspaceFromLegacyCategoriesFormat,
   migrateWorkspaceToV2,
   migrateWorkspaceToV3
@@ -179,6 +180,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       workspace.value = data.workspace
       // Migrate any projects still using the legacy two-array radar format
       ;(workspace.value.projects || []).forEach(migrateProjectRadar)
+      // Add the vocabulary/comparison fields if this file predates them. Sits
+      // here rather than in runWorkspaceMigrations on purpose — it is version-
+      // independent, like migrateProjectRadar above (see the function's comment).
+      normalizeWorkspaceVocabularyFields(workspace.value)
       runWorkspaceMigrations(data.version)
       refreshBuiltInCatalogs()
       // Restore open tabs and active state, filtering out IDs that no longer exist
@@ -197,6 +202,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
     if (SUPPORTED_STORAGE_VERSIONS.includes(data.version) && data.categories) {
       workspace.value = buildWorkspaceFromLegacyCategoriesFormat(data.categories)
+      normalizeWorkspaceVocabularyFields(workspace.value)
       // Oldest bare-categories format predates the catalog concept entirely,
       // so it needs the full v1→current chain.
       runWorkspaceMigrations(1)
