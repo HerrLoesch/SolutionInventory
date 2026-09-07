@@ -106,7 +106,17 @@ function renderMarkdownComment(value) {
  * @param {object}   params.effectiveQuadrantLabels  { 0: label, 1: label, … }
  * @param {Array}    params.blipsByQuadrant    grouped blip data for the legend
  */
-export function exportRadarHtml({ title, blips, rings, visibleRingIndices, effectiveQuadrantLabels, blipsByQuadrant }) {
+export function exportRadarHtml({
+  title,
+  blips,
+  rings,
+  visibleRingIndices,
+  effectiveQuadrantLabels,
+  blipsByQuadrant,
+  // Which kinds the radar was showing when this was exported. Purely additive:
+  // omitted, the header reads exactly as it did before (plan §6.2).
+  visibleKinds
+}) {
   const cr = rings
   const visIdx = visibleRingIndices
   const effLabels = effectiveQuadrantLabels
@@ -334,6 +344,11 @@ export function exportRadarHtml({ title, blips, rings, visibleRingIndices, effec
   // ── Assemble HTML ─────────────────────────────────────────────────────
   const exportedAt = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   const safeTitle = esc(title)
+  // A reader must be able to tell a radar that shows everything from one that
+  // was filtered down. Only stated when a selection was actually passed and it
+  // is not the full set, so existing exports keep their exact header.
+  const kindList = Array.isArray(visibleKinds) ? visibleKinds : []
+  const kindsSuffix = kindList.length > 0 && kindList.length < 3 ? ' &middot; kinds: ' + esc(kindList.join(', ')) : ''
 
   const htmlParts = [
     '<!DOCTYPE html>',
@@ -355,6 +370,7 @@ export function exportRadarHtml({ title, blips, rings, visibleRingIndices, effec
       blips.length +
       ' blip' +
       (blips.length !== 1 ? 's' : '') +
+      kindsSuffix +
       '</p>',
     '    <div class="radar-layout">',
     '      <div class="radar-legend">' + legendLeftHtml + '</div>',

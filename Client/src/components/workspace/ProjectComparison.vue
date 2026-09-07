@@ -338,6 +338,11 @@
         </v-card-text>
       </v-card>
 
+      <div class="d-flex justify-end mt-3" style="gap: 8px">
+        <v-btn size="small" variant="text" prepend-icon="mdi-code-json" @click="exportJson">Export JSON</v-btn>
+        <v-btn size="small" variant="text" prepend-icon="mdi-language-html5" @click="exportHtml">Export HTML</v-btn>
+      </div>
+
       <!-- Radar overlay: the compared projects on one chart, laid out by a
            chosen reference project (design §5.4). -->
       <v-card variant="outlined" class="mt-4">
@@ -450,6 +455,7 @@
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { buildAliasIndex } from '../../services/vocabulary'
+import { buildComparisonExport, downloadComparisonJson, downloadComparisonHtml } from '../../utils/comparisonExport'
 import {
   buildComparison,
   coverageByProject,
@@ -686,6 +692,28 @@ export default {
       store.openProjectSummary(projectId)
     }
 
+    // ── Export (Phase 6) ─────────────────────────────────────────────────────
+
+    function exportData() {
+      return buildComparisonExport({
+        workspace: store.workspace,
+        projects: projects.value,
+        projectIds: selectedProjectIds.value,
+        rows: rows.value,
+        metrics: metrics.value,
+        dataSource: dataSource.value,
+        visibleKinds: visibleKinds.value
+      })
+    }
+
+    function exportJson() {
+      return downloadComparisonJson(exportData())
+    }
+
+    function exportHtml() {
+      return downloadComparisonHtml(exportData())
+    }
+
     // ── Radar overlay (Todo 5.3) ─────────────────────────────────────────────
     //
     // Quadrant layout is configured per project, so one reference project gives
@@ -820,6 +848,9 @@ export default {
       deltaLabel,
       cellFor,
       openProjectRadar,
+      exportData,
+      exportJson,
+      exportHtml,
       OVERLAY_SIZE,
       overlayRings,
       referenceProjectId,

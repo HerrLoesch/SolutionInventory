@@ -312,3 +312,60 @@ describe('downloadCustomRadarHtml', () => {
     expect(capturedContents).toHaveLength(1)
   })
 })
+
+// ── Kind selection in the header (Todo 6.2) ──────────────────────────────────
+//
+// The one change to an *existing* export. Additive: the tests above pin today's
+// format and must keep passing unchanged.
+describe('exportRadarHtml — kind selection', () => {
+  function htmlWith(visibleKinds) {
+    let captured = ''
+    const originalCreate = document.createElement.bind(document)
+    const blobs = []
+    const originalBlob = global.Blob
+    global.Blob = class {
+      constructor(parts) {
+        blobs.push(parts.join(''))
+      }
+    }
+    const originalCreateObjectURL = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = () => 'blob:test'
+    URL.revokeObjectURL = () => {}
+    document.createElement = (tag) => {
+      const element = originalCreate(tag)
+      if (tag === 'a') element.click = () => {}
+      return element
+    }
+    try {
+      exportRadarHtml({
+        title: 'Demo',
+        blips: [],
+        rings: [0, 30, 60, 90, 120, 150],
+        visibleRingIndices: [0, 1, 2, 3, 4],
+        effectiveQuadrantLabels: ['A', 'B', 'C', 'D'],
+        blipsByQuadrant: [],
+        visibleKinds
+      })
+      captured = blobs[blobs.length - 1] || ''
+    } finally {
+      document.createElement = originalCreate
+      global.Blob = originalBlob
+      URL.createObjectURL = originalCreateObjectURL
+      URL.revokeObjectURL = originalRevoke
+    }
+    return captured
+  }
+
+  it('states a narrowed kind selection in the header', () => {
+    expect(htmlWith(['tool'])).toContain('kinds: tool')
+  })
+
+  it('says nothing when every kind is shown — the header stays as it was', () => {
+    expect(htmlWith(['tool', 'practice', 'unassigned'])).not.toContain('kinds:')
+  })
+
+  it('says nothing when no selection is passed at all', () => {
+    expect(htmlWith(undefined)).not.toContain('kinds:')
+  })
+})
