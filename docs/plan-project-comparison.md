@@ -388,7 +388,7 @@ Wird während der Umsetzung ausgefüllt.
 | Ende Phase 3 | 534 (18 Dateien) | 1,02 s | grün | 10 / 83 grün, 28,1 s |
 | Ende Phase 4 | 607 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün, 28,7 s |
 | Ende Phase 5 | 633 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün |
-| Ende Phase 6 | | | | |
+| Ende Phase 6 | 652 (20 Dateien) | ~1,1 s | grün | 10 / 83 grün |
 | Abnahme (Todo 7.6) | | | | |
 
 **Anmerkung zur Baseline (2026-09-07):** `npm run format:check` war bereits vor der ersten Code-Änderung rot — `src/components/TreeNav.vue` ist unformatiert (Vorbefund aus Commit `4c4c324`). Da Arbeitsregel §1 grünes `format:check` verlangt, wird die Datei in Todo 0.2 mitformatiert; die Änderung ist rein kosmetisch und wird im Commit als Vorbefund ausgewiesen.
