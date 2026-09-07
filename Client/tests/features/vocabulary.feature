@@ -26,3 +26,24 @@ Feature: Shared vocabulary across projects
     And I open the category "Architecture"
     When I open the solution suggestions of the first entry
     Then "Dotnet Core" should be offered as a suggestion
+
+  # Todo 7.3 — the full workflow: fill in catalogs, curate the radar and assign
+  # terms, then compare and export.
+  Scenario: Comparing two projects from end to end
+    Given a project "Compare Alpha" exists
+    And a questionnaire "Alpha Q" exists in project "Compare Alpha"
+    And the questionnaire is unlocked for questions
+    And I open the category "Architecture"
+    And I answer the first entry with the tool "Clean Arch"
+    When I add "Clean Arch" to the tech radar of "Compare Alpha"
+
+    Given a project "Compare Beta" exists
+    And a questionnaire "Beta Q" exists in project "Compare Beta"
+    And the questionnaire is unlocked for questions
+    And I open the category "Architecture"
+    And I answer the first entry with the tool "clean arch"
+    When I add "clean arch" to the tech radar of "Compare Beta"
+
+    When I open the project comparison
+    Then the comparison should show the term "Clean Arch"
+    And the comparison should report 2 compared projects

@@ -557,3 +557,84 @@ describe('v3 workspace with radar data loads byte-identically', () => {
     expect(alpha.radar.find((blip) => blip.option === 'Redis').status).toBe('')
   })
 })
+
+// ── Phase 7 hardening ────────────────────────────────────────────────────────
+//
+// 7.1 re-checks every fixture after the whole feature is in place; 7.2 proves
+// the round trip that the "no STORAGE_VERSION bump" decision rests on.
+describe('acceptance — after the comparison feature', () => {
+  const FIXTURES = [
+    ['v1-workspace-full', v1WorkspaceFull],
+    ['v1-workspace-legacy-radar', v1WorkspaceLegacyRadar],
+    ['v1-categories-only', v1CategoriesOnly],
+    ['v3-workspace-radar', v3WorkspaceRadar]
+  ]
+
+  it.each(FIXTURES)('%s still loads', (_name, fixture) => {
+    const store = useWorkspaceStore()
+
+    expect(store.loadFromData(clone(fixture))).toBe(true)
+    expect(store.workspaceLoadError).toBeNull()
+  })
+
+  it.each(FIXTURES)('%s gets the three additive fields and nothing more', (_name, fixture) => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(fixture))
+
+    expect(store.workspace.vocabulary).toEqual([])
+    expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('still writes STORAGE_VERSION 3 — no bump anywhere in the feature', async () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+    store.createTerm('Clean Arch', 'practice')
+    store.setComparisonOverride('term-clean-arch', { level: 'accepted' })
+    await store.persist()
+
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(3)
+  })
+
+  // 7.2: a build without the feature passes the workspace through whole, because
+  // applyStoredData assigns `data.workspace` as a unit. Simulated by stripping
+  // the fields the older build knows nothing about from the *store*, then saving
+  // — the file it writes must still carry them.
+  it('a build that does not know the vocabulary keeps it through save, load, save', async () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+    const termId = store.createTerm('.NET Core', 'tool')
+    store.addAlias(termId, 'dotnet core')
+    store.setComparisonOverride(termId, { level: 'accepted', comment: 'agreed' })
+    store.dismissSuggestion('postgres', 'PostgreSQL')
+    await store.persist()
+    const written = localStorage.getItem(STORAGE_KEY)
+
+    // The older build: loads the file, never touches the three fields, saves.
+    setActivePinia(createPinia())
+    const olderBuild = useWorkspaceStore()
+    const payload = JSON.parse(written)
+    expect(olderBuild.loadFromData(payload)).toBe(true)
+    olderBuild.addProject('Added by the older build')
+    await olderBuild.persist()
+
+    setActivePinia(createPinia())
+    const current = useWorkspaceStore()
+    await current.initFromStorage()
+
+    expect(current.resolveTerm('DOTNET CORE').id).toBe(termId)
+    expect(current.getComparisonOverride(termId)).toMatchObject({ level: 'accepted', comment: 'agreed' })
+    expect(current.isSuggestionDismissed('PostgreSQL', 'postgres')).toBe(true)
+    expect(current.workspace.projects.some((project) => project.name === 'Added by the older build')).toBe(true)
+  })
+
+  it('an older build reading the file is not tripped up by the new save-data field', () => {
+    const store = useWorkspaceStore()
+    const payload = { ...clone(v3WorkspaceRadar), comparisonTabOpen: true }
+
+    // comparisonTabOpen lives outside `workspace`, so a build that ignores it
+    // simply loses the open state of a tab it cannot render.
+    expect(store.loadFromData(payload)).toBe(true)
+    expect('comparisonTabOpen' in store.workspace).toBe(false)
+  })
+})

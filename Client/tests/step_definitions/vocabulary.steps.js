@@ -102,3 +102,22 @@ When('I open the solution suggestions of the first entry', async function () {
 Then('{string} should be offered as a suggestion', async function (name) {
   await expect(this.page.getByRole('option', { name, exact: true }).first()).toBeVisible()
 })
+
+// ── Full workflow (Todo 7.3) ─────────────────────────────────────────────────
+
+When('I open the project comparison', async function () {
+  await this.page.locator('.workspace-node').click()
+  await expect(this.page.locator('.project-comparison')).toBeVisible()
+})
+
+Then('the comparison should show the term {string}', async function (name) {
+  const matrix = this.page.locator('.comparison-matrix')
+  await expect(matrix).toBeVisible()
+  await expect(matrix.locator('.matrix-term', { hasText: name }).first()).toBeVisible()
+})
+
+Then('the comparison should report {int} compared projects', async function (count) {
+  const projectColumns = this.page.locator('.comparison-matrix thead th')
+  // Term column + one per project + Coverage + Δ Status.
+  await expect(projectColumns).toHaveCount(count + 3)
+})
