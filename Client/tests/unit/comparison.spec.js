@@ -6,6 +6,12 @@ import {
   isCellInconsistent,
   coverageOf,
   COVERAGE,
+  deltaOf,
+  DELTA,
+  statusRank,
+  maxDistance,
+  classifyDistance,
+  STATUS_SCALE,
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
@@ -407,5 +413,208 @@ describe('coverageOf', () => {
   it('handles an empty selection and a row without cells', () => {
     expect(coverageOf(row('a'), [])).toBe(COVERAGE.UNIQUE)
     expect(coverageOf({}, ['a', 'b'])).toBe(COVERAGE.UNIQUE)
+  })
+})
+
+describe('statusRank / maxDistance / classifyDistance', () => {
+  it('ranks the five-step scale in order', () => {
+    expect(STATUS_SCALE).toEqual(['adopt', 'trial', 'assess', 'hold', 'retire'])
+    expect(STATUS_SCALE.map(statusRank)).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('ranks case- and whitespace-insensitively', () => {
+    expect(statusRank('  ADOPT ')).toBe(0)
+  })
+
+  it('reports -1 for anything not on the scale', () => {
+    expect(statusRank('')).toBe(-1)
+    expect(statusRank('Evaluate')).toBe(-1)
+    expect(statusRank(null)).toBe(-1)
+  })
+
+  it('takes the maximum over all pairings, not an average', () => {
+    // Adopt / Adopt / Retire: the pair that disagrees decides.
+    expect(maxDistance([0, 0, 4])).toBe(4)
+    expect(maxDistance([1, 2, 3])).toBe(2)
+    expect(maxDistance([2])).toBe(0)
+    expect(maxDistance([])).toBe(0)
+  })
+
+  it('classifies distances per design §6.1', () => {
+    expect(classifyDistance(0)).toBe(DELTA.MATCH)
+    expect(classifyDistance(1)).toBe(DELTA.MINOR)
+    expect(classifyDistance(2)).toBe(DELTA.SIGNIFICANT)
+    expect(classifyDistance(3)).toBe(DELTA.CRITICAL)
+    expect(classifyDistance(4)).toBe(DELTA.CRITICAL)
+  })
+})
+
+// The example matrix from design §5.3, reproduced exactly. If the design and
+// the engine ever drift apart, this is where it shows.
+describe('deltaOf — the design’s example rows', () => {
+  const THREE = ['alpha', 'beta', 'gamma']
+
+  // Builds a row from "project -> status or list of statuses"; a missing project
+  // simply has no cell.
+  function rowOf(byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      const statuses = Array.isArray(status) ? status : [status]
+      cells.set(projectId, { projectId, values: statuses.map((one) => ({ status: one, origin: {} })) })
+    }
+    return { cells }
+  }
+
+  it('React — Trial everywhere → ✓ match', () => {
+    expect(deltaOf(rowOf({ alpha: 'Trial', beta: 'Trial', gamma: 'Trial' }), THREE)).toMatchObject({
+      delta: DELTA.MATCH,
+      distance: 0
+    })
+  })
+
+  it('.NET Core — Adopt / Hold / Trial → ▲▲▲ critical', () => {
+    expect(deltaOf(rowOf({ alpha: 'Adopt', beta: 'Hold', gamma: 'Trial' }), THREE)).toMatchObject({
+      delta: DELTA.CRITICAL,
+      distance: 3
+    })
+  })
+
+  it('Docker — Adopt / Assess / Adopt → ▲▲ significant', () => {
+    expect(deltaOf(rowOf({ alpha: 'Adopt', beta: 'Assess', gamma: 'Adopt' }), THREE)).toMatchObject({
+      delta: DELTA.SIGNIFICANT,
+      distance: 2
+    })
+  })
+
+  it('Serilog — Adopt / Trial / absent → ▲ minor', () => {
+    expect(deltaOf(rowOf({ alpha: 'Adopt', beta: 'Trial' }), THREE)).toMatchObject({
+      delta: DELTA.MINOR,
+      distance: 1
+    })
+  })
+
+  it('Kafka — Adopt / unset / Adopt → ⊘ unset, and no distance at all', () => {
+    const result = deltaOf(rowOf({ alpha: 'Adopt', beta: '', gamma: 'Adopt' }), THREE)
+
+    expect(result.delta).toBe(DELTA.UNSET)
+    // Not "the other two agree": dropping the unrated project would report an
+    // agreement produced by omission (design §6.1).
+    expect(result.distance).toBeNull()
+  })
+
+  it('EF Core — Alpha rates it twice and differently → ⚠ inconsistent, no distance', () => {
+    const result = deltaOf(rowOf({ alpha: ['Adopt', 'Hold'], beta: 'Trial' }), THREE)
+
+    expect(result.delta).toBe(DELTA.INCONSISTENT)
+    expect(result.distance).toBeNull()
+  })
+
+  it('Azure DevOps — Trial / Hold with an accepted override → ✎ accepted', () => {
+    const result = deltaOf(rowOf({ alpha: 'Trial', beta: 'Hold' }), THREE, { override: { level: 'accepted' } })
+
+    expect(result.delta).toBe(DELTA.ACCEPTED)
+    expect(result.distance).toBeNull()
+  })
+
+  it('Wolverine — only Gamma has it → —', () => {
+    expect(deltaOf(rowOf({ gamma: 'Adopt' }), THREE)).toMatchObject({ delta: DELTA.NONE, distance: null })
+  })
+})
+
+// Exactly one badge per row (design §5.3). The conditions overlap, so each
+// precedence step needs a case where a lower-ranked one also applies.
+describe('deltaOf — badge precedence', () => {
+  const TWO = ['a', 'b']
+
+  function rowOf(byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      const statuses = Array.isArray(status) ? status : [status]
+      cells.set(projectId, { projectId, values: statuses.map((one) => ({ status: one, origin: {} })) })
+    }
+    return { cells }
+  }
+
+  it('unique beats everything — what is not compared cannot be excluded', () => {
+    const result = deltaOf(rowOf({ a: ['Adopt', ''] }), TWO, { override: { level: 'accepted' } })
+
+    expect(result.delta).toBe(DELTA.NONE)
+    // The other conditions are still reported, just not counted.
+    expect(result.reasons).toEqual(expect.arrayContaining([DELTA.INCONSISTENT, DELTA.UNSET, DELTA.ACCEPTED]))
+  })
+
+  it('inconsistent beats unset — a contradiction is the more urgent finding', () => {
+    const result = deltaOf(rowOf({ a: ['Adopt', 'Hold'], b: '' }), TWO)
+
+    expect(result.delta).toBe(DELTA.INCONSISTENT)
+    expect(result.reasons).toEqual([DELTA.INCONSISTENT, DELTA.UNSET])
+  })
+
+  it('inconsistent beats an accepted override — a data finding must not be hidden', () => {
+    const result = deltaOf(rowOf({ a: ['Adopt', 'Hold'], b: 'Trial' }), TWO, { override: { level: 'accepted' } })
+
+    expect(result.delta).toBe(DELTA.INCONSISTENT)
+  })
+
+  it('unset beats an accepted override', () => {
+    const result = deltaOf(rowOf({ a: 'Adopt', b: '' }), TWO, { override: { level: 'accepted' } })
+
+    expect(result.delta).toBe(DELTA.UNSET)
+  })
+
+  it('an accepted override beats the computed distance', () => {
+    expect(deltaOf(rowOf({ a: 'Adopt', b: 'Retire' }), TWO, { override: { level: 'accepted' } }).delta).toBe(
+      DELTA.ACCEPTED
+    )
+  })
+
+  it('an upgrade to critical stays in the distance branch and reports the real distance', () => {
+    const result = deltaOf(rowOf({ a: 'Adopt', b: 'Trial' }), TWO, { override: { level: 'critical' } })
+
+    expect(result.delta).toBe(DELTA.CRITICAL)
+    expect(result.distance).toBe(1)
+    // Not an exclusion reason — it stays in Comparable (design §6.2).
+    expect(result.reasons).toEqual([])
+  })
+})
+
+describe('deltaOf — edge cases', () => {
+  const TWO = ['a', 'b']
+
+  function rowOf(byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      const statuses = Array.isArray(status) ? status : [status]
+      cells.set(projectId, { projectId, values: statuses.map((one) => ({ status: one, origin: {} })) })
+    }
+    return { cells }
+  }
+
+  it('treats an off-scale status as unset rather than inventing a distance', () => {
+    const result = deltaOf(rowOf({ a: 'Adopt', b: 'Evaluate' }), TWO)
+
+    expect(result.delta).toBe(DELTA.UNSET)
+    expect(result.distance).toBeNull()
+  })
+
+  it('does not call a duplicate that agrees with itself inconsistent', () => {
+    expect(deltaOf(rowOf({ a: ['Adopt', 'Adopt'], b: 'Adopt' }), TWO).delta).toBe(DELTA.MATCH)
+  })
+
+  it('accepts a precomputed coverage instead of deriving it again', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    expect(deltaOf(row, TWO, { coverage: COVERAGE.UNIQUE }).delta).toBe(DELTA.NONE)
+    expect(deltaOf(row, TWO, { coverage: COVERAGE.ALL }).delta).toBe(DELTA.CRITICAL)
+  })
+
+  it('ignores projects outside the selection', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Adopt', z: 'Retire' })
+
+    expect(deltaOf(row, TWO).delta).toBe(DELTA.MATCH)
+  })
+
+  it('handles a row with no cells at all', () => {
+    expect(deltaOf({ cells: new Map() }, TWO)).toMatchObject({ delta: DELTA.NONE, distance: null })
   })
 })

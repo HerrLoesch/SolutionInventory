@@ -221,3 +221,106 @@ export function coverageOf(row, projectIds) {
   if (present <= 1) return COVERAGE.UNIQUE
   return present === selected.size ? COVERAGE.ALL : COVERAGE.PARTIAL
 }
+
+// The five-step scale the status distance is measured on (design §6.1).
+export const STATUS_SCALE = ['adopt', 'trial', 'assess', 'hold', 'retire']
+
+export const DELTA = {
+  NONE: 'none', // — : coverage unique, nothing to compare
+  INCONSISTENT: 'inconsistent',
+  UNSET: 'unset',
+  ACCEPTED: 'accepted',
+  MATCH: 'match',
+  MINOR: 'minor',
+  SIGNIFICANT: 'significant',
+  CRITICAL: 'critical'
+}
+
+/** Position of a status on the scale, or -1 for anything not on it. */
+export function statusRank(status) {
+  return STATUS_SCALE.indexOf(normalize(status))
+}
+
+/**
+ * The maximum distance over all pairings of a set of ranks. Taking the maximum
+ * rather than an average means three projects count as in agreement only when
+ * every one of them is — which, on a sorted scale, is max minus min.
+ */
+export function maxDistance(ranks) {
+  if (!ranks.length) return 0
+  return Math.max(...ranks) - Math.min(...ranks)
+}
+
+/** Distance class per design §6.1: 0 match, 1 minor, 2 significant, >= 3 critical. */
+export function classifyDistance(distance) {
+  if (distance === 0) return DELTA.MATCH
+  if (distance === 1) return DELTA.MINOR
+  if (distance === 2) return DELTA.SIGNIFICANT
+  return DELTA.CRITICAL
+}
+
+/**
+ * The Δ status of a row: exactly one badge, chosen by the fixed precedence from
+ * design §5.3. The conditions are not mutually exclusive — a term can be
+ * inconsistent in project A and unrated in project B — so the order is what
+ * keeps `Excluded` free of overlap (DE-8).
+ *
+ *   1. —              coverage unique
+ *   2. ⚠ inconsistent DE-3
+ *   3. ⊘ unset        DE-7
+ *   4. ✎ accepted     an override is set
+ *   5. ✓ ▲ ▲▲ ▲▲▲     status distance
+ *
+ * Step 1 is first because it enforces `Excluded ⊆ Compared`: what is not
+ * compared at all cannot be excluded from the comparison. Steps 2 and 3 outrank
+ * the override because a data finding must not be hidden by an accepted
+ * difference, and 2 before 3 because two contradictory ratings inside one
+ * project are the more urgent finding than a missing one.
+ *
+ * An excluded state takes the term out of the distance calculation *entirely*.
+ * Dropping just the affected project and deriving a distance from the rest would
+ * report an agreement produced by omission (design §6.1).
+ *
+ * `reasons` lists every condition that also applies, for the cell tooltip —
+ * nothing is hidden, it is only counted once.
+ *
+ * @returns {{ delta: string, distance: number|null, reasons: string[] }}
+ */
+export function deltaOf(row, projectIds, { coverage = null, override = null } = {}) {
+  const effectiveCoverage = coverage || coverageOf(row, projectIds)
+  const reasons = []
+
+  const participating = (projectIds || [])
+    .map((projectId) => row?.cells?.get?.(projectId))
+    .filter((cell) => (cell?.values || []).length > 0)
+
+  const inconsistent = participating.some(isCellInconsistent)
+  const unset = participating.some((cell) => cell.values.some((value) => normalize(value.status) === ''))
+  const accepted = override?.level === 'accepted'
+
+  if (inconsistent) reasons.push(DELTA.INCONSISTENT)
+  if (unset) reasons.push(DELTA.UNSET)
+  if (accepted) reasons.push(DELTA.ACCEPTED)
+
+  if (effectiveCoverage === COVERAGE.UNIQUE) return { delta: DELTA.NONE, distance: null, reasons }
+  if (inconsistent) return { delta: DELTA.INCONSISTENT, distance: null, reasons }
+  if (unset) return { delta: DELTA.UNSET, distance: null, reasons }
+  if (accepted) return { delta: DELTA.ACCEPTED, distance: null, reasons }
+
+  // Every participating cell holds exactly one status here: inconsistency and
+  // unset are already ruled out above.
+  const ranks = participating.map((cell) => statusRank(cell.values[0].status))
+  // A status outside the five-step scale (an imported catalog could bring one)
+  // has no defined distance. Treating it as unset is the honest reading: we
+  // cannot say how far apart the projects are.
+  if (ranks.some((rank) => rank === -1)) {
+    if (!reasons.includes(DELTA.UNSET)) reasons.push(DELTA.UNSET)
+    return { delta: DELTA.UNSET, distance: null, reasons }
+  }
+
+  const distance = maxDistance(ranks)
+  // An upgrade to critical stays *in* Comparable and counts as critical
+  // (design §6.2) — unlike "accepted", which takes the term out of it.
+  const delta = override?.level === 'critical' ? DELTA.CRITICAL : classifyDistance(distance)
+  return { delta, distance, reasons }
+}
