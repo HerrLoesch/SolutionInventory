@@ -7,7 +7,12 @@ import {
   buildAliasIndex,
   resolve,
   assertNoAliasCollisions,
-  AliasCollisionError
+  AliasCollisionError,
+  levenshtein,
+  tokenize,
+  tokensOverlap,
+  compareNames,
+  findSimilarTerms
 } from '../../src/services/vocabulary'
 
 describe('normalize', () => {
@@ -235,5 +240,180 @@ describe('resolve', () => {
 
     expect(resolve('netcore', index).id).toBe('t1')
     expect(resolve('Redux', index)).toBeNull()
+  })
+})
+
+describe('levenshtein', () => {
+  it('computes the classic edit distance', () => {
+    expect(levenshtein('kitten', 'sitting')).toBe(3)
+    expect(levenshtein('abc', 'abc')).toBe(0)
+    expect(levenshtein('flaw', 'lawn')).toBe(2)
+    expect(levenshtein('kubernets', 'kubernetes')).toBe(1)
+  })
+
+  it('is symmetric', () => {
+    expect(levenshtein('kitten', 'sitting')).toBe(levenshtein('sitting', 'kitten'))
+  })
+
+  it('handles empty and missing input', () => {
+    expect(levenshtein('', 'abc')).toBe(3)
+    expect(levenshtein('abc', '')).toBe(3)
+    expect(levenshtein('', '')).toBe(0)
+    expect(levenshtein(null, undefined)).toBe(0)
+  })
+})
+
+describe('tokenize', () => {
+  it('splits on whitespace and punctuation alike', () => {
+    expect(tokenize('.NET Core')).toEqual(['net', 'core'])
+    expect(tokenize('azure-devops')).toEqual(['azure', 'devops'])
+    expect(tokenize('Azure  DevOps')).toEqual(['azure', 'devops'])
+  })
+
+  it('drops empty fragments', () => {
+    expect(tokenize('  ...  ')).toEqual([])
+    expect(tokenize('')).toEqual([])
+    expect(tokenize(null)).toEqual([])
+  })
+})
+
+// The two rules the design demands, checked against the exact pairs named in
+// plan §2.1 and §7: the leading example must hit, the counter-example must not.
+describe('compareNames', () => {
+  it('finds ".net core" ↔ "dotnet core" — the main case, at edit distance 3', () => {
+    const result = compareNames('.NET Core', 'dotnet core')
+
+    expect(result.similar).toBe(true)
+    expect(result.reason).toBe('tokens')
+    expect(result.distance).toBe(3)
+  })
+
+  it('does not confuse "Redis" with "Redux"', () => {
+    const result = compareNames('Redis', 'Redux')
+
+    expect(result.similar).toBe(false)
+    expect(result.distance).toBe(2)
+  })
+
+  it('applies the calibrated distance-1 rule only from 5 characters', () => {
+    // 9 characters, one insertion — a typo worth flagging.
+    expect(compareNames('Kubernets', 'Kubernetes').similar).toBe(true)
+    expect(compareNames('Kubernets', 'Kubernetes').reason).toBe('levenshtein')
+    // 3 and 4 characters, one edit — too short to tell a typo from a word.
+    expect(compareNames('Vue', 'Vuex').similar).toBe(false)
+    expect(compareNames('Java', 'Kava').similar).toBe(false)
+  })
+
+  it('applies the calibrated distance-2 rule only from 8 characters', () => {
+    // 8 characters, distance 2.
+    expect(compareNames('Typescript', 'Typscrpt').similar).toBe(true)
+    // 5 characters, distance 2 — below the threshold on purpose.
+    expect(compareNames('Redis', 'Redux').similar).toBe(false)
+  })
+
+  it('flags a distance-1 pair at exactly 5 characters, as the MCP thresholds do', () => {
+    // "React" / "Preact" is a single insertion at the calibration boundary. The
+    // thresholds are taken over from the MCP analyzer unchanged, so this pair is
+    // *suggested* — a human still decides, and nothing is assigned automatically.
+    expect(compareNames('React', 'Preact')).toEqual({ similar: true, reason: 'levenshtein', distance: 1 })
+  })
+
+  it('matches punctuation and separator variants of the same name', () => {
+    expect(compareNames('Azure DevOps', 'azure-devops').similar).toBe(true)
+    expect(compareNames('Continuous Delivery', 'continuous  delivery').similar).toBe(false)
+  })
+
+  it('does not match a name against a longer one that merely contains it', () => {
+    expect(compareNames('Java', 'Java Script').similar).toBe(false)
+    expect(compareNames('Redis', 'Redis Cache').similar).toBe(false)
+  })
+
+  it('does not match names that only share one of several tokens', () => {
+    expect(compareNames('Azure DevOps', 'Azure Pipelines').similar).toBe(false)
+    expect(compareNames('Spring Boot', 'Spring Cloud').similar).toBe(false)
+  })
+
+  it('reports identical and empty names as not-a-suggestion', () => {
+    expect(compareNames('Redis', 'redis').similar).toBe(false)
+    expect(compareNames('Redis', '').similar).toBe(false)
+    expect(compareNames('', '').similar).toBe(false)
+  })
+})
+
+describe('tokensOverlap', () => {
+  it('matches regardless of token order', () => {
+    expect(tokensOverlap('Core .NET', '.net core')).toBe(true)
+  })
+
+  it('requires the same number of tokens', () => {
+    expect(tokensOverlap('a b', 'a b c')).toBe(false)
+  })
+
+  it('returns false for a name without tokens', () => {
+    expect(tokensOverlap('...', 'redis')).toBe(false)
+  })
+})
+
+describe('findSimilarTerms', () => {
+  const vocabulary = [
+    term('t1', '.NET Core', ['netcore']),
+    term('t2', 'Redis'),
+    term('t3', 'Kubernetes'),
+    term('t4', 'Azure DevOps')
+  ]
+
+  it('suggests the term behind a different spelling', () => {
+    const [suggestion] = findSimilarTerms('dotnet core', vocabulary)
+
+    expect(suggestion.term.id).toBe('t1')
+    expect(suggestion.reason).toBe('tokens')
+  })
+
+  it('suggests via an alias, and reports which key matched', () => {
+    const [suggestion] = findSimilarTerms('netcore2', vocabulary)
+
+    expect(suggestion.term.id).toBe('t1')
+    expect(suggestion.matchedKey).toBe('netcore')
+  })
+
+  it('suggests nothing for a name the vocabulary already resolves', () => {
+    expect(findSimilarTerms('.NET Core', vocabulary)).toEqual([])
+    expect(findSimilarTerms('NETCORE', vocabulary)).toEqual([])
+  })
+
+  it('suggests nothing for an unrelated name', () => {
+    expect(findSimilarTerms('Redux', vocabulary)).toEqual([])
+    expect(findSimilarTerms('PostgreSQL', vocabulary)).toEqual([])
+  })
+
+  it('suggests nothing for an empty name or an empty vocabulary', () => {
+    expect(findSimilarTerms('', vocabulary)).toEqual([])
+    expect(findSimilarTerms('   ', vocabulary)).toEqual([])
+    expect(findSimilarTerms('dotnet core', [])).toEqual([])
+    expect(findSimilarTerms('dotnet core', undefined)).toEqual([])
+  })
+
+  it('orders the closest suggestion first', () => {
+    const withTwo = [term('t1', 'Kubrnets'), term('t2', 'Kubernets')]
+    const suggestions = findSimilarTerms('Kubernetes', withTwo)
+
+    // distance 1 before distance 2.
+    expect(suggestions.map((suggestion) => suggestion.term.id)).toEqual(['t2', 't1'])
+    expect(suggestions.map((suggestion) => suggestion.distance)).toEqual([1, 2])
+  })
+
+  it('breaks a distance tie by name, so the order is stable', () => {
+    const tied = [term('t1', 'Kubernets'), term('t2', 'Kubernete')]
+
+    expect(findSimilarTerms('Kubernetes', tied).map((suggestion) => suggestion.term.name)).toEqual([
+      'Kubernete',
+      'Kubernets'
+    ])
+  })
+
+  it('honors the limit', () => {
+    const many = [term('t1', 'Kubernets'), term('t2', 'Kubernete'), term('t3', 'Kubrnets')]
+
+    expect(findSimilarTerms('Kubernetes', many, { limit: 2 })).toHaveLength(2)
   })
 })

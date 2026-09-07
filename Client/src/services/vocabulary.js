@@ -138,3 +138,166 @@ export function resolve(rawName, vocabularyOrIndex) {
   const index = vocabularyOrIndex instanceof Map ? vocabularyOrIndex : buildAliasIndex(vocabularyOrIndex).index
   return index.get(key) || null
 }
+
+// ── Similarity (suggestions only, never automatic matching) ──────────────────
+//
+// Thresholds are taken over unchanged from MCP/McpServer/Logic/DataConsistencyAnalyzer.cs,
+// where the same problem (near-duplicate technology names) is already solved and
+// already tuned against false alarms. Same product, same problem — reinventing
+// the calibration would mean re-earning it.
+//
+//   distance 1  counts from 5 characters
+//   distance 2  counts from 8 characters
+//
+// That rule alone is not enough here: the leading example from the design,
+// ".net core" vs "dotnet core", sits at edit distance 3 and would be missed. The
+// token rule below is what actually covers the main case, so it is mandatory,
+// not decoration.
+//
+// Nothing here ever assigns anything. A suggestion becomes real only when a
+// person confirms it, and is then recorded as an alias instead of being guessed
+// again on every comparison (design §3.2).
+
+const MIN_NEAR_DUPLICATE_LENGTH = 5
+const DISTANCE_2_MIN_LENGTH = 8
+const MIN_CONTAINMENT_LENGTH = 3
+const MIN_CONTAINMENT_LENGTH_DIFFERENCE = 2
+const MAX_CONTAINMENT_LENGTH_DIFFERENCE = 3
+
+/** Classic Levenshtein edit distance, two rolling rows. */
+export function levenshtein(a, b) {
+  const left = String(a ?? '')
+  const right = String(b ?? '')
+  if (left === right) return 0
+  if (left.length === 0) return right.length
+  if (right.length === 0) return left.length
+
+  let previous = new Array(right.length + 1)
+  let current = new Array(right.length + 1)
+  for (let j = 0; j <= right.length; j++) previous[j] = j
+
+  for (let i = 1; i <= left.length; i++) {
+    current[0] = i
+    for (let j = 1; j <= right.length; j++) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1
+      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost)
+    }
+    const swap = previous
+    previous = current
+    current = swap
+  }
+  return previous[right.length]
+}
+
+/**
+ * Splits a normalized name into comparison tokens. Punctuation separates rather
+ * than being deleted, so ".net core" and "azure-devops" break into the same
+ * shape as their spaced spellings.
+ */
+export function tokenize(rawName) {
+  return normalize(rawName)
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token !== '')
+}
+
+/** The calibrated near-duplicate rule from the MCP analyzer, applied to two keys. */
+function isNearDuplicate(a, b) {
+  const shorter = Math.min(a.length, b.length)
+  if (shorter < MIN_NEAR_DUPLICATE_LENGTH) return false
+  const distance = levenshtein(a, b)
+  return distance === 1 || (distance === 2 && shorter >= DISTANCE_2_MIN_LENGTH)
+}
+
+/**
+ * Whether two single tokens plausibly denote the same thing: identical, one
+ * contained in the other, or a near duplicate by the rule above.
+ *
+ * Containment is deliberately narrow: the shorter token must be at least 3
+ * characters and the length difference must be between 2 and 3. That admits
+ * "net" ⊂ "dotnet" (the case this rule exists for) while rejecting both
+ * "java" ⊂ "javascript" (too far apart) and "vue" ⊂ "vuex" (too close — a
+ * one-character extension is a different word, which is exactly why the
+ * Levenshtein rule above refuses distance 1 below 5 characters).
+ */
+function tokensMatch(a, b) {
+  if (a === b) return true
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a]
+  if (
+    shorter.length >= MIN_CONTAINMENT_LENGTH &&
+    longer.length - shorter.length >= MIN_CONTAINMENT_LENGTH_DIFFERENCE &&
+    longer.length - shorter.length <= MAX_CONTAINMENT_LENGTH_DIFFERENCE &&
+    longer.includes(shorter)
+  ) {
+    return true
+  }
+  return isNearDuplicate(a, b)
+}
+
+/**
+ * Token-overlap rule: same number of tokens, and every token of one name pairs
+ * with a distinct token of the other.
+ *
+ * Requiring equal token counts is what keeps this quiet. Allowing a name to
+ * match a longer one would make "Java" a suggestion for "Java Script" and
+ * "Redis" one for "Redis Cache" — different things, offered on every screen.
+ */
+export function tokensOverlap(a, b) {
+  const left = tokenize(a)
+  const right = tokenize(b)
+  if (left.length === 0 || left.length !== right.length) return false
+
+  const unmatched = [...right]
+  for (const token of left) {
+    const index = unmatched.findIndex((candidate) => tokensMatch(token, candidate))
+    if (index === -1) return false
+    unmatched.splice(index, 1)
+  }
+  return true
+}
+
+/**
+ * Whether two raw names are similar enough to *suggest* to a user. Two names
+ * that normalize identically are the same name, not a suggestion, so they are
+ * excluded — the caller resolves those exactly.
+ *
+ * @returns {{ similar: boolean, reason: 'levenshtein'|'tokens'|'', distance: number }}
+ */
+export function compareNames(a, b) {
+  const left = normalize(a)
+  const right = normalize(b)
+  if (left === '' || right === '' || left === right) {
+    return { similar: false, reason: '', distance: left === right ? 0 : Infinity }
+  }
+  const distance = levenshtein(left, right)
+  if (isNearDuplicate(left, right)) return { similar: true, reason: 'levenshtein', distance }
+  if (tokensOverlap(left, right)) return { similar: true, reason: 'tokens', distance }
+  return { similar: false, reason: '', distance }
+}
+
+/**
+ * Terms whose name or one of whose aliases resembles `rawName`, best first.
+ * Returns [] for a name the vocabulary already resolves exactly — there is
+ * nothing to suggest when the answer is known.
+ *
+ * @returns {Array<{ term: object, matchedKey: string, reason: string, distance: number }>}
+ */
+export function findSimilarTerms(rawName, vocabulary, { limit = 5 } = {}) {
+  const key = normalize(rawName)
+  if (key === '') return []
+  const terms = Array.isArray(vocabulary) ? vocabulary : []
+  if (resolve(key, terms)) return []
+
+  const suggestions = []
+  for (const term of terms) {
+    if (!term || !term.id) continue
+    let best = null
+    for (const candidateKey of termKeys(term)) {
+      const { similar, reason, distance } = compareNames(key, candidateKey)
+      if (!similar) continue
+      if (!best || distance < best.distance) best = { term, matchedKey: candidateKey, reason, distance }
+    }
+    if (best) suggestions.push(best)
+  }
+
+  return suggestions.sort((a, b) => a.distance - b.distance || a.term.name.localeCompare(b.term.name)).slice(0, limit)
+}
