@@ -389,7 +389,24 @@ Wird während der Umsetzung ausgefüllt.
 | Ende Phase 4 | 607 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün, 28,7 s |
 | Ende Phase 5 | 633 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün |
 | Ende Phase 6 | 652 (20 Dateien) | ~1,1 s | grün | 10 / 83 grün |
-| Abnahme (Todo 7.6) | | | | |
+| Abnahme (Todo 7.6) | 675 (21 Dateien) | 1,20 s | grün | 11 / 99 grün, 37,6 s |
+
+### 6.1 Abweichungen zwischen Design und Umsetzung (Todo 7.5)
+
+Gefunden während der Umsetzung, im Code jeweils entschieden und kommentiert.
+Das Design-Dokument ist an diesen Stellen **noch nicht nachgezogen** — es hat
+unverbuchte Änderungen im Arbeitsverzeichnis, deshalb bleibt die Entscheidung
+beim Autor.
+
+| # | Design sagt | Code tut | Warum |
+|---|---|---|---|
+| 1 | §5.1: „Alle exakten Treffer" legt Begriffe **ohne Rückfrage** an | Gruppen ohne jede Art werden übersprungen | `kind` ist am Begriff Pflicht (§3.1) und darf nicht geraten werden. Überspringen ist die einzige Lesart, die beide Regeln einhält. |
+| 2 | §5.1: Beispiel für exakte Treffer ist `"Serilog "` → `"serilog"` | Nur Groß-/Kleinschreibungs-Varianten sind erreichbar | Beide Adapter trimmen den Rohnamen, wie das Radar es immer getan hat. Reine Leerzeichenvarianten können den Vergleich gar nicht erreichen. |
+| 3 | §6.1: Statusdistanz auf der fünfstufigen Skala | Ein Status **außerhalb** der Skala ergibt `⊘ unset` | Ein importierter Katalog kann eigene `statusOptions` mitbringen (Hinweis im Design zu §4.3). Eine Distanz zu erfinden wäre die schlechtere Antwort als zu sagen: wir wissen es nicht. |
+| 4 | §5.4: der Hold-Fallback trifft „genau diese Restmenge" | Ein *unbekannter* Status behält den Hold-Fallback, nur ein **leerer** verliert ihn | Ein unbekannter Status ist ein Urteil, nur keines auf dieser Skala. |
+| 5 | §4.3: `effectiveStatus = entry.status \|\| answer.status` | Gilt, aber `entry.status` ist ein **Schnappschuss** | `toggleProjectRadarRef` kopiert den Antwort-Status beim Anlegen des Blips. Die Vererbung greift daher nur, wenn die Antwort damals keinen Status trug. Ändert sich der Antwort-Status später, zeigt das Radar den alten Wert und markiert ihn als Übersteuerung, obwohl niemand übersteuert hat. |
+
+---
 
 **Anmerkung zur Baseline (2026-09-07):** `npm run format:check` war bereits vor der ersten Code-Änderung rot — `src/components/TreeNav.vue` ist unformatiert (Vorbefund aus Commit `4c4c324`). Da Arbeitsregel §1 grünes `format:check` verlangt, wird die Datei in Todo 0.2 mitformatiert; die Änderung ist rein kosmetisch und wird im Commit als Vorbefund ausgewiesen.
 
