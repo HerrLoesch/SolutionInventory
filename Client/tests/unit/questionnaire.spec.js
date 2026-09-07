@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import Questionnaire from '../../src/components/questionaire/Questionnaire.vue'
-import { mountWithStore } from './helpers/mountWithStore'
+import { useWorkspaceStore } from '../../src/stores/workspaceStore'
+import { createActivePinia, mountWithStore } from './helpers/mountWithStore'
 
 // Vuetify isn't installed in these tests (see helpers/mountWithStore.js), so
 // Vue logs "Failed to resolve component: v-xxx" warnings for every template
@@ -93,5 +94,97 @@ describe('getSuggestions — Practice/Tool-aware example suggestions', () => {
 
     expect(wrapper.vm.getSuggestions(entry, 'Practice')).toEqual(['Legacy Practice'])
     expect(wrapper.vm.getSuggestions(entry, 'Tool')).toEqual(['Legacy Tool', 'New Tool'])
+  })
+})
+
+// ── Vocabulary in the answer suggestions (Todo 2.3) ──────────────────────────
+//
+// The vocabulary is mixed into the suggestion list so the spelling that already
+// exists elsewhere in the workspace is the one closest to hand.
+describe('getSuggestions — vocabulary terms', () => {
+  // Mounts with a store seeded *before* the component, so getSuggestions sees
+  // the vocabulary on its first call.
+  function mountWithVocabulary(seed) {
+    const pinia = createActivePinia()
+    const store = useWorkspaceStore()
+    seed(store)
+    const entry = {
+      id: 'e1',
+      aspect: 'Stack',
+      examples: [
+        { type: 'tool', label: 'Angular' },
+        { type: 'tool', label: 'dotnet core' },
+        { type: 'practice', label: 'Pair Programming' }
+      ],
+      answers: [{ technology: '', status: '', comments: '', answerType: '' }],
+      applicability: 'applicable'
+    }
+    const categories = [{ id: 'cat-1', title: 'Frontend', entries: [entry] }]
+    const { wrapper } = mountWithStore(Questionnaire, {
+      props: { categories, questionnaireId: 'q1' },
+      pinia
+    })
+    return { wrapper, entry, store }
+  }
+
+  it('offers vocabulary terms of the matching kind alongside the catalog examples', () => {
+    const { wrapper, entry } = mountWithVocabulary((store) => {
+      store.createTerm('Redis', 'tool')
+      store.createTerm('Trunk Based Development', 'practice')
+    })
+
+    expect(wrapper.vm.getSuggestions(entry, 'Tool')).toEqual(['Angular', 'Redis', 'dotnet core'])
+    expect(wrapper.vm.getSuggestions(entry, 'Practice')).toEqual(['Pair Programming', 'Trunk Based Development'])
+  })
+
+  it('shows both kinds when no answerType is chosen yet — today’s behavior, kept', () => {
+    const { wrapper, entry } = mountWithVocabulary((store) => {
+      store.createTerm('Redis', 'tool')
+      store.createTerm('Trunk Based Development', 'practice')
+    })
+
+    expect(wrapper.vm.getSuggestions(entry, '')).toEqual([
+      'Angular',
+      'Pair Programming',
+      'Redis',
+      'Trunk Based Development',
+      'dotnet core'
+    ])
+  })
+
+  it('suppresses a catalog example that is already an alias, offering the canonical spelling instead', () => {
+    const { wrapper, entry } = mountWithVocabulary((store) => {
+      const termId = store.createTerm('.NET Core', 'tool')
+      store.addAlias(termId, 'dotnet core')
+    })
+
+    const suggestions = wrapper.vm.getSuggestions(entry, 'Tool')
+    expect(suggestions).toContain('.NET Core')
+    expect(suggestions).not.toContain('dotnet core')
+  })
+
+  it('suppresses a catalog example that is a term’s canonical name, rather than listing it twice', () => {
+    const { wrapper, entry } = mountWithVocabulary((store) => {
+      store.createTerm('Angular', 'tool')
+    })
+
+    expect(wrapper.vm.getSuggestions(entry, 'Tool').filter((name) => name === 'Angular')).toHaveLength(1)
+  })
+
+  it('keeps an example suppressed even when the term’s kind excludes it from this list', () => {
+    // The vocabulary, not the catalog, is the authority on kind: if a name is
+    // recorded as a practice, it must not resurface as a tool suggestion.
+    const { wrapper, entry } = mountWithVocabulary((store) => {
+      store.createTerm('Angular', 'practice')
+    })
+
+    expect(wrapper.vm.getSuggestions(entry, 'Tool')).not.toContain('Angular')
+    expect(wrapper.vm.getSuggestions(entry, 'Practice')).toContain('Angular')
+  })
+
+  it('falls back to the catalog examples alone when the vocabulary is empty', () => {
+    const { wrapper, entry } = mountWithVocabulary(() => {})
+
+    expect(wrapper.vm.getSuggestions(entry, 'Tool')).toEqual(['Angular', 'dotnet core'])
   })
 })

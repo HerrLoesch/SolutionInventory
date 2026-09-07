@@ -374,6 +374,7 @@
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { expandExamplesToTyped } from '../../services/catalogService'
+import { buildAliasIndex, resolve } from '../../services/vocabulary'
 import EntryExamples from './EntryExamples.vue'
 
 export default {
@@ -667,11 +668,26 @@ export default {
       const includeTool = answerType !== 'Practice'
       const suggestions = []
 
+      // Established vocabulary terms of the matching kind are offered alongside
+      // the catalog examples, so the spelling that already exists elsewhere in
+      // the workspace is the one closest to hand.
+      const vocabulary = store.workspace.vocabulary || []
+      const { index } = buildAliasIndex(vocabulary)
+      vocabulary.forEach((term) => {
+        const wanted = (term.kind === 'practice' && includePractice) || (term.kind === 'tool' && includeTool)
+        if (wanted && term.name && !suggestions.includes(term.name)) suggestions.push(term.name)
+      })
+
       expandExamplesToTyped(entry.examples).forEach((example) => {
         const wanted = (example.type === 'practice' && includePractice) || (example.type === 'tool' && includeTool)
-        if (wanted && example.label && !suggestions.includes(example.label)) {
-          suggestions.push(example.label)
-        }
+        if (!wanted || !example.label || suggestions.includes(example.label)) return
+        // An example that already resolves to a term is a *spelling* of that
+        // term, not a second option — offering both would invite exactly the
+        // divergence the vocabulary exists to remove. It stays suppressed even
+        // when the term's kind excludes it from this list, because the
+        // vocabulary, not the catalog, is the authority on kind (design §3.3).
+        if (resolve(example.label, index)) return
+        suggestions.push(example.label)
       })
 
       return suggestions.sort()
