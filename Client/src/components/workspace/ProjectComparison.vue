@@ -338,6 +338,82 @@
         </v-card-text>
       </v-card>
 
+      <!-- Radar overlay: the compared projects on one chart, laid out by a
+           chosen reference project (design §5.4). -->
+      <v-card variant="outlined" class="mt-4">
+        <v-card-title class="text-subtitle-2 d-flex align-center justify-space-between">
+          <span>Radar overlay</span>
+          <v-select
+            v-model="referenceProjectId"
+            :items="selectedProjects"
+            item-title="name"
+            item-value="id"
+            label="Reference project"
+            density="compact"
+            variant="outlined"
+            hide-details
+            style="max-width: 220px"
+          />
+        </v-card-title>
+        <v-card-text>
+          <svg
+            :viewBox="`0 0 ${OVERLAY_SIZE} ${OVERLAY_SIZE}`"
+            class="overlay-svg"
+            role="img"
+            aria-label="Radar overlay"
+          >
+            <circle
+              v-for="(radius, index) in overlayRings"
+              :key="index"
+              :cx="OVERLAY_SIZE / 2"
+              :cy="OVERLAY_SIZE / 2"
+              :r="radius"
+              class="overlay-ring"
+            />
+            <line :x1="OVERLAY_SIZE / 2" y1="0" :x2="OVERLAY_SIZE / 2" :y2="OVERLAY_SIZE" class="overlay-axis" />
+            <line x1="0" :y1="OVERLAY_SIZE / 2" :x2="OVERLAY_SIZE" :y2="OVERLAY_SIZE / 2" class="overlay-axis" />
+
+            <line
+              v-for="(line, index) in overlayLines"
+              :key="`line-${index}`"
+              :x1="line.x1"
+              :y1="line.y1"
+              :x2="line.x2"
+              :y2="line.y2"
+              class="overlay-conflict"
+              :class="`overlay-conflict--${line.kind}`"
+            />
+
+            <circle
+              v-for="(point, index) in overlayPoints"
+              :key="`point-${index}`"
+              :cx="point.x"
+              :cy="point.y"
+              r="4"
+              :fill="projectColor(point.projectId)"
+              class="overlay-point"
+              :class="{
+                'overlay-point--unresolved': point.unresolved,
+                'overlay-point--unassigned': point.unassignedKind
+              }"
+            >
+              <title>{{ point.name }} — {{ projectNamesOf([point.projectId]) }} — {{ point.status }}</title>
+            </circle>
+          </svg>
+
+          <div class="d-flex flex-wrap mt-2" style="gap: 12px">
+            <span v-for="project in selectedProjects" :key="project.id" class="d-flex align-center" style="gap: 4px">
+              <span class="overlay-legend-dot" :style="{ background: projectColor(project.id) }" />
+              <span class="text-caption">{{ project.name }}</span>
+            </span>
+          </div>
+
+          <div v-if="overlay.withoutStatus.length" class="text-caption text-medium-emphasis mt-2">
+            ⊘ Without status, not plotted: {{ overlay.withoutStatus.map((entry) => entry.name).join(', ') }}
+          </div>
+        </v-card-text>
+      </v-card>
+
       <v-dialog v-model="overrideDialog" max-width="520">
         <v-card v-if="overrideRow">
           <v-card-title class="text-subtitle-2">Manual classification — {{ overrideRow.name }}</v-card-title>
@@ -381,6 +457,7 @@ import {
   suggestionsForName,
   exactMatchGroups,
   overrideContextOf,
+  buildRadarOverlay,
   DATA_SOURCES
 } from '../../services/comparison'
 
@@ -609,6 +686,67 @@ export default {
       store.openProjectSummary(projectId)
     }
 
+    // ── Radar overlay (Todo 5.3) ─────────────────────────────────────────────
+    //
+    // Quadrant layout is configured per project, so one reference project gives
+    // the chart its shape; anything it does not know goes to "Other".
+
+    const OVERLAY_SIZE = 320
+    const OVERLAY_RADIUS = 150
+    // Five rings, one per status on the scale.
+    const overlayRings = [1, 2, 3, 4, 5].map((step) => (OVERLAY_RADIUS / 5) * step)
+    const PROJECT_COLORS = ['#1565c0', '#2e7d32', '#ef6c00', '#6a1b9a', '#00838f', '#c62828']
+
+    const referenceProjectId = ref('')
+    const referenceProject = computed(
+      () =>
+        projects.value.find((project) => project.id === referenceProjectId.value) ||
+        projects.value.find((project) => selectedProjectIds.value.includes(project.id)) ||
+        null
+    )
+
+    const overlay = computed(() => buildRadarOverlay(rows.value, selectedProjectIds.value, referenceProject.value))
+
+    function projectColor(projectId) {
+      const index = selectedProjectIds.value.indexOf(projectId)
+      return PROJECT_COLORS[(index < 0 ? 0 : index) % PROJECT_COLORS.length]
+    }
+
+    // Places a point in the middle of its ring band, spread inside its quadrant
+    // so overlapping projects stay distinguishable.
+    function positionOf(point, offsetIndex = 0) {
+      const bandWidth = OVERLAY_RADIUS / 5
+      const radius = bandWidth * point.ring + bandWidth / 2
+      const quadrantStart = (Math.PI / 2) * point.quadrant
+      const spread = 0.18 + ((offsetIndex + selectedProjectIds.value.indexOf(point.projectId) + 1) % 5) * 0.12
+      const angle = quadrantStart + (Math.PI / 2) * spread
+      return {
+        x: OVERLAY_SIZE / 2 + radius * Math.cos(angle),
+        y: OVERLAY_SIZE / 2 + radius * Math.sin(angle)
+      }
+    }
+
+    const overlayPoints = computed(() =>
+      overlay.value.points.map((point, index) => ({ ...point, ...positionOf(point, index) }))
+    )
+
+    const overlayLines = computed(() =>
+      overlay.value.conflicts.flatMap((conflict) => {
+        const placed = conflict.points.map((point, index) => positionOf(point, index))
+        const segments = []
+        for (let i = 0; i < placed.length - 1; i++) {
+          segments.push({
+            kind: conflict.kind,
+            x1: placed[i].x,
+            y1: placed[i].y,
+            x2: placed[i + 1].x,
+            y2: placed[i + 1].y
+          })
+        }
+        return segments
+      })
+    )
+
     // ── Criticality override (Todo 4.7) ──────────────────────────────────────
 
     const overrideDialog = ref(false)
@@ -682,6 +820,14 @@ export default {
       deltaLabel,
       cellFor,
       openProjectRadar,
+      OVERLAY_SIZE,
+      overlayRings,
+      referenceProjectId,
+      referenceProject,
+      overlay,
+      overlayPoints,
+      overlayLines,
+      projectColor,
       overrideDialog,
       overrideRow,
       overrideLevel,
@@ -836,5 +982,47 @@ export default {
 .delta-badge--accepted,
 .delta-badge--none {
   color: #546e7a;
+}
+
+.overlay-svg {
+  width: 100%;
+  max-width: 360px;
+}
+
+.overlay-ring,
+.overlay-axis {
+  fill: none;
+  stroke: rgba(var(--v-border-color), var(--v-border-opacity));
+  stroke-width: 1;
+}
+
+/* The four special cases look different rather than all being dimmed. */
+.overlay-point--unresolved {
+  stroke: currentColor;
+  stroke-dasharray: 2 2;
+  stroke-width: 1.5;
+}
+
+.overlay-point--unassigned {
+  opacity: 0.45;
+}
+
+.overlay-conflict {
+  stroke-width: 1.5;
+}
+
+.overlay-conflict--cross-project {
+  stroke: #c62828;
+}
+
+.overlay-conflict--internal {
+  stroke: #ef6c00;
+}
+
+.overlay-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
 }
 </style>

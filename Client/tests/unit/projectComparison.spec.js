@@ -582,3 +582,65 @@ describe('criticality override', () => {
     expect(wrapper.vm.rows.find((entry) => entry.name === 'Vue').delta).toBe('critical')
   })
 })
+
+// ── Radar overlay (Todo 5.3) ─────────────────────────────────────────────────
+describe('radar overlay', () => {
+  it('defaults its reference project to the first selected one', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.referenceProject.id).toBe('p-alpha')
+  })
+
+  it('follows an explicitly chosen reference project', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.referenceProjectId = 'p-beta'
+
+    expect(wrapper.vm.referenceProject.id).toBe('p-beta')
+  })
+
+  it('places a point per project take, inside the chart', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const vuePoints = wrapper.vm.overlayPoints.filter((point) => point.name === 'Vue')
+
+    expect(vuePoints.map((point) => point.projectId).sort()).toEqual(['p-alpha', 'p-beta'])
+    vuePoints.forEach((point) => {
+      expect(point.x).toBeGreaterThanOrEqual(0)
+      expect(point.x).toBeLessThanOrEqual(wrapper.vm.OVERLAY_SIZE)
+      expect(point.y).toBeGreaterThanOrEqual(0)
+      expect(point.y).toBeLessThanOrEqual(wrapper.vm.OVERLAY_SIZE)
+    })
+  })
+
+  it('draws a conflict line for the Adopt/Retire row once the term resolves', () => {
+    const unresolved = mountComparison(smallWorkspace())
+    // Unresolved names get no conflict line — the identity is unclear.
+    expect(unresolved.wrapper.vm.overlayLines).toEqual([])
+
+    const workspace = smallWorkspace()
+    workspace.vocabulary = [{ id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] }]
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.overlayLines.filter((line) => line.kind === 'cross-project')).toHaveLength(1)
+  })
+
+  it('gives each selected project its own colour', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const colors = wrapper.vm.selectedProjectIds.map((id) => wrapper.vm.projectColor(id))
+
+    expect(new Set(colors).size).toBe(colors.length)
+  })
+
+  it('lists blips without a status instead of plotting them', () => {
+    const workspace = smallWorkspace()
+    workspace.projects[0].radar.push({ entryId: 'e8', option: 'Kafka', status: '' })
+    workspace.questionnaires[0].categories[0].entries.push({
+      id: 'e8',
+      aspect: 'Messaging',
+      answers: [{ technology: 'Kafka', status: '', answerType: 'Tool' }]
+    })
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.overlay.withoutStatus.map((entry) => entry.name)).toEqual(['Kafka'])
+    expect(wrapper.vm.overlayPoints.some((point) => point.name === 'Kafka')).toBe(false)
+  })
+})

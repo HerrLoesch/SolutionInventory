@@ -661,3 +661,102 @@ export function buildComparison(workspace, projectIds, { source = 'radar', visib
     })
   }
 }
+
+// ── Radar overlay (design §5.4) ──────────────────────────────────────────────
+//
+// An overlay of the compared projects' radars. Quadrant labels and the
+// category-to-quadrant assignment are configured *per project*, so one chosen
+// reference project provides the layout; a blip whose category the reference
+// does not know lands in the leftover quadrant "Other".
+
+export const OTHER_QUADRANT = 3
+
+/** Category -> quadrant index, as the reference project has it configured. */
+export function quadrantMapOf(project) {
+  const configured = project?.radarCategoryQuadrants
+  if (configured && typeof configured === 'object') return new Map(Object.entries(configured))
+  // Without an explicit assignment the category order decides, the same way the
+  // radar itself derives it.
+  const order = Array.isArray(project?.radarCategoryOrder) ? project.radarCategoryOrder : []
+  return new Map(order.map((category, index) => [category, Math.min(index, OTHER_QUADRANT)]))
+}
+
+/**
+ * Overlay points and conflict lines for the comparison rows.
+ *
+ * The four special cases look deliberately different rather than all being
+ * "dimmed" (design §5.4):
+ *
+ *   ⊘ no status          not plotted — there is no ring for it; listed instead
+ *   ⚠ internally uneven  plotted at every affected ring, that project's own
+ *                        positions joined by a line; no cross-project conflict line
+ *   ◌ unresolved name    plotted normally, dashed outline; no conflict line,
+ *                        because the identity is unclear
+ *   ⬚ kind unknown       plotted normally but pale
+ *
+ * Conflict lines are drawn from distance 2 upwards — below that the projects are
+ * close enough that a line would be noise.
+ */
+export function buildRadarOverlay(rows, projectIds, referenceProject, { minConflictDistance = 2 } = {}) {
+  const quadrants = quadrantMapOf(referenceProject)
+  const points = []
+  const conflicts = []
+  const withoutStatus = []
+
+  for (const row of rows) {
+    const rowPoints = []
+    for (const projectId of projectIds) {
+      const cell = row.cells.get(projectId)
+      if (!cell) continue
+
+      for (const value of cell.values) {
+        const ring = statusRank(value.status)
+        if (ring === -1) {
+          withoutStatus.push({ key: row.key, name: row.name, projectId, origin: value.origin })
+          continue
+        }
+        const quadrant = quadrants.has(value.origin.categoryTitle)
+          ? Number(quadrants.get(value.origin.categoryTitle))
+          : OTHER_QUADRANT
+        rowPoints.push({
+          key: row.key,
+          name: row.name,
+          projectId,
+          ring,
+          quadrant,
+          status: value.status,
+          unresolved: !row.resolved,
+          unassignedKind: row.kind === 'unassigned',
+          origin: value.origin
+        })
+      }
+    }
+    points.push(...rowPoints)
+
+    // A project that contradicts itself gets its own positions joined; no
+    // cross-project line is drawn for that row, because there is no single
+    // position to draw it from.
+    const byProject = new Map()
+    rowPoints.forEach((point) => {
+      if (!byProject.has(point.projectId)) byProject.set(point.projectId, [])
+      byProject.get(point.projectId).push(point)
+    })
+    let internallyUneven = false
+    for (const [projectId, projectPoints] of byProject) {
+      if (new Set(projectPoints.map((point) => point.ring)).size > 1) {
+        internallyUneven = true
+        conflicts.push({ key: row.key, kind: 'internal', projectId, points: projectPoints })
+      }
+    }
+    if (internallyUneven || !row.resolved || byProject.size < 2) continue
+
+    const rings = rowPoints.map((point) => point.ring)
+    const distance = maxDistance(rings)
+    if (distance < minConflictDistance) continue
+    const lowest = rowPoints.find((point) => point.ring === Math.min(...rings))
+    const highest = rowPoints.find((point) => point.ring === Math.max(...rings))
+    conflicts.push({ key: row.key, kind: 'cross-project', distance, points: [lowest, highest] })
+  }
+
+  return { points, conflicts, withoutStatus }
+}

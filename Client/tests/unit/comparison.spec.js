@@ -25,6 +25,9 @@ import {
   suggestionsForName,
   exactMatchGroups,
   dismissalKey,
+  buildRadarOverlay,
+  quadrantMapOf,
+  OTHER_QUADRANT,
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
@@ -1117,5 +1120,131 @@ describe('exactMatchGroups', () => {
     ]
 
     expect(exactMatchGroups(units, null)).toEqual([])
+  })
+})
+
+// design §5.4 — the four special cases look deliberately different rather than
+// all being dimmed, and conflict lines only appear from distance 2.
+describe('radar overlay', () => {
+  const TWO = ['a', 'b']
+  const reference = { id: 'a', radarCategoryQuadrants: { Architecture: 0, Stack: 1 } }
+
+  function overlayRow(name, byProject, { resolved = true, kind = 'tool', category = 'Architecture' } = {}) {
+    const cells = new Map()
+    for (const [projectId, statuses] of Object.entries(byProject)) {
+      cells.set(projectId, {
+        projectId,
+        values: (Array.isArray(statuses) ? statuses : [statuses]).map((status) => ({
+          status,
+          origin: { categoryTitle: category, entryTitle: 'Entry', rawName: name }
+        }))
+      })
+    }
+    return {
+      key: resolved ? `term:${name}` : `raw:${name}`,
+      name,
+      resolved,
+      kind,
+      term: resolved ? { id: name } : null,
+      cells
+    }
+  }
+
+  describe('quadrantMapOf', () => {
+    it('uses the reference project’s explicit assignment', () => {
+      expect(quadrantMapOf(reference).get('Stack')).toBe(1)
+    })
+
+    it('falls back to the category order when nothing is assigned', () => {
+      const map = quadrantMapOf({ radarCategoryOrder: ['A', 'B', 'C', 'D', 'E'] })
+
+      expect(map.get('A')).toBe(0)
+      expect(map.get('D')).toBe(3)
+      // Everything past the fourth shares the leftover quadrant.
+      expect(map.get('E')).toBe(OTHER_QUADRANT)
+    })
+
+    it('is empty for a project without any layout', () => {
+      expect(quadrantMapOf({}).size).toBe(0)
+      expect(quadrantMapOf(null).size).toBe(0)
+    })
+  })
+
+  it('places a point per project take, on the ring of its status', () => {
+    const { points } = buildRadarOverlay([overlayRow('Vue', { a: 'Adopt', b: 'Hold' })], TWO, reference)
+
+    expect(points.map((point) => [point.projectId, point.ring, point.quadrant])).toEqual([
+      ['a', 0, 0],
+      ['b', 3, 0]
+    ])
+  })
+
+  it('sends a category the reference project does not know to the leftover quadrant', () => {
+    const row = overlayRow('Vue', { a: 'Adopt' }, { category: 'Messaging' })
+    const { points } = buildRadarOverlay([row], TWO, reference)
+
+    expect(points[0].quadrant).toBe(OTHER_QUADRANT)
+  })
+
+  it('⊘ does not plot a blip without a status — it is listed instead', () => {
+    const { points, withoutStatus } = buildRadarOverlay([overlayRow('Vue', { a: '', b: 'Hold' })], TWO, reference)
+
+    expect(points.map((point) => point.projectId)).toEqual(['b'])
+    expect(withoutStatus.map((entry) => entry.name)).toEqual(['Vue'])
+  })
+
+  it('⚠ plots every position of an internally uneven project and joins its own points', () => {
+    const { points, conflicts } = buildRadarOverlay(
+      [overlayRow('Vue', { a: ['Adopt', 'Retire'], b: 'Adopt' })],
+      TWO,
+      reference
+    )
+
+    expect(points.filter((point) => point.projectId === 'a')).toHaveLength(2)
+    const internal = conflicts.filter((conflict) => conflict.kind === 'internal')
+    expect(internal).toHaveLength(1)
+    expect(internal[0].projectId).toBe('a')
+    // No cross-project line for such a row — there is no single position to draw from.
+    expect(conflicts.some((conflict) => conflict.kind === 'cross-project')).toBe(false)
+  })
+
+  it('◌ marks an unresolved name and draws no conflict line for it', () => {
+    const row = overlayRow('vue', { a: 'Adopt', b: 'Retire' }, { resolved: false })
+    const { points, conflicts } = buildRadarOverlay([row], TWO, reference)
+
+    expect(points.every((point) => point.unresolved)).toBe(true)
+    // The identity is unclear, so a conflict line would assert too much.
+    expect(conflicts).toEqual([])
+  })
+
+  it('⬚ marks a point whose kind is unknown', () => {
+    const row = overlayRow('Vue', { a: 'Adopt' }, { kind: 'unassigned' })
+
+    expect(buildRadarOverlay([row], TWO, reference).points[0].unassignedKind).toBe(true)
+  })
+
+  it('draws a conflict line from distance 2 upwards, not below', () => {
+    const near = buildRadarOverlay([overlayRow('Vue', { a: 'Adopt', b: 'Trial' })], TWO, reference)
+    const far = buildRadarOverlay([overlayRow('Vue', { a: 'Adopt', b: 'Assess' })], TWO, reference)
+
+    expect(near.conflicts).toEqual([])
+    expect(far.conflicts).toHaveLength(1)
+    expect(far.conflicts[0]).toMatchObject({ kind: 'cross-project', distance: 2 })
+  })
+
+  it('draws no conflict line for a term only one project uses', () => {
+    expect(buildRadarOverlay([overlayRow('Vue', { a: 'Adopt' })], TWO, reference).conflicts).toEqual([])
+  })
+
+  it('connects the two extremes when three projects disagree', () => {
+    const three = ['a', 'b', 'c']
+    const { conflicts } = buildRadarOverlay(
+      [overlayRow('Vue', { a: 'Adopt', b: 'Assess', c: 'Retire' })],
+      three,
+      reference
+    )
+
+    expect(conflicts[0].points.map((point) => point.ring)).toEqual([0, 4])
+    expect(conflicts[0].distance).toBe(4)
   })
 })
