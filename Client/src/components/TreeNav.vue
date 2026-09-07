@@ -87,7 +87,25 @@
     <v-divider class="nav-divider"></v-divider>
 
     <div class="tree-header">
-      <div class="tree-title">Projects</div>
+      <!-- The workspace node replaces the plain "Projects" heading: comparing
+           projects is a property of the workspace, not of any one project.
+           Disabled below two projects — there is nothing to compare then. -->
+      <div
+        class="tree-title workspace-node"
+        :class="{ 'workspace-node--disabled': !canCompareProjects, 'workspace-node--active': comparisonTabActive }"
+        role="button"
+        :tabindex="canCompareProjects ? 0 : -1"
+        :aria-disabled="!canCompareProjects"
+        @click="openComparison"
+        @keydown.enter="openComparison"
+        @keydown.space.prevent="openComparison"
+      >
+        <v-icon size="14" class="mr-1">mdi-compare-horizontal</v-icon>
+        Projects
+        <v-tooltip activator="parent" location="bottom">
+          {{ canCompareProjects ? 'Compare projects' : 'At least two projects are needed to compare' }}
+        </v-tooltip>
+      </div>
       <div class="tree-actions">
         <v-btn icon size="x-small" variant="text" aria-label="New project" @click="openProjectDialog">
           <v-icon>mdi-plus</v-icon>
@@ -573,6 +591,16 @@ export default {
     const { canLeaveActiveTab } = useWorkspaceTabGuard()
     const projects = computed(() => store.workspace.projects || [])
     const catalogs = computed(() => store.workspace.catalogs || [])
+
+    // Comparing needs at least two projects; the node stays visible but inert
+    // below that, so the feature is discoverable before it is usable.
+    const canCompareProjects = computed(() => projects.value.length >= 2)
+    const comparisonTabActive = computed(() => store.activeWorkspaceTabId === store.COMPARISON_TAB_ID)
+
+    function openComparison() {
+      if (!canCompareProjects.value) return
+      store.openWorkspaceComparison()
+    }
 
     const treeItems = computed(() => {
       return projects.value.map((project) => ({
@@ -1281,6 +1309,9 @@ export default {
       confirmRenameCatalog,
       deleteCatalogAction,
       deleteCatalogBlockedDialogOpen,
+      canCompareProjects,
+      comparisonTabActive,
+      openComparison,
       deleteCatalogBlockedProjects,
       closeDeleteCatalogBlockedDialog,
       treeItems,
@@ -1376,6 +1407,31 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.workspace-node {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.workspace-node:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.workspace-node--active {
+  color: rgb(var(--v-theme-primary));
+}
+
+.workspace-node--disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.workspace-node--disabled:hover {
+  background: none;
 }
 
 .tree-title {
