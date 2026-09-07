@@ -611,3 +611,74 @@ describe('blip detail — vocabulary assignment', () => {
     expect(wrapper.vm.allBlips[0].kind).toBe('practice')
   })
 })
+
+// ── Kind filter (Todo 5.1) ───────────────────────────────────────────────────
+//
+// Same pattern as the existing status filter: a visibility filter over the
+// blips, not a separate view.
+describe('kind visibility toggling', () => {
+  function seedKinds() {
+    const seeded = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [
+          { technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' },
+          { technology: 'Scrum', status: 'Adopt', comments: '', answerType: 'Practice' },
+          { technology: 'Kafka', status: 'Adopt', comments: '', answerType: '' }
+        ]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId: seeded.projectId }, seeded.pinia)
+    return { ...seeded, wrapper }
+  }
+
+  it('starts with all three kinds visible', () => {
+    const { wrapper } = seedKinds()
+
+    expect(['tool', 'practice', 'unassigned'].every((kind) => wrapper.vm.isKindVisible(kind))).toBe(true)
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka', 'Scrum', 'Vue'])
+  })
+
+  it('hides the blips of a kind that is toggled off', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('practice')
+
+    expect(wrapper.vm.isKindVisible('practice')).toBe(false)
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka', 'Vue'])
+  })
+
+  it('hides blips whose kind is unassigned without touching the others', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('unassigned')
+
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Scrum', 'Vue'])
+  })
+
+  it('brings a kind back when toggled again', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('tool')
+    wrapper.vm.toggleKindVisibility('tool')
+
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka', 'Scrum', 'Vue'])
+  })
+
+  it('follows the vocabulary, not answerType, once a term resolves', () => {
+    const { wrapper, store } = seedKinds()
+    // The answer says Tool, the vocabulary says practice — the term wins (DE-11).
+    store.createTerm('Vue', 'practice')
+    wrapper.vm.toggleKindVisibility('practice')
+
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka'])
+  })
+
+  it('may be emptied — the ring geometry does not depend on it', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('tool')
+    wrapper.vm.toggleKindVisibility('practice')
+    wrapper.vm.toggleKindVisibility('unassigned')
+
+    expect(wrapper.vm.positionedBlips).toEqual([])
+    expect(wrapper.vm.computedRings.length).toBeGreaterThan(0)
+  })
+})

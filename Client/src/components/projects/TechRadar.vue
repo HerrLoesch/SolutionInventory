@@ -368,6 +368,30 @@
               </template>
             </v-tooltip>
           </div>
+          <!-- Kind key: a visibility filter over tool / practice / unassigned,
+               the same pattern as the ring key above (design §4.2). -->
+          <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap: 16px">
+            <div
+              v-for="kind in ['tool', 'practice', 'unassigned']"
+              :key="kind"
+              class="ring-key-item d-flex align-center"
+              :class="{ 'ring-key-item--inactive': !isKindVisible(kind) }"
+              style="gap: 6px; cursor: pointer; user-select: none"
+              @click="toggleKindVisibility(kind)"
+            >
+              <v-icon size="12">
+                {{
+                  kind === 'tool'
+                    ? 'mdi-puzzle'
+                    : kind === 'practice'
+                      ? 'mdi-lightbulb-outline'
+                      : 'mdi-help-circle-outline'
+                }}
+              </v-icon>
+              <span class="text-caption">{{ kind }}</span>
+            </div>
+          </div>
+
           <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
             <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
             <span v-else
@@ -1034,6 +1058,9 @@ export default {
     ]
     const draggedCategory = ref(null)
     const visibleStatuses = ref(new Set(['adopt', 'trial', 'assess', 'hold', 'retire']))
+    // Kind filter, same shape as the status filter above: a visibility filter,
+    // not a separate view. All three on to begin with.
+    const visibleKinds = ref(new Set(['tool', 'practice', 'unassigned']))
 
     // Markdown editor toolbar – minimal set for comment editing
     const mdToolbars = [
@@ -1496,6 +1523,9 @@ export default {
         const statusName = RING_META[b.ring]?.label.toLowerCase()
         return visibleStatuses.value.has(statusName)
       })
+
+      // Filter by visible kinds (design §4.2)
+      blips = blips.filter((b) => visibleKinds.value.has(b.kind))
       return blips
     })
 
@@ -1821,6 +1851,20 @@ export default {
       return visibleStatuses.value.has(statusLabel.toLowerCase())
     }
 
+    // Toggle kind visibility. Unlike the status filter this one may be emptied:
+    // hiding every kind is a legitimate "show me nothing but the layout" state,
+    // and the ring geometry does not depend on it.
+    function toggleKindVisibility(kind) {
+      const next = new Set(visibleKinds.value)
+      if (next.has(kind)) next.delete(kind)
+      else next.add(kind)
+      visibleKinds.value = next
+    }
+
+    function isKindVisible(kind) {
+      return visibleKinds.value.has(kind)
+    }
+
     // Flatten a CSS rgba() colour against a white background so the exported
     // PNG looks correct regardless of dark/light mode.
     function flattenRgba(rgba) {
@@ -2013,6 +2057,9 @@ export default {
       handleUnassignedDrop,
       toggleStatusVisibility,
       isStatusVisible,
+      visibleKinds,
+      toggleKindVisibility,
+      isKindVisible,
       radarLayoutRef,
       isDownloading,
       downloadRadar,
