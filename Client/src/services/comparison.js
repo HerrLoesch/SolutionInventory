@@ -324,3 +324,115 @@ export function deltaOf(row, projectIds, { coverage = null, override = null } = 
   const delta = override?.level === 'critical' ? DELTA.CRITICAL : classifyDistance(distance)
   return { delta, distance, reasons }
 }
+
+/**
+ * Vocabulary coverage: how many of the distinct raw names the selected projects
+ * use are resolved by the vocabulary.
+ *
+ * The one metric that ignores the kind filter — a name that is not in the
+ * vocabulary usually has no reliable kind either, so filtering by kind would
+ * quietly hide exactly the names this number is about. It does follow the data
+ * source, because the set of names differs between radar and answers (§5.1).
+ *
+ * Unresolved names are deliberately *not* a fourth exclusion reason. Excluding
+ * them would gut the comparison in a fresh workspace. This number qualifies the
+ * others instead: it says how much the figures can be trusted (DE-8).
+ */
+export function vocabularyCoverage(units, aliasIndex) {
+  const distinct = new Map()
+  for (const unit of units || []) {
+    const normalized = normalize(unit.rawName)
+    if (normalized === '') continue
+    if (!distinct.has(normalized)) {
+      distinct.set(normalized, Boolean(aliasIndex instanceof Map && aliasIndex.get(normalized)))
+    }
+  }
+  const total = distinct.size
+  const resolved = [...distinct.values()].filter(Boolean).length
+  return {
+    total,
+    resolved,
+    unresolved: total - resolved,
+    percent: total === 0 ? 100 : Math.round((resolved / total) * 100)
+  }
+}
+
+/** ≥ 85 % high, 65–84 % moderate, < 65 % low (design §5.2). */
+export function agreementLevel(percent) {
+  if (percent >= 85) return 'high'
+  if (percent >= 65) return 'moderate'
+  return 'low'
+}
+
+/**
+ * Every number the summary card shows. The view renders these and computes
+ * nothing itself.
+ *
+ * Three invariants hold by construction and are asserted in the tests (DE-8):
+ *   1. matches + minor + significant + critical === comparable
+ *   2. `excluded` counts only within `compared` — never a unique term
+ *   3. no term appears in two exclusion reasons; unset + inconsistent +
+ *      accepted === excluded exactly, not approximately
+ *
+ * The second holds because coverage `unique` is the *first* step of the badge
+ * precedence: a unique term can very well be internally inconsistent or unrated
+ * (DE-3 needs only one project for that), but it was never part of `compared`.
+ * Counting it would subtract something that was never in there and make
+ * `comparable` too small.
+ */
+export function computeMetrics(rows, projectIds, { overrides = {}, vocabulary = null } = {}) {
+  const selected = projectIds || []
+  const counts = {
+    total: rows.length,
+    all: 0,
+    partial: 0,
+    unique: 0,
+    uniqueByProject: {},
+    compared: 0,
+    excluded: 0,
+    unset: 0,
+    inconsistent: 0,
+    accepted: 0,
+    comparable: 0,
+    matches: 0,
+    minor: 0,
+    significant: 0,
+    critical: 0
+  }
+  selected.forEach((projectId) => {
+    counts.uniqueByProject[projectId] = 0
+  })
+
+  for (const row of rows) {
+    const coverage = coverageOf(row, selected)
+    const override = row.term ? overrides[row.term.id] || null : null
+    const { delta } = deltaOf(row, selected, { coverage, override })
+
+    if (coverage === COVERAGE.ALL) counts.all++
+    if (coverage === COVERAGE.PARTIAL) counts.partial++
+    if (coverage === COVERAGE.UNIQUE) {
+      counts.unique++
+      const owner = selected.find((projectId) => (row.cells.get(projectId)?.values || []).length > 0)
+      if (owner !== undefined) counts.uniqueByProject[owner]++
+      // Everything below is scoped to `compared` on purpose.
+      continue
+    }
+
+    counts.compared++
+    if (delta === DELTA.INCONSISTENT) counts.inconsistent++
+    else if (delta === DELTA.UNSET) counts.unset++
+    else if (delta === DELTA.ACCEPTED) counts.accepted++
+    else if (delta === DELTA.MATCH) counts.matches++
+    else if (delta === DELTA.MINOR) counts.minor++
+    else if (delta === DELTA.SIGNIFICANT) counts.significant++
+    else if (delta === DELTA.CRITICAL) counts.critical++
+  }
+
+  counts.excluded = counts.unset + counts.inconsistent + counts.accepted
+  counts.comparable = counts.compared - counts.excluded
+  counts.allPercent = counts.total === 0 ? 0 : Math.round((counts.all / counts.total) * 100)
+  counts.agreementPercent = counts.comparable === 0 ? 0 : Math.round((counts.matches / counts.comparable) * 100)
+  counts.agreementLevel = agreementLevel(counts.agreementPercent)
+  if (vocabulary) counts.vocabulary = vocabulary
+  return counts
+}

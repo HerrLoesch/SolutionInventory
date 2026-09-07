@@ -12,6 +12,9 @@ import {
   maxDistance,
   classifyDistance,
   STATUS_SCALE,
+  computeMetrics,
+  vocabularyCoverage,
+  agreementLevel,
   DATA_SOURCES
 } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
@@ -616,5 +619,177 @@ describe('deltaOf — edge cases', () => {
 
   it('handles a row with no cells at all', () => {
     expect(deltaOf({ cells: new Map() }, TWO)).toMatchObject({ delta: DELTA.NONE, distance: null })
+  })
+})
+
+// Shared row builder for the metric tests: "project -> status(es)".
+function metricRow(key, byProject, term = null) {
+  const cells = new Map()
+  for (const [projectId, status] of Object.entries(byProject)) {
+    const statuses = Array.isArray(status) ? status : [status]
+    cells.set(projectId, { projectId, values: statuses.map((one) => ({ status: one, origin: {} })) })
+  }
+  return { key, term, name: key, resolved: Boolean(term), kind: 'tool', cells }
+}
+
+describe('agreementLevel', () => {
+  it('classifies per design §5.2', () => {
+    expect(agreementLevel(100)).toBe('high')
+    expect(agreementLevel(85)).toBe('high')
+    expect(agreementLevel(84)).toBe('moderate')
+    expect(agreementLevel(65)).toBe('moderate')
+    expect(agreementLevel(64)).toBe('low')
+    expect(agreementLevel(0)).toBe('low')
+  })
+})
+
+describe('vocabularyCoverage', () => {
+  const { index } = buildAliasIndex([{ id: 'term-dotnet', name: '.NET Core', kind: 'tool', aliases: ['dotnet core'] }])
+  const unitsOf = (...names) => names.map((rawName) => ({ rawName }))
+
+  it('counts distinct *names*, not distinct terms — two spellings of one term are two names', () => {
+    expect(vocabularyCoverage(unitsOf('.NET Core', 'dotnet core', 'Redis'), index)).toEqual({
+      total: 3,
+      resolved: 2,
+      unresolved: 1,
+      percent: 67
+    })
+  })
+
+  it('counts a name only once however often it occurs', () => {
+    expect(vocabularyCoverage(unitsOf('Redis', 'redis', '  REDIS  '), index).total).toBe(1)
+  })
+
+  it('is 100 % for an empty set — nothing is unresolved', () => {
+    expect(vocabularyCoverage([], index).percent).toBe(100)
+  })
+
+  it('is 0 % without a vocabulary', () => {
+    expect(vocabularyCoverage(unitsOf('Redis', 'Kafka'), null)).toEqual({
+      total: 2,
+      resolved: 0,
+      unresolved: 2,
+      percent: 0
+    })
+  })
+
+  it('ignores names that normalize away', () => {
+    expect(vocabularyCoverage(unitsOf('  ', 'Redis'), index).total).toBe(1)
+  })
+})
+
+describe('computeMetrics', () => {
+  const TWO = ['a', 'b']
+  const THREE = ['a', 'b', 'c']
+
+  it('counts coverage, and breaks unique down per project', () => {
+    const rows = [
+      metricRow('t1', { a: 'Adopt', b: 'Adopt', c: 'Adopt' }),
+      metricRow('t2', { a: 'Adopt', b: 'Trial' }),
+      metricRow('t3', { a: 'Adopt' }),
+      metricRow('t4', { c: 'Adopt' })
+    ]
+    const metrics = computeMetrics(rows, THREE)
+
+    expect(metrics).toMatchObject({ total: 4, all: 1, partial: 1, unique: 2, compared: 2 })
+    expect(metrics.uniqueByProject).toEqual({ a: 1, b: 0, c: 1 })
+    expect(metrics.allPercent).toBe(25)
+  })
+
+  it('distributes the comparable terms and computes agreement', () => {
+    const rows = [
+      metricRow('match', { a: 'Adopt', b: 'Adopt' }),
+      metricRow('minor', { a: 'Adopt', b: 'Trial' }),
+      metricRow('significant', { a: 'Adopt', b: 'Assess' }),
+      metricRow('critical', { a: 'Adopt', b: 'Retire' })
+    ]
+    const metrics = computeMetrics(rows, TWO)
+
+    expect(metrics).toMatchObject({
+      compared: 4,
+      excluded: 0,
+      comparable: 4,
+      matches: 1,
+      minor: 1,
+      significant: 1,
+      critical: 1,
+      agreementPercent: 25,
+      agreementLevel: 'low'
+    })
+  })
+
+  it('counts the three exclusion reasons separately', () => {
+    const term = { id: 'term-x', name: 'X', kind: 'tool', aliases: [] }
+    const rows = [
+      metricRow('unset', { a: 'Adopt', b: '' }),
+      metricRow('inconsistent', { a: ['Adopt', 'Hold'], b: 'Trial' }),
+      metricRow('accepted', { a: 'Adopt', b: 'Retire' }, term),
+      metricRow('match', { a: 'Adopt', b: 'Adopt' })
+    ]
+    const metrics = computeMetrics(rows, TWO, { overrides: { 'term-x': { level: 'accepted' } } })
+
+    expect(metrics).toMatchObject({ compared: 4, unset: 1, inconsistent: 1, accepted: 1, excluded: 3, comparable: 1 })
+  })
+
+  // The three invariants from DE-8, checked on a mixed set rather than on a
+  // hand-picked one — this is where an off-by-one in the counting would show.
+  describe('invariants (DE-8)', () => {
+    const term = { id: 'term-acc', name: 'Accepted', kind: 'tool', aliases: [] }
+    const rows = [
+      metricRow('match1', { a: 'Adopt', b: 'Adopt', c: 'Adopt' }),
+      metricRow('match2', { a: 'Trial', b: 'Trial' }),
+      metricRow('minor', { a: 'Adopt', b: 'Trial', c: 'Adopt' }),
+      metricRow('significant', { a: 'Adopt', b: 'Assess' }),
+      metricRow('critical', { a: 'Adopt', b: 'Retire', c: 'Trial' }),
+      metricRow('unset', { a: 'Adopt', b: '', c: 'Adopt' }),
+      metricRow('inconsistent', { a: ['Adopt', 'Hold'], b: 'Trial' }),
+      metricRow('accepted', { a: 'Trial', b: 'Hold' }, term),
+      // Unique *and* internally inconsistent *and* partly unrated — the case
+      // DE-8 singles out. None of it may reach `excluded`.
+      metricRow('uniqueMessy', { c: ['Adopt', ''] }),
+      metricRow('uniquePlain', { a: 'Adopt' })
+    ]
+    const metrics = computeMetrics(rows, THREE, { overrides: { 'term-acc': { level: 'accepted' } } })
+
+    it('1. matches + minor + significant + critical === comparable', () => {
+      expect(metrics.matches + metrics.minor + metrics.significant + metrics.critical).toBe(metrics.comparable)
+    })
+
+    it('2. excluded counts only within compared — never a unique term', () => {
+      expect(metrics.unique).toBe(2)
+      expect(metrics.compared).toBe(8)
+      expect(metrics.compared + metrics.unique).toBe(metrics.total)
+      expect(metrics.excluded).toBeLessThanOrEqual(metrics.compared)
+      // The messy unique row contributes to neither excluded nor comparable.
+      expect(metrics.inconsistent).toBe(1)
+      expect(metrics.unset).toBe(1)
+    })
+
+    it('3. unset + inconsistent + accepted === excluded, exactly', () => {
+      expect(metrics.unset + metrics.inconsistent + metrics.accepted).toBe(metrics.excluded)
+      expect(metrics.comparable).toBe(metrics.compared - metrics.excluded)
+    })
+  })
+
+  it('ignores an override whose term is not in this comparison', () => {
+    const rows = [metricRow('match', { a: 'Adopt', b: 'Adopt' })]
+    const metrics = computeMetrics(rows, TWO, { overrides: { 'term-elsewhere': { level: 'accepted' } } })
+
+    expect(metrics).toMatchObject({ accepted: 0, matches: 1, comparable: 1 })
+  })
+
+  it('never divides by zero', () => {
+    const empty = computeMetrics([], TWO)
+
+    expect(empty).toMatchObject({ total: 0, allPercent: 0, agreementPercent: 0, agreementLevel: 'low' })
+
+    const uniqueOnly = computeMetrics([metricRow('u', { a: 'Adopt' })], TWO)
+    expect(uniqueOnly).toMatchObject({ comparable: 0, agreementPercent: 0 })
+  })
+
+  it('carries the vocabulary coverage through untouched when handed one', () => {
+    const coverage = { total: 10, resolved: 8, unresolved: 2, percent: 80 }
+
+    expect(computeMetrics([], TWO, { vocabulary: coverage }).vocabulary).toEqual(coverage)
   })
 })
