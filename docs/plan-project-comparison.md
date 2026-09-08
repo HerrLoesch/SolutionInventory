@@ -390,6 +390,28 @@ Wird während der Umsetzung ausgefüllt.
 | Ende Phase 5 | 633 (19 Dateien) | ~1,1 s | grün | 10 / 83 grün |
 | Ende Phase 6 | 652 (20 Dateien) | ~1,1 s | grün | 10 / 83 grün |
 | Abnahme (Todo 7.6) | 675 (21 Dateien) | 1,20 s | grün | 11 / 99 grün, 37,6 s |
+| Nachzug (2026-09-08) | 719 (21 Dateien) | 1,21 s | grün | 11 / 99 grün |
+
+**Nachzug 2026-09-08.** Die in §6.2 gelisteten offenen Punkte des Designs wurden
+umgesetzt; dabei wurde die Ansicht auf einige hundert Blips je Projekt gemessen.
+
+| Messung (5 Projekte × 300 Blips = 900 Zeilen, Vokabular zur Hälfte gepflegt) | vorher | nachher |
+|---|---|---|
+| `buildComparison` | 743 ms | 32 ms |
+| Vorschläge je Neuzeichnung der Vokabular-Sektion | 76 ms | 2,3 ms |
+
+Drei Ursachen, alle in der Ähnlichkeitssuche:
+
+1. `compareNames` hat für **jedes** Paar eine volle Editierdistanz gerechnet, obwohl
+   sie nur für die wenigen ähnlichen Paare gelesen wird. Die Entscheidung „ähnlich
+   oder nicht" braucht sie nicht — nur die Rangfolge der Treffer.
+2. Die Distanzfrage lautet nie „wie weit", sondern „höchstens 1 bzw. 2".
+   `levenshteinWithin` rechnet nur das Diagonalband und bricht ab, sobald die
+   Schranke gerissen ist. Ein Test prüft über alle Paare einer Stichprobe, dass
+   sie mit der ungebundenen Variante übereinstimmt, solange diese im Rahmen liegt.
+3. `findSimilarTerms` hat den Alias-Index bei **jedem** Aufruf neu gebaut, nur um
+   zu prüfen, ob der Name schon bekannt ist. Aufrufer, die hunderte Namen
+   hintereinander fragen, reichen ihn jetzt durch.
 
 ### 6.1 Abweichungen zwischen Design und Umsetzung (Todo 7.5)
 
@@ -405,6 +427,29 @@ beim Autor.
 | 3 | §6.1: Statusdistanz auf der fünfstufigen Skala | Ein Status **außerhalb** der Skala ergibt `⊘ unset` | Ein importierter Katalog kann eigene `statusOptions` mitbringen (Hinweis im Design zu §4.3). Eine Distanz zu erfinden wäre die schlechtere Antwort als zu sagen: wir wissen es nicht. |
 | 4 | §5.4: der Hold-Fallback trifft „genau diese Restmenge" | Ein *unbekannter* Status behält den Hold-Fallback, nur ein **leerer** verliert ihn | Ein unbekannter Status ist ein Urteil, nur keines auf dieser Skala. |
 | 5 | §4.3: `effectiveStatus = entry.status \|\| answer.status` | Gilt, aber `entry.status` ist ein **Schnappschuss** | `toggleProjectRadarRef` kopiert den Antwort-Status beim Anlegen des Blips. Die Vererbung greift daher nur, wenn die Antwort damals keinen Status trug. Ändert sich der Antwort-Status später, zeigt das Radar den alten Wert und markiert ihn als Übersteuerung, obwohl niemand übersteuert hat. |
+| 6 | §4.1: Der Workspace-Node trägt den **Workspace-Namen** | Label „Workspace", daneben der Chip mit der Projektanzahl | Das Datenmodell kennt keinen Workspace-Namen (`createWorkspace` vergibt nur eine `id`). Einen einzuführen wäre ein neues persistiertes Feld — mehr als dieser Node rechtfertigt. |
+| 7 | §5.1: „Begriffe zusammenführen" steht in der Vokabular-Sektion | Zusätzlich als Zeilenaktion „Merge…" in der Comparison Matrix | Die Frage „sind das nicht dieselben?" entsteht dort, wo die zwei Zeilen nebeneinander stehen. Die Sektion behält ihre Sammelansicht; die Matrix bekommt denselben Dialog als zweiten Einstieg. |
+| 8 | §5.3: keine Aussage zur Menge | Matrix und Vokabular-Arbeitsliste sind **seitenweise** (100 Zeilen bzw. 25 Namen, „Show more") | Bei einigen hundert Blips je Projekt entstehen einige hundert Zeilen mit je einer Zelle pro Projekt. Vorschläge werden nur für den sichtbaren Teil der Arbeitsliste gerechnet — jeder einzelne durchsucht das ganze Vokabular. |
+| 9 | DE-6: die aufgelöste Gegenseite wird über die Ähnlichkeitssuche gefunden | Gesucht wird nur unter den Begriffen, die **selbst** `◑ unique` sind, und ohne die Top-5-Grenze | Alles andere wurde eine Zeile später ohnehin verworfen. Die Grenze von fünf Vorschlägen bemisst eine Chip-Liste; hier hätte sie unbeteiligte Begriffe die gesuchte Gegenseite verdrängen lassen. |
+
+### 6.2 Nachgezogene Design-Punkte (2026-09-08)
+
+Beim Abgleich des Designs gegen den Code gefunden und umgesetzt:
+
+| # | Design | War |
+|---|---|---|
+| 1 | §5/§10.2: Reihenfolge Vocabulary → Summary → Matrix → Overlay | Summary stand vor Vocabulary |
+| 2 | §5: vier ein- und ausklappbare Abschnitte; §5.1: Vocabulary klappt bei offenen Bezeichnungen selbst auf | Keine klappbaren Abschnitte |
+| 3 | §5.1: Sammelwarnung „N unaufgelöste Bezeichnungen können Scheinunterschiede erzeugen" | Nur die Abdeckung je Projekt |
+| 4 | §4.2: Hinweis **statt** der Vergleichsansicht bei weniger als zwei Projekten | Hinweis über der leer laufenden Auswertung |
+| 5 | §5.2: `◑ Unique` nach Projekten aufgeschlüsselt | `metrics.uniqueByProject` berechnet, aber nirgends angezeigt |
+| 6 | §8: Radar Overlay im Standalone-HTML | Export enthielt Kopf, Summary und Matrix |
+| 7 | §5.3: Herkunft im Tooltip, wenn eine Zelle nur eine Ausprägung hat | Herkunft nur bei mehreren Ausprägungen sichtbar |
+| 8 | §4.1: `mdi-briefcase-outline` und Chip mit Projektanzahl | `mdi-compare-horizontal`, Label „Projects", kein Zähler |
+| 9 | §4.2/§10.2: `[Export ▾]` im Kopf | Zwei Buttons zwischen Matrix und Overlay |
+| 10 | §5.1/§5.2: Balken für Abdeckung und Agreement | Nur Prozentzahlen |
+| 11 | §4.2: Art-Filter mit 📐 / 🔷 / ⬚ | mdi-Icons |
+| 12 | §5.4: die ⊘-Liste mit Sprung zum Blip | Nur eine kommaseparierte Aufzählung |
 
 ---
 

@@ -13,7 +13,7 @@
 // travel through the whole engine (design §4.3).
 
 import { buildEntryLookup, deriveBlipJoin, deriveKind } from './blipJoin'
-import { normalize, findSimilarTerms } from './vocabulary'
+import { normalize, findSimilarTerms, buildAliasIndex } from './vocabulary'
 
 export const DATA_SOURCES = ['radar', 'answers']
 
@@ -572,9 +572,9 @@ export function dismissalKey(rawName, termName) {
  * suggestion someone deliberately rejected must not be back on top next time
  * the tab opens (design §5.1).
  */
-export function suggestionsForName(key, vocabulary, dismissedSuggestions = []) {
+export function suggestionsForName(key, vocabulary, dismissedSuggestions = [], { index = null } = {}) {
   const dismissed = new Set(dismissedSuggestions || [])
-  return findSimilarTerms(key, vocabulary).filter(
+  return findSimilarTerms(key, vocabulary, { index }).filter(
     (suggestion) => !dismissed.has(dismissalKey(key, suggestion.term.name))
   )
 }
@@ -605,15 +605,27 @@ export function exactMatchGroups(units, aliasIndex) {
  * Deliberately not `⚠` in the UI — that character already stands for
  * `inconsistent` in the same column (design §5.3).
  */
-export function markPossibleFalseDifferences(decorated, vocabulary) {
+export function markPossibleFalseDifferences(decorated) {
   const unresolvedUnique = decorated.filter((row) => row.coverage === COVERAGE.UNIQUE && !row.resolved)
   const flagged = new Set(unresolvedUnique.map((row) => row.key))
+  if (!unresolvedUnique.length) return flagged
+
+  // Only a term that *is* a unique row can be the counterpart, so only those are
+  // searched. Asking the whole vocabulary and discarding the rest a line later
+  // is the single most expensive thing this engine did at a few hundred blips
+  // per project — and the top-five cut of findSimilarTerms could let unrelated
+  // terms crowd out the very counterpart this is looking for.
+  const uniqueByTermId = new Map()
+  for (const row of decorated) {
+    if (row.coverage === COVERAGE.UNIQUE && row.term?.id) uniqueByTermId.set(row.term.id, row)
+  }
+  if (!uniqueByTermId.size) return flagged
+  const candidates = [...uniqueByTermId.values()].map((row) => row.term)
+  const index = buildAliasIndex(candidates).index
 
   for (const row of unresolvedUnique) {
-    for (const suggestion of findSimilarTerms(row.key.replace(/^raw:/, ''), vocabulary)) {
-      const counterpart = decorated.find(
-        (other) => other.coverage === COVERAGE.UNIQUE && other.term?.id === suggestion.term.id
-      )
+    for (const suggestion of findSimilarTerms(row.key.replace(/^raw:/, ''), candidates, { limit: Infinity, index })) {
+      const counterpart = uniqueByTermId.get(suggestion.term.id)
       if (counterpart) flagged.add(counterpart.key)
     }
   }
@@ -646,7 +658,7 @@ export function buildComparison(workspace, projectIds, { source = 'radar', visib
     }
   })
 
-  const flagged = markPossibleFalseDifferences(decorated, workspace?.vocabulary || [])
+  const flagged = markPossibleFalseDifferences(decorated)
   decorated.forEach((row) => {
     row.possibleFalseDifference = flagged.has(row.key)
   })
@@ -682,6 +694,33 @@ export function quadrantMapOf(project) {
 }
 
 /**
+ * What to write in each of the four corners: the reference project's own
+ * quadrant label if it has one, otherwise the categories it files there — the
+ * same derivation the project's radar uses for its corner labels.
+ *
+ * Without labels the overlay is a ring of dots that says nothing about *what*
+ * is being compared, which is the single biggest reason the chart is hard to
+ * read. The leftover quadrant also announces itself as the catch-all, because
+ * that is where a category the reference project does not know ends up.
+ */
+export function quadrantLabelsOf(project) {
+  const overrides = project?.radarQuadrantLabels || {}
+  const byQuadrant = [[], [], [], []]
+  for (const [category, quadrant] of quadrantMapOf(project)) {
+    const index = Number(quadrant)
+    if (index >= 0 && index < 4) byQuadrant[index].push(category)
+  }
+
+  return byQuadrant.map((categories, index) => {
+    const override = String(overrides[index] || '').trim()
+    if (override) return override
+    if (!categories.length) return index === OTHER_QUADRANT ? 'Other' : ''
+    const label = categories.length === 1 ? categories[0] : `${categories[0]} (+${categories.length - 1})`
+    return index === OTHER_QUADRANT ? `${label} · Other` : label
+  })
+}
+
+/**
  * Overlay points and conflict lines for the comparison rows.
  *
  * The four special cases look deliberately different rather than all being
@@ -709,7 +748,7 @@ export function buildRadarOverlay(rows, projectIds, referenceProject, { minConfl
       const cell = row.cells.get(projectId)
       if (!cell) continue
 
-      for (const value of cell.values) {
+      for (const [index, value] of cell.values.entries()) {
         const ring = statusRank(value.status)
         if (ring === -1) {
           withoutStatus.push({ key: row.key, name: row.name, projectId, origin: value.origin })
@@ -719,6 +758,10 @@ export function buildRadarOverlay(rows, projectIds, referenceProject, { minConfl
           ? Number(quadrants.get(value.origin.categoryTitle))
           : OTHER_QUADRANT
         rowPoints.push({
+          // Identifies this one take across layout and conflict lines, so a line
+          // is drawn between the very points that were placed, not between a
+          // second guess at where they went.
+          id: `${row.key}::${projectId}::${index}`,
           key: row.key,
           name: row.name,
           projectId,
@@ -759,4 +802,111 @@ export function buildRadarOverlay(rows, projectIds, referenceProject, { minConfl
   }
 
   return { points, conflicts, withoutStatus }
+}
+
+/** Display form of the five rings, from the innermost outwards. */
+export const STATUS_LABELS = ['Adopt', 'Trial', 'Assess', 'Hold', 'Retire']
+
+/**
+ * Quadrant angle ranges in SVG radians (y down, positive is clockwise), in the
+ * same arrangement the project radar uses:
+ *
+ *   Q0 top-right   Q1 top-left   Q2 bottom-left   Q3 bottom-right
+ *
+ * The overlay has to agree with the single-project radar here. Reading the same
+ * category in the top-left corner of one chart and the bottom-right of the other
+ * is enough on its own to make the overlay look like it shows something else.
+ */
+export const OVERLAY_QUADRANT_ANGLES = [
+  { a1: -Math.PI / 2, a2: 0 },
+  { a1: -Math.PI, a2: -Math.PI / 2 },
+  { a1: Math.PI / 2, a2: Math.PI },
+  { a1: 0, a2: Math.PI / 2 }
+]
+
+const SECTOR_MARGIN = 0.12
+const MAX_ROWS_PER_BAND = 3
+const POINTS_PER_ROW = 8
+
+/**
+ * Turns overlay points into chart coordinates.
+ *
+ * The placement is a function of the data alone: points are bucketed by
+ * quadrant and ring, sorted by name and project, then spread evenly across
+ * their sector. The previous placement derived the angle from the array index,
+ * so the same blip moved whenever an unrelated row appeared — which made the
+ * chart impossible to read twice the same way.
+ *
+ * @returns {{ center: number, points: Array, segments: Array, rings: Array, quadrants: Array }}
+ */
+export function layoutRadarOverlay(overlay, { size = 420, radius = 170 } = {}) {
+  const center = size / 2
+  const band = radius / STATUS_SCALE.length
+  const buckets = new Map()
+
+  for (const point of overlay?.points || []) {
+    const bucketKey = `${point.quadrant}|${point.ring}`
+    if (!buckets.has(bucketKey)) buckets.set(bucketKey, [])
+    buckets.get(bucketKey).push(point)
+  }
+
+  const positions = new Map()
+  const points = []
+
+  for (const bucket of buckets.values()) {
+    const ordered = [...bucket].sort(
+      (a, b) => a.name.localeCompare(b.name) || a.projectId.localeCompare(b.projectId) || a.id.localeCompare(b.id)
+    )
+    const { a1, a2 } = OVERLAY_QUADRANT_ANGLES[ordered[0].quadrant] || OVERLAY_QUADRANT_ANGLES[OTHER_QUADRANT]
+    const rows = Math.min(MAX_ROWS_PER_BAND, Math.ceil(ordered.length / POINTS_PER_ROW))
+    const columns = Math.ceil(ordered.length / rows)
+    const from = a1 + SECTOR_MARGIN
+    const to = a2 - SECTOR_MARGIN
+
+    ordered.forEach((point, index) => {
+      const row = index % rows
+      const column = Math.floor(index / rows)
+      const angle = from + (to - from) * ((column + 0.5) / columns)
+      const pointRadius = band * point.ring + band / 2 + (row - (rows - 1) / 2) * band * 0.3
+      const placed = {
+        ...point,
+        x: center + pointRadius * Math.cos(angle),
+        y: center + pointRadius * Math.sin(angle)
+      }
+      positions.set(point.id, placed)
+      points.push(placed)
+    })
+  }
+
+  const segments = []
+  for (const conflict of overlay?.conflicts || []) {
+    const placed = conflict.points.map((point) => positions.get(point.id)).filter(Boolean)
+    for (let index = 0; index < placed.length - 1; index++) {
+      segments.push({
+        key: conflict.key,
+        kind: conflict.kind,
+        x1: placed[index].x,
+        y1: placed[index].y,
+        x2: placed[index + 1].x,
+        y2: placed[index + 1].y
+      })
+    }
+  }
+
+  const rings = STATUS_LABELS.map((label, index) => ({
+    label,
+    outer: band * (index + 1),
+    // The label sits in the middle of its band on the upward axis, where the
+    // project radar puts it too.
+    labelY: center - (band * index + band / 2)
+  }))
+
+  const quadrantCorners = [
+    { x: center + radius - 4, y: center - radius + 12, anchor: 'end' },
+    { x: center - radius + 4, y: center - radius + 12, anchor: 'start' },
+    { x: center - radius + 4, y: center + radius - 4, anchor: 'start' },
+    { x: center + radius - 4, y: center + radius - 4, anchor: 'end' }
+  ]
+
+  return { center, radius, points, segments, rings, quadrantCorners }
 }

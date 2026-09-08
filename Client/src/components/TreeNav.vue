@@ -100,8 +100,13 @@
         @keydown.enter="openComparison"
         @keydown.space.prevent="openComparison"
       >
-        <v-icon size="14" class="mr-1">mdi-compare-horizontal</v-icon>
-        Projects
+        <v-icon size="14" class="mr-1">mdi-briefcase-outline</v-icon>
+        Workspace
+        <!-- The project count is the node's own information: it is what decides
+             whether comparing is possible at all (design §4.1). The workspace
+             itself carries no name in the data model, so the label stays
+             generic. -->
+        <v-chip size="x-small" variant="tonal" class="ml-2">{{ projects.length }} proj.</v-chip>
         <v-tooltip activator="parent" location="bottom">
           {{ canCompareProjects ? 'Compare projects' : 'At least two projects are needed to compare' }}
         </v-tooltip>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildComparisonExport, buildComparisonHtml, comparisonFileName } from '../../src/utils/comparisonExport'
-import { buildComparison } from '../../src/services/comparison'
+import { buildComparison, buildRadarOverlay, layoutRadarOverlay, quadrantLabelsOf } from '../../src/services/comparison'
 import { buildAliasIndex } from '../../src/services/vocabulary'
 import designExample from '../data/comparison/design-example-workspace.json'
 
@@ -21,6 +21,63 @@ function exportOf(overrides = {}) {
     ...overrides
   })
 }
+
+// design §8 — the standalone report carries the chart, not just the table.
+function overlayOf() {
+  const { index } = buildAliasIndex(designExample.vocabulary)
+  const { rows } = buildComparison(designExample, PROJECTS, { aliasIndex: index })
+  const reference = designExample.projects[0]
+  const chart = layoutRadarOverlay(buildRadarOverlay(rows, PROJECTS, reference), { size: 420, radius: 170 })
+  const labels = quadrantLabelsOf(reference)
+  return {
+    size: 420,
+    center: chart.center,
+    radius: chart.radius,
+    referenceProject: reference.name,
+    rings: chart.rings.map((ring) => ({ ...ring, color: '#4caf50' })),
+    quadrants: chart.quadrantCorners.map((corner, index) => ({ ...corner, label: labels[index] || '' })),
+    points: chart.points.map((point) => ({
+      path: `M ${point.x} ${point.y} h 4`,
+      color: '#1565c0',
+      name: point.name,
+      status: point.status,
+      project: 'Alpha',
+      unresolved: point.unresolved,
+      unassignedKind: point.unassignedKind
+    })),
+    segments: chart.segments,
+    projects: [{ name: 'Alpha', color: '#1565c0', path: 'M 0 0 h 4', hidden: false }],
+    withoutStatus: ['Kafka']
+  }
+}
+
+describe('the radar overlay in the export', () => {
+  it('travels as finished chart data in the JSON', () => {
+    const data = exportOf({ overlay: overlayOf() })
+
+    expect(data.overlay.rings.map((ring) => ring.label)).toEqual(['Adopt', 'Trial', 'Assess', 'Hold', 'Retire'])
+    expect(data.overlay.points.length).toBeGreaterThan(0)
+    expect(data.overlay.referenceProject).toBe('Alpha')
+  })
+
+  it('is drawn into the standalone HTML', () => {
+    const html = buildComparisonHtml(exportOf({ overlay: overlayOf() }))
+
+    expect(html).toContain('<h2>Radar overlay</h2>')
+    expect(html).toContain('<svg viewBox="0 0 420 420"')
+    // Ring names, quadrant names and the legend are what make it readable.
+    expect(html).toContain('>Adopt<')
+    expect(html).toContain('class="legend"')
+    expect(html).toContain('⊘ Without status, not plotted: Kafka')
+  })
+
+  it('leaves the section out entirely when no chart was handed in', () => {
+    const html = buildComparisonHtml(exportOf())
+
+    expect(html).not.toContain('Radar overlay')
+    expect(exportOf().overlay).toBeNull()
+  })
+})
 
 describe('buildComparisonExport', () => {
   it('records the selection the comparison was taken under', () => {

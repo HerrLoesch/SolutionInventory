@@ -9,6 +9,7 @@ import {
   assertNoAliasCollisions,
   AliasCollisionError,
   levenshtein,
+  levenshteinWithin,
   tokenize,
   tokensOverlap,
   compareNames,
@@ -279,6 +280,63 @@ describe('tokenize', () => {
 
 // The two rules the design demands, checked against the exact pairs named in
 // plan §2.1 and §7: the leading example must hit, the counter-example must not.
+// The bounded distance is what makes suggesting over a large vocabulary
+// affordable; it has to agree with the plain one wherever the plain one is
+// within the bound, or the calibration silently changes.
+describe('levenshteinWithin', () => {
+  it('returns the exact distance while it is within the bound', () => {
+    expect(levenshteinWithin('kubernets', 'kubernetes', 2)).toBe(1)
+    expect(levenshteinWithin('flaw', 'lawn', 2)).toBe(2)
+    expect(levenshteinWithin('abc', 'abc', 2)).toBe(0)
+  })
+
+  it('reports the ceiling instead of the true distance once it is exceeded', () => {
+    expect(levenshteinWithin('kitten', 'sitting', 2)).toBe(3)
+    expect(levenshteinWithin('kitten', 'sitting', 1)).toBe(2)
+  })
+
+  it('rules out a pair by length alone before comparing anything', () => {
+    expect(levenshteinWithin('vue', 'vue.js framework', 2)).toBe(3)
+  })
+
+  it('handles empty input the way the plain distance does', () => {
+    expect(levenshteinWithin('', '', 2)).toBe(0)
+    expect(levenshteinWithin('', 'ab', 2)).toBe(2)
+    expect(levenshteinWithin('ab', '', 1)).toBe(2)
+    expect(levenshteinWithin(null, undefined, 2)).toBe(0)
+  })
+
+  it('agrees with the plain distance on every pair of a sample, for every bound', () => {
+    const words = [
+      '',
+      'a',
+      'vue',
+      'vuex',
+      'redis',
+      'redux',
+      'serilog',
+      'serilogg',
+      'kubernetes',
+      'kubernets',
+      '.net core',
+      'dotnet core',
+      'azure devops',
+      'azure-devops',
+      'postgresql',
+      'postgre sql'
+    ]
+    for (const left of words) {
+      for (const right of words) {
+        for (const max of [0, 1, 2, 3]) {
+          const exact = levenshtein(left, right)
+          const bounded = levenshteinWithin(left, right, max)
+          expect(bounded).toBe(exact <= max ? exact : max + 1)
+        }
+      }
+    }
+  })
+})
+
 describe('compareNames', () => {
   it('finds ".net core" ↔ "dotnet core" — the main case, at edit distance 3', () => {
     const result = compareNames('.NET Core', 'dotnet core')

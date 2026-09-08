@@ -46,6 +46,7 @@ export function buildComparisonExport({
   metrics,
   dataSource,
   visibleKinds,
+  overlay = null,
   exportedAt = new Date().toISOString()
 }) {
   return {
@@ -81,13 +82,142 @@ export function buildComparisonExport({
         }))
       }))
     })),
+    // The overlay travels as finished chart data — coordinates, colours and
+    // symbol paths. The view already computed all of it, and a report that had
+    // to lay the chart out a second time would be a second chance to disagree
+    // with the screen it came from.
+    overlay,
     overrides: workspace?.comparisonOverrides || {}
   }
 }
 
+/** The radar overlay as inline SVG, so the report carries the picture too. */
+function overlaySection(overlay) {
+  if (!overlay || !Array.isArray(overlay.points)) return []
+
+  const rings = overlay.rings
+    .map(
+      (ring) =>
+        '<circle cx="' +
+        overlay.center +
+        '" cy="' +
+        overlay.center +
+        '" r="' +
+        ring.outer +
+        '" fill="none" stroke="rgba(0,0,0,.15)"/>' +
+        '<text x="' +
+        overlay.center +
+        '" y="' +
+        ring.labelY +
+        '" text-anchor="middle" dominant-baseline="middle" class="ring" fill="' +
+        esc(ring.color) +
+        '">' +
+        esc(ring.label) +
+        '</text>'
+    )
+    .join('')
+
+  const axes =
+    '<line x1="' +
+    overlay.center +
+    '" y1="' +
+    (overlay.center - overlay.radius) +
+    '" x2="' +
+    overlay.center +
+    '" y2="' +
+    (overlay.center + overlay.radius) +
+    '" stroke="rgba(0,0,0,.15)"/>' +
+    '<line x1="' +
+    (overlay.center - overlay.radius) +
+    '" y1="' +
+    overlay.center +
+    '" x2="' +
+    (overlay.center + overlay.radius) +
+    '" y2="' +
+    overlay.center +
+    '" stroke="rgba(0,0,0,.15)"/>'
+
+  const quadrants = overlay.quadrants
+    .filter((quadrant) => quadrant.label)
+    .map(
+      (quadrant) =>
+        '<text x="' +
+        quadrant.x +
+        '" y="' +
+        quadrant.y +
+        '" text-anchor="' +
+        esc(quadrant.anchor) +
+        '" class="quadrant">' +
+        esc(quadrant.label) +
+        '</text>'
+    )
+    .join('')
+
+  const segments = overlay.segments
+    .map(
+      (segment) =>
+        '<line x1="' +
+        segment.x1 +
+        '" y1="' +
+        segment.y1 +
+        '" x2="' +
+        segment.x2 +
+        '" y2="' +
+        segment.y2 +
+        '" stroke="' +
+        (segment.kind === 'internal' ? '#ef6c00' : '#c62828') +
+        '" stroke-width="1.5"/>'
+    )
+    .join('')
+
+  const points = overlay.points
+    .map(
+      (point) =>
+        '<path d="' +
+        esc(point.path) +
+        '" fill="' +
+        esc(point.color) +
+        '"' +
+        (point.unresolved ? ' stroke="#333" stroke-dasharray="2 2"' : '') +
+        (point.unassignedKind ? ' opacity="0.45"' : '') +
+        '><title>' +
+        esc(point.name + ' — ' + point.project + ' — ' + point.status) +
+        '</title></path>'
+    )
+    .join('')
+
+  const legend = overlay.projects
+    .map(
+      (project) =>
+        '<span class="legend-item"><svg width="14" height="14" viewBox="0 0 14 14"><path d="' +
+        esc(project.path) +
+        '" fill="' +
+        esc(project.color) +
+        '"/></svg>' +
+        esc(project.name) +
+        (project.hidden ? ' (hidden)' : '') +
+        '</span>'
+    )
+    .join('')
+
+  return [
+    '<h2>Radar overlay</h2>',
+    '<p class="subtitle">Rings are the status, quadrants the categories of ' +
+      esc(overlay.referenceProject || 'the reference project') +
+      '. A line joins takes at least two rings apart.</p>',
+    '<svg viewBox="0 0 ' + overlay.size + ' ' + overlay.size + '" class="overlay">',
+    rings + axes + quadrants + segments + points,
+    '</svg>',
+    '<div class="legend">' + legend + '</div>',
+    overlay.withoutStatus.length
+      ? '<p class="footnote">⊘ Without status, not plotted: ' + esc(overlay.withoutStatus.join(', ')) + '</p>'
+      : ''
+  ].filter(Boolean)
+}
+
 /** A standalone HTML report of the same content. */
 export function buildComparisonHtml(exportData) {
-  const { selection, metrics, terms } = exportData
+  const { selection, metrics, terms, overlay } = exportData
   const projectNames = selection.projects.map((project) => project.name)
 
   const header = [
@@ -202,7 +332,13 @@ export function buildComparisonHtml(exportData) {
     '.origin{color:rgba(0,0,0,.45);font-size:11px;}',
     '.unresolved{color:#ef6c00;font-weight:700;}',
     '.override{font-size:11px;color:rgba(0,0,0,.55);}',
-    '.footnote{font-size:11px;color:rgba(0,0,0,.5);margin-top:16px;}'
+    '.footnote{font-size:11px;color:rgba(0,0,0,.5);margin-top:16px;}',
+    'h2{font-size:15px;margin:24px 0 4px;}',
+    '.overlay{width:100%;max-width:460px;display:block;}',
+    '.overlay .ring{font-size:9px;font-weight:600;text-transform:uppercase;}',
+    '.overlay .quadrant{font-size:11px;font-weight:600;fill:rgba(0,0,0,.55);}',
+    '.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:6px;}',
+    '.legend-item{display:inline-flex;align-items:center;gap:4px;}'
   ].join('\n')
 
   return [
@@ -221,6 +357,7 @@ export function buildComparisonHtml(exportData) {
     summary.join('\n'),
     '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>',
     '<p class="footnote">◌ marks a name the vocabulary does not resolve; such rows match on exact text only. ⁉ marks a possible false difference.</p>',
+    overlaySection(overlay).join('\n'),
     '</body>',
     '</html>'
   ].join('\n')

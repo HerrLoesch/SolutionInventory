@@ -189,23 +189,94 @@ export function levenshtein(a, b) {
   return previous[right.length]
 }
 
+// Tokenizing is pure over an immutable string and the same handful of names is
+// asked for again and again while a whole vocabulary is scanned, so the result
+// is remembered. The cap keeps a long session from turning the cache into a
+// leak; dropping it whole is fine, the next call simply recomputes.
+const MAX_TOKEN_CACHE = 4000
+const tokenCache = new Map()
+
 /**
  * Splits a normalized name into comparison tokens. Punctuation separates rather
  * than being deleted, so ".net core" and "azure-devops" break into the same
  * shape as their spaced spellings.
  */
 export function tokenize(rawName) {
-  return normalize(rawName)
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token !== '')
+  return tokensOf(normalize(rawName))
+}
+
+/**
+ * Tokens of an already normalized key. The internal entry point: everything
+ * downstream of compareNames works on normalized strings, and re-normalizing
+ * them on every pair was costing more than the comparison it fed.
+ */
+function tokensOf(key) {
+  const cached = tokenCache.get(key)
+  if (cached) return cached
+
+  const tokens = key.split(/[^a-z0-9]+/).filter((token) => token !== '')
+  if (tokenCache.size >= MAX_TOKEN_CACHE) tokenCache.clear()
+  tokenCache.set(key, tokens)
+  return tokens
+}
+
+/**
+ * Levenshtein distance, but only up to `max`: the exact distance when it is at
+ * most `max`, and `max + 1` as soon as it provably is not.
+ *
+ * Only the diagonal band of width 2·max+1 can hold values ≤ max, so the rest of
+ * the matrix is filled with the ceiling and never inspected. The near-duplicate
+ * rule below only ever asks about distances 1 and 2, and this turns that
+ * question from a quadratic scan into a linear one — which is what makes
+ * comparing hundreds of names against hundreds of terms affordable.
+ */
+export function levenshteinWithin(a, b, max) {
+  const left = String(a ?? '')
+  const right = String(b ?? '')
+  if (left === right) return 0
+  const ceiling = max + 1
+  // A distance can never be smaller than the difference in length.
+  if (Math.abs(left.length - right.length) > max) return ceiling
+  if (left.length === 0) return right.length <= max ? right.length : ceiling
+  if (right.length === 0) return left.length <= max ? left.length : ceiling
+
+  let previous = new Array(right.length + 1)
+  let current = new Array(right.length + 1)
+  for (let j = 0; j <= right.length; j++) previous[j] = j <= max ? j : ceiling
+
+  for (let i = 1; i <= left.length; i++) {
+    const from = Math.max(1, i - max)
+    const to = Math.min(right.length, i + max)
+    current[0] = i <= max ? i : ceiling
+    for (let j = 1; j < from; j++) current[j] = ceiling
+    for (let j = to + 1; j <= right.length; j++) current[j] = ceiling
+
+    let best = current[0]
+    for (let j = from; j <= to; j++) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1
+      const value = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost)
+      current[j] = value > ceiling ? ceiling : value
+      if (current[j] < best) best = current[j]
+    }
+    // Every remaining path runs through this row, so once all of it is past the
+    // ceiling the answer is settled.
+    if (best > max) return ceiling
+    const swap = previous
+    previous = current
+    current = swap
+  }
+  return previous[right.length] > max ? ceiling : previous[right.length]
 }
 
 /** The calibrated near-duplicate rule from the MCP analyzer, applied to two keys. */
 function isNearDuplicate(a, b) {
   const shorter = Math.min(a.length, b.length)
   if (shorter < MIN_NEAR_DUPLICATE_LENGTH) return false
-  const distance = levenshtein(a, b)
-  return distance === 1 || (distance === 2 && shorter >= DISTANCE_2_MIN_LENGTH)
+  // Distance 1 below eight characters, distance 2 from eight — so the question
+  // is never "how far apart are they" but "are they within this bound".
+  const limit = shorter >= DISTANCE_2_MIN_LENGTH ? 2 : 1
+  const distance = levenshteinWithin(a, b, limit)
+  return distance >= 1 && distance <= limit
 }
 
 /**
@@ -242,12 +313,31 @@ function tokensMatch(a, b) {
  * "Redis" one for "Redis Cache" — different things, offered on every screen.
  */
 export function tokensOverlap(a, b) {
-  const left = tokenize(a)
-  const right = tokenize(b)
-  if (left.length === 0 || left.length !== right.length) return false
+  return tokensOverlapNormalized(normalize(a), normalize(b))
+}
 
-  const unmatched = [...right]
-  for (const token of left) {
+/**
+ * Whether two *normalized* names are similar, without pricing the answer.
+ *
+ * Split out from compareNames because the exact distance is only ever read for
+ * a pair that turned out similar — while the overwhelming majority of pairs are
+ * not, and computing a full edit distance for each of those is what made
+ * suggesting over a large vocabulary slow.
+ */
+function classifyNames(left, right) {
+  if (isNearDuplicate(left, right)) return { similar: true, reason: 'levenshtein' }
+  if (tokensOverlapNormalized(left, right)) return { similar: true, reason: 'tokens' }
+  return { similar: false, reason: '' }
+}
+
+/** tokensOverlap for two keys that are already normalized. */
+function tokensOverlapNormalized(left, right) {
+  const leftTokens = tokensOf(left)
+  const rightTokens = tokensOf(right)
+  if (leftTokens.length === 0 || leftTokens.length !== rightTokens.length) return false
+
+  const unmatched = [...rightTokens]
+  for (const token of leftTokens) {
     const index = unmatched.findIndex((candidate) => tokensMatch(token, candidate))
     if (index === -1) return false
     unmatched.splice(index, 1)
@@ -268,10 +358,7 @@ export function compareNames(a, b) {
   if (left === '' || right === '' || left === right) {
     return { similar: false, reason: '', distance: left === right ? 0 : Infinity }
   }
-  const distance = levenshtein(left, right)
-  if (isNearDuplicate(left, right)) return { similar: true, reason: 'levenshtein', distance }
-  if (tokensOverlap(left, right)) return { similar: true, reason: 'tokens', distance }
-  return { similar: false, reason: '', distance }
+  return { ...classifyNames(left, right), distance: levenshtein(left, right) }
 }
 
 /**
@@ -281,19 +368,25 @@ export function compareNames(a, b) {
  *
  * @returns {Array<{ term: object, matchedKey: string, reason: string, distance: number }>}
  */
-export function findSimilarTerms(rawName, vocabulary, { limit = 5 } = {}) {
+export function findSimilarTerms(rawName, vocabulary, { limit = 5, index = null } = {}) {
   const key = normalize(rawName)
   if (key === '') return []
   const terms = Array.isArray(vocabulary) ? vocabulary : []
-  if (resolve(key, terms)) return []
+  // A caller asking for hundreds of names in a row hands in the index it
+  // already has; without it every single call would rebuild the whole thing
+  // just to answer "is this name already known".
+  if (resolve(key, index instanceof Map ? index : terms)) return []
 
   const suggestions = []
   for (const term of terms) {
     if (!term || !term.id) continue
     let best = null
     for (const candidateKey of termKeys(term)) {
-      const { similar, reason, distance } = compareNames(key, candidateKey)
+      if (candidateKey === '' || candidateKey === key) continue
+      const { similar, reason } = classifyNames(key, candidateKey)
       if (!similar) continue
+      // Only now is the exact distance worth its price: it ranks the survivors.
+      const distance = levenshtein(key, candidateKey)
       if (!best || distance < best.distance) best = { term, matchedKey: candidateKey, reason, distance }
     }
     if (best) suggestions.push(best)

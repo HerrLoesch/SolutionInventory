@@ -26,7 +26,10 @@ import {
   exactMatchGroups,
   dismissalKey,
   buildRadarOverlay,
+  layoutRadarOverlay,
   quadrantMapOf,
+  quadrantLabelsOf,
+  STATUS_LABELS,
   OTHER_QUADRANT,
   DATA_SOURCES
 } from '../../src/services/comparison'
@@ -1246,5 +1249,89 @@ describe('radar overlay', () => {
 
     expect(conflicts[0].points.map((point) => point.ring)).toEqual([0, 4])
     expect(conflicts[0].distance).toBe(4)
+  })
+
+  describe('quadrantLabelsOf', () => {
+    it('names each corner after the categories the reference files there', () => {
+      expect(quadrantLabelsOf(reference)).toEqual(['Architecture', 'Stack', '', 'Other'])
+    })
+
+    it('prefers the project’s own quadrant label over the derived one', () => {
+      const labelled = { ...reference, radarQuadrantLabels: { 0: 'Runtime' } }
+
+      expect(quadrantLabelsOf(labelled)[0]).toBe('Runtime')
+    })
+
+    it('counts the extra categories of a corner that holds several', () => {
+      const crowded = { radarCategoryQuadrants: { Architecture: 0, Stack: 0, Ops: 0 } }
+
+      expect(quadrantLabelsOf(crowded)[0]).toBe('Architecture (+2)')
+    })
+
+    it('announces the leftover quadrant as the catch-all it is', () => {
+      expect(quadrantLabelsOf({ radarCategoryQuadrants: { Data: 3 } })[OTHER_QUADRANT]).toBe('Data · Other')
+      expect(quadrantLabelsOf(null)).toEqual(['', '', '', 'Other'])
+    })
+  })
+
+  describe('layoutRadarOverlay', () => {
+    const geometry = { size: 400, radius: 160 }
+
+    function layoutOf(rows, projectIds = TWO) {
+      return layoutRadarOverlay(buildRadarOverlay(rows, projectIds, reference), geometry)
+    }
+
+    it('places every point inside the chart, on the radius of its ring', () => {
+      const { points, center } = layoutOf([overlayRow('Vue', { a: 'Adopt', b: 'Retire' })])
+
+      expect(points).toHaveLength(2)
+      const distances = points.map((point) => Math.hypot(point.x - center, point.y - center))
+      expect(Math.min(...distances)).toBeLessThan(Math.max(...distances))
+      points.forEach((point) => {
+        expect(Math.hypot(point.x - center, point.y - center)).toBeLessThanOrEqual(geometry.radius)
+      })
+    })
+
+    it('places a point by its data, not by the order the rows arrive in', () => {
+      const vue = overlayRow('Vue', { a: 'Adopt', b: 'Adopt' })
+      const react = overlayRow('React', { a: 'Adopt', b: 'Adopt' })
+      const positionOfVue = (rows) =>
+        layoutOf(rows)
+          .points.filter((point) => point.name === 'Vue')
+          .map((point) => [Math.round(point.x), Math.round(point.y)])
+
+      expect(positionOfVue([vue, react])).toEqual(positionOfVue([react, vue]))
+    })
+
+    it('draws its segments between the points it placed', () => {
+      const { points, segments } = layoutOf([overlayRow('Vue', { a: 'Adopt', b: 'Retire' })])
+      const placed = points.map((point) => `${point.x},${point.y}`)
+
+      expect(segments).toHaveLength(1)
+      expect(placed).toContain(`${segments[0].x1},${segments[0].y1}`)
+      expect(placed).toContain(`${segments[0].x2},${segments[0].y2}`)
+    })
+
+    it('labels the five rings from the inside out and the four corners', () => {
+      const { rings, quadrantCorners } = layoutOf([])
+
+      expect(rings.map((ring) => ring.label)).toEqual(STATUS_LABELS)
+      expect(rings.map((ring) => ring.outer)).toEqual([32, 64, 96, 128, 160])
+      expect(quadrantCorners).toHaveLength(4)
+    })
+
+    it('puts a top-left category into the top-left quadrant', () => {
+      const { points, center } = layoutOf([overlayRow('Vue', { a: 'Hold' }, { category: 'Stack' })])
+
+      expect(points[0].x).toBeLessThan(center)
+      expect(points[0].y).toBeLessThan(center)
+    })
+
+    it('survives an empty overlay', () => {
+      const empty = layoutRadarOverlay({ points: [], conflicts: [], withoutStatus: [] }, geometry)
+
+      expect(empty.points).toEqual([])
+      expect(empty.segments).toEqual([])
+    })
   })
 })

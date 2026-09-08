@@ -583,6 +583,128 @@ describe('criticality override', () => {
   })
 })
 
+// The similarity search only ever *suggests* (design §3.2). What it does not
+// find still has to be assignable, or the only way out is a second term for the
+// same thing — which is exactly what the vocabulary exists to prevent.
+describe('assigning a name by hand', () => {
+  // "Vue" against the term "Vue.js": too far apart for the heuristic, obviously
+  // the same thing to a person.
+  function vuejsWorkspace() {
+    const workspace = smallWorkspace()
+    workspace.vocabulary = [{ id: 'term-vuejs', name: 'Vue.js', kind: 'tool', aliases: [] }]
+    return workspace
+  }
+
+  it('offers every term for a group the heuristic has no suggestion for', () => {
+    const { wrapper } = mountComparison(vuejsWorkspace())
+    const group = wrapper.vm.unresolved.find((entry) => entry.key === 'vue')
+
+    expect(wrapper.vm.suggestionsFor(group)).toEqual([])
+    expect(wrapper.vm.termItems).toEqual([{ id: 'term-vuejs', title: 'Vue.js — tool' }])
+  })
+
+  it('resolves the name onto the term that was picked', () => {
+    const { wrapper, store } = mountComparison(vuejsWorkspace())
+    const group = wrapper.vm.unresolved.find((entry) => entry.key === 'vue')
+
+    expect(wrapper.vm.assignGroup(group, 'term-vuejs')).toBe(true)
+    expect(store.resolveTerm('Vue').id).toBe('term-vuejs')
+    expect(wrapper.vm.unresolved.some((entry) => entry.key === 'vue')).toBe(false)
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue.js').resolved).toBe(true)
+  })
+
+  it('names an alias collision instead of throwing it at the user', () => {
+    const workspace = vuejsWorkspace()
+    workspace.vocabulary.push({ id: 'term-react', name: 'React', kind: 'tool', aliases: [] })
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.assignGroup({ key: 'react', spellings: [{ rawName: 'React' }] }, 'term-vuejs')).toBe(false)
+    expect(wrapper.vm.vocabularyError).toMatch(/collision/i)
+  })
+})
+
+// design §5.1 — "aren't these two the same thing?" is one action, whichever side
+// happens to be in the vocabulary already.
+describe('merging two rows', () => {
+  // Beta spells the same technology "Vue.js" where Alpha writes "Vue".
+  function splitWorkspace(vocabulary = []) {
+    const workspace = smallWorkspace()
+    workspace.vocabulary = vocabulary
+    workspace.projects[1].radar[0].option = 'Vue.js'
+    workspace.questionnaires[1].categories[0].entries[0].answers[0].technology = 'Vue.js'
+    return workspace
+  }
+
+  it('folds one term into the other and keeps the target’s identity', () => {
+    const workspace = splitWorkspace([
+      { id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] },
+      { id: 'term-vuejs', name: 'Vue.js', kind: 'tool', aliases: [] }
+    ])
+    const { wrapper, store } = mountComparison(workspace)
+    expect(wrapper.vm.rows.map((row) => row.name).sort()).toEqual(['Scrum', 'Vue', 'Vue.js'])
+
+    expect(wrapper.vm.openMergeDialog(wrapper.vm.rows.find((row) => row.name === 'Vue.js'))).toBe(true)
+    wrapper.vm.mergeTargetKey = 'term:term-vue'
+    expect(wrapper.vm.mergeNeedsKind).toBe(false)
+    expect(wrapper.vm.confirmMerge()).toBe(true)
+
+    expect(store.workspace.vocabulary.map((term) => term.id)).toEqual(['term-vue'])
+    expect(store.resolveTerm('Vue.js').id).toBe('term-vue')
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').cells.size).toBe(2)
+    expect(wrapper.vm.mergeDialog).toBe(false)
+  })
+
+  it('hangs an unresolved spelling on the term it belongs to', () => {
+    const workspace = splitWorkspace([{ id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] }])
+    const { wrapper, store } = mountComparison(workspace)
+
+    wrapper.vm.openMergeDialog(wrapper.vm.rows.find((row) => row.name === 'Vue.js'))
+    wrapper.vm.mergeTargetKey = 'term:term-vue'
+    expect(wrapper.vm.confirmMerge()).toBe(true)
+
+    // No second term was created — the spelling became an alias of the first.
+    expect(store.workspace.vocabulary).toHaveLength(1)
+    expect(store.resolveTerm('Vue.js').id).toBe('term-vue')
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').cells.size).toBe(2)
+  })
+
+  it('creates the target term first when neither side is in the vocabulary', () => {
+    const workspace = splitWorkspace()
+    // Alpha's answer carries no kind, so the target row has none either.
+    workspace.questionnaires[0].categories[0].entries[0].answers[0].answerType = ''
+    const { wrapper, store } = mountComparison(workspace)
+
+    wrapper.vm.openMergeDialog(wrapper.vm.rows.find((row) => row.name === 'Vue.js'))
+    wrapper.vm.mergeTargetKey = 'raw:vue'
+    // Kind is mandatory on a term and never guessed (§3.1).
+    expect(wrapper.vm.mergeNeedsKind).toBe(true)
+    expect(wrapper.vm.canMerge).toBe(false)
+    expect(wrapper.vm.confirmMerge()).toBe(false)
+
+    wrapper.vm.mergeKind = 'tool'
+    expect(wrapper.vm.canMerge).toBe(true)
+    expect(wrapper.vm.confirmMerge()).toBe(true)
+
+    expect(store.workspace.vocabulary.map((term) => term.name)).toEqual(['Vue'])
+    expect(store.resolveTerm('Vue.js').name).toBe('Vue')
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').cells.size).toBe(2)
+  })
+
+  it('offers the other rows and every term, never the row itself', () => {
+    const workspace = splitWorkspace([{ id: 'term-redis', name: 'Redis', kind: 'tool', aliases: [] }])
+    const { wrapper } = mountComparison(workspace)
+    const source = wrapper.vm.rows.find((row) => row.name === 'Vue.js')
+    wrapper.vm.openMergeDialog(source)
+
+    const keys = wrapper.vm.mergeTargets.map((target) => target.key)
+    expect(keys).toContain('raw:vue')
+    expect(keys).toContain('term:term-redis')
+    expect(keys).not.toContain(source.key)
+    // Nothing is preselected — a merge is never one stray click away.
+    expect(wrapper.vm.canMerge).toBe(false)
+  })
+})
+
 // ── Radar overlay (Todo 5.3) ─────────────────────────────────────────────────
 describe('radar overlay', () => {
   it('defaults its reference project to the first selected one', () => {
@@ -642,5 +764,273 @@ describe('radar overlay', () => {
 
     expect(wrapper.vm.overlay.withoutStatus.map((entry) => entry.name)).toEqual(['Kafka'])
     expect(wrapper.vm.overlayPoints.some((point) => point.name === 'Kafka')).toBe(false)
+  })
+
+  it('gives each project a symbol as well as a colour', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const shapes = wrapper.vm.selectedProjectIds.map((id) => wrapper.vm.projectShape(id))
+
+    expect(new Set(shapes).size).toBe(shapes.length)
+    expect(wrapper.vm.symbolPathAt('p-alpha', 7, 7, 5)).toContain('7')
+  })
+
+  it('names the quadrants after the reference project', () => {
+    const workspace = smallWorkspace()
+    workspace.projects[0].radarCategoryQuadrants = { Stack: 0 }
+    workspace.projects[1].radarCategoryQuadrants = { Stack: 1 }
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.quadrantLabels[0]).toBe('Stack')
+
+    wrapper.vm.referenceProjectId = 'p-beta'
+    expect(wrapper.vm.quadrantLabels[0]).toBe('')
+    expect(wrapper.vm.quadrantLabels[1]).toBe('Stack')
+  })
+
+  it('hides a project from the chart without dropping it from the comparison', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    expect(wrapper.vm.overlayPoints.some((point) => point.projectId === 'p-beta')).toBe(true)
+
+    wrapper.vm.toggleOverlayProject('p-beta')
+    expect(wrapper.vm.overlayPoints.some((point) => point.projectId === 'p-beta')).toBe(false)
+    expect(wrapper.vm.selectedProjectIds).toContain('p-beta')
+    expect(wrapper.vm.metrics.compared).toBe(1)
+
+    wrapper.vm.toggleOverlayProject('p-beta')
+    expect(wrapper.vm.overlayPoints.some((point) => point.projectId === 'p-beta')).toBe(true)
+  })
+
+  it('opens the row behind a point and closes it again', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const point = wrapper.vm.overlayPoints.find((entry) => entry.name === 'Vue')
+
+    wrapper.vm.selectOverlayPoint(point)
+    expect(wrapper.vm.selectedOverlayRow.name).toBe('Vue')
+    expect(wrapper.vm.selectedOverlayRow.cells.size).toBe(2)
+
+    wrapper.vm.selectOverlayPoint(point)
+    expect(wrapper.vm.selectedOverlayRow).toBeNull()
+  })
+})
+
+// design §5 — four foldable sections, vocabulary first because it says whether
+// the rest of the page can be trusted.
+describe('sections', () => {
+  // Every name resolved, so the vocabulary section has nothing to report.
+  function tidyWorkspace() {
+    const workspace = smallWorkspace()
+    workspace.vocabulary = [
+      { id: 'term-vue', name: 'Vue', kind: 'tool', aliases: [] },
+      { id: 'term-scrum', name: 'Scrum', kind: 'practice', aliases: [] }
+    ]
+    return workspace
+  }
+
+  it('keeps the vocabulary folded while everything resolves', () => {
+    const { wrapper } = mountComparison(tidyWorkspace())
+
+    expect(wrapper.vm.openSections).toEqual({ vocabulary: false, summary: true, matrix: true, overlay: true })
+  })
+
+  it('opens the vocabulary by itself as soon as a name does not resolve', async () => {
+    const { wrapper, store } = mountComparison(tidyWorkspace())
+    expect(wrapper.vm.openSections.vocabulary).toBe(false)
+
+    store.workspace.projects[0].radar.push({ entryId: 'e-new', option: 'Kafka', status: 'Adopt' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.unresolved.map((group) => group.key)).toEqual(['kafka'])
+    expect(wrapper.vm.openSections.vocabulary).toBe(true)
+  })
+
+  it('starts the vocabulary open when there is something open from the start', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.openSections.vocabulary).toBe(true)
+  })
+
+  it('folds and unfolds a section on demand', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.toggleSection('matrix')).toBe(false)
+    expect(wrapper.vm.openSections.matrix).toBe(false)
+    expect(wrapper.vm.toggleSection('matrix')).toBe(true)
+  })
+
+  it('names the active kind selection in the summary header', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    expect(wrapper.vm.kindLabel).toBe('all kinds')
+
+    wrapper.vm.visibleKinds = ['tool']
+    expect(wrapper.vm.kindLabel).toBe('📐 Tools')
+
+    wrapper.vm.visibleKinds = []
+    expect(wrapper.vm.kindLabel).toBe('no kinds')
+  })
+})
+
+describe('what the numbers say', () => {
+  it('breaks the unique terms down per project (design §5.2)', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    // Scrum is Alpha's alone; Vue is in both, Gamma has no radar at all.
+    expect(wrapper.vm.metrics.uniqueByProject).toMatchObject({ 'p-alpha': 1 })
+    expect(wrapper.vm.uniqueBreakdown).toBe('Alpha 1')
+  })
+
+  it('reports a coverage per project, and zeroes for one that has none', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.coverageOf('p-alpha')).toMatchObject({ percent: 0, unresolved: 2 })
+    expect(wrapper.vm.coverageOf('nope')).toEqual({ percent: 0, unresolved: 0, resolved: 0, total: 0 })
+  })
+
+  it('puts the origin of a single value in the cell tooltip (design §5.3)', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+
+    expect(wrapper.vm.cellTitle(row, 'p-alpha')).toContain('("Vue")')
+    expect(wrapper.vm.cellTitle(row, 'p-alpha')).toContain('Adopt')
+    expect(wrapper.vm.cellTitle(row, 'p-gamma')).toBe('Not used in this project')
+  })
+
+  it('names the Δ reasons the visible badge outranked', () => {
+    const workspace = smallWorkspace()
+    // Alpha rates Vue twice and differently (⚠) while Beta leaves it unset (⊘).
+    workspace.projects[0].radar.push({ entryId: 'e2', option: 'Vue', status: 'Hold' })
+    workspace.projects[1].radar[0].status = ''
+    workspace.questionnaires[1].categories[0].entries[0].answers[0].status = ''
+    const { wrapper } = mountComparison(workspace)
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+
+    expect(row.delta).toBe('inconsistent')
+    expect(wrapper.vm.cellTitle(row, 'p-beta')).toContain('also applies')
+    expect(wrapper.vm.cellTitle(row, 'p-beta')).toContain('⊘ unset')
+  })
+})
+
+// A few hundred blips per project is the size this has to survive: the work
+// list and the matrix are paged so a redraw never lays all of it into the DOM.
+describe('at a few hundred terms', () => {
+  function bigWorkspace(count = 150) {
+    const entries = []
+    for (let i = 0; i < count; i++) {
+      entries.push({
+        id: `e${i}`,
+        aspect: `Aspect ${i}`,
+        answers: [{ technology: `Technology ${i}`, status: 'Adopt', answerType: 'Tool' }]
+      })
+    }
+    return {
+      id: 'ws',
+      vocabulary: [],
+      comparisonOverrides: {},
+      dismissedSuggestions: [],
+      catalogs: [],
+      projects: [
+        {
+          id: 'p-alpha',
+          name: 'Alpha',
+          questionnaireIds: ['q'],
+          radar: entries.map((entry, i) => ({ entryId: entry.id, option: `Technology ${i}`, status: 'Adopt' }))
+        },
+        {
+          id: 'p-beta',
+          name: 'Beta',
+          questionnaireIds: ['q'],
+          radar: entries.map((entry, i) => ({ entryId: entry.id, option: `Technology ${i}`, status: 'Hold' }))
+        }
+      ],
+      questionnaires: [{ id: 'q', name: 'Q', categories: [{ id: 'c', title: 'Stack', entries }] }]
+    }
+  }
+
+  it('pages the matrix and can be asked for the rest', () => {
+    const { wrapper } = mountComparison(bigWorkspace())
+
+    expect(wrapper.vm.visibleRows).toHaveLength(150)
+    expect(wrapper.vm.pagedRows).toHaveLength(100)
+
+    wrapper.vm.showMoreRows()
+    expect(wrapper.vm.pagedRows).toHaveLength(150)
+
+    wrapper.vm.showAllRows()
+    expect(wrapper.vm.pagedRows).toHaveLength(150)
+  })
+
+  it('starts the paging over when the filters change', async () => {
+    const { wrapper } = mountComparison(bigWorkspace())
+    wrapper.vm.showAllRows()
+    expect(wrapper.vm.pagedRows).toHaveLength(150)
+
+    // Still 150 hits, but the page starts from the top again.
+    wrapper.vm.search = 'Technology'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.visibleRows).toHaveLength(150)
+    expect(wrapper.vm.pagedRows).toHaveLength(100)
+  })
+
+  it('pages the vocabulary work list and only prices the visible part', () => {
+    const { wrapper } = mountComparison(bigWorkspace())
+
+    expect(wrapper.vm.unresolved).toHaveLength(150)
+    expect(wrapper.vm.visibleUnresolved).toHaveLength(25)
+    expect(wrapper.vm.suggestionsFor(wrapper.vm.visibleUnresolved[0])).toEqual([])
+
+    wrapper.vm.showMoreUnresolved()
+    expect(wrapper.vm.visibleUnresolved).toHaveLength(50)
+  })
+
+  it('keeps the user where they were when the comparison rebuilds', async () => {
+    const { wrapper } = mountComparison(bigWorkspace())
+    wrapper.vm.showMoreUnresolved()
+    wrapper.vm.showAllRows()
+
+    // An assignment rebuilds everything — and must not send the list back to
+    // the top while someone is working through it.
+    const group = wrapper.vm.visibleUnresolved[0]
+    wrapper.vm.createTermFromGroup({ ...group, kind: 'tool' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.visibleUnresolved).toHaveLength(50)
+    expect(wrapper.vm.pagedRows).toHaveLength(wrapper.vm.visibleRows.length)
+  })
+})
+
+describe('the overlay as export data', () => {
+  it('hands over coordinates, colours and symbols as drawn', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const exported = wrapper.vm.overlayExport()
+
+    expect(exported.rings.map((ring) => ring.label)).toEqual(['Adopt', 'Trial', 'Assess', 'Hold', 'Retire'])
+    expect(exported.rings[0].color).toBe('#4caf50')
+    expect(exported.referenceProject).toBe('Alpha')
+    expect(exported.points).toHaveLength(wrapper.vm.overlayPoints.length)
+    expect(exported.points[0].path).toMatch(/^M /)
+    expect(exported.projects.map((project) => project.name)).toEqual(['Alpha', 'Beta', 'Gamma'])
+  })
+
+  it('marks a project hidden from the chart instead of dropping it silently', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.toggleOverlayProject('p-beta')
+
+    const exported = wrapper.vm.overlayExport()
+    expect(exported.projects.find((project) => project.name === 'Beta').hidden).toBe(true)
+    expect(exported.points.every((point) => point.project !== 'Beta')).toBe(true)
+  })
+
+  it('lists the blips it could not plot, each with a way back', () => {
+    const workspace = smallWorkspace()
+    workspace.projects[0].radar.push({ entryId: 'e8', option: 'Kafka', status: '' })
+    workspace.questionnaires[0].categories[0].entries.push({
+      id: 'e8',
+      aspect: 'Messaging',
+      answers: [{ technology: 'Kafka', status: '', answerType: 'Tool' }]
+    })
+    const { wrapper } = mountComparison(workspace)
+
+    expect(wrapper.vm.withoutStatusChips.map((entry) => entry.name)).toEqual(['Kafka'])
+    expect(wrapper.vm.withoutStatusChips[0].projectName).toBe('Alpha')
+    expect(wrapper.vm.withoutStatusChips[0].projectId).toBe('p-alpha')
   })
 })
