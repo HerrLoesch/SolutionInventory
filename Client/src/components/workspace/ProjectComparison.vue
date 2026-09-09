@@ -185,7 +185,7 @@
                   <v-select
                     v-if="group.kind === 'unassigned'"
                     :model-value="pendingKinds[group.key] || null"
-                    :items="['tool', 'practice']"
+                    :items="termKindItems"
                     label="Kind"
                     density="compact"
                     variant="outlined"
@@ -214,6 +214,89 @@
                 </span>
                 <v-btn size="x-small" variant="text" @click="showMoreUnresolved">Show more</v-btn>
               </div>
+
+              <!-- The vocabulary itself, not just what it fails to resolve. A
+                   term could be created here but never corrected here, which is
+                   how a typo became permanent (F2). Renaming keeps the id, so
+                   nothing that points at the term is lost. -->
+              <v-divider class="my-4" />
+
+              <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 12px">
+                <span class="summary-heading">Terms in the vocabulary ({{ matchingTerms.length }})</span>
+                <v-text-field
+                  v-model="termSearch"
+                  label="Find a term"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  clearable
+                  style="max-width: 240px"
+                />
+              </div>
+
+              <div v-if="!matchingTerms.length" class="text-caption text-medium-emphasis mt-2">
+                {{ termSearch ? 'No term matches this search.' : 'The vocabulary is still empty.' }}
+              </div>
+
+              <div v-for="term in visibleTerms" :key="term.id" class="term-row">
+                <v-text-field
+                  :model-value="term.name"
+                  label="Name"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="min-width: 200px; max-width: 260px"
+                  @change="renameVocabularyTerm(term, $event.target.value)"
+                />
+                <v-select
+                  :model-value="term.kind"
+                  :items="termKindItems"
+                  label="Kind"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="max-width: 140px"
+                  @update:model-value="(kind) => setVocabularyTermKind(term, kind)"
+                />
+                <v-text-field
+                  :model-value="term.note || ''"
+                  label="Note"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="min-width: 180px; flex: 1 1 200px"
+                  @change="setVocabularyTermNote(term, $event.target.value)"
+                />
+                <div class="term-aliases">
+                  <v-chip
+                    v-for="alias in term.aliases || []"
+                    :key="alias"
+                    size="x-small"
+                    variant="outlined"
+                    closable
+                    :title="`Stop resolving &quot;${alias}&quot; to ${term.name}`"
+                    @click:close="removeVocabularyAlias(term, alias)"
+                  >
+                    {{ alias }}
+                  </v-chip>
+                </div>
+                <v-btn
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  title="Delete the term. The projects keep their spellings; they simply stop resolving."
+                  @click="deleteVocabularyTerm(term)"
+                >
+                  Delete
+                </v-btn>
+              </div>
+
+              <div v-if="matchingTerms.length > visibleTerms.length" class="unresolved-more">
+                <span class="text-caption text-medium-emphasis">
+                  Showing {{ visibleTerms.length }} of {{ matchingTerms.length }} terms
+                </span>
+                <v-btn size="x-small" variant="text" @click="showMoreTerms">Show more</v-btn>
+              </div>
             </v-card-text>
           </v-expand-transition>
         </v-card>
@@ -224,7 +307,9 @@
             <v-icon size="18">{{ openSections.summary ? 'mdi-chevron-down' : 'mdi-chevron-right' }}</v-icon>
             <span class="text-subtitle-2">Comparison summary</span>
             <span class="text-caption text-medium-emphasis">
-              {{ kindLabel }} · {{ selectedProjects.length }} projects · agreement {{ metrics.agreementPercent }} %
+              {{ kindLabel }} · {{ selectedProjects.length }} projects ·
+              <template v-if="inBaselineMode">against ◎ {{ activeBaseline.name }}</template>
+              <template v-else>agreement {{ metrics.agreementPercent }} %</template>
             </span>
           </v-card-title>
           <v-expand-transition>
@@ -243,6 +328,12 @@
                   <div>
                     Total terms <strong>{{ metrics.total }}</strong>
                   </div>
+                  <div v-if="metrics.ignored">
+                    ⃠ Not important <strong>{{ metrics.ignored }}</strong>
+                    <span class="text-medium-emphasis">
+                      not counted in any figure here
+                    </span>
+                  </div>
                   <div>
                     ◉ In all projects <strong>{{ metrics.all }}</strong> ({{ metrics.allPercent }} %)
                   </div>
@@ -252,6 +343,27 @@
                   <div>
                     ◑ Unique <strong>{{ metrics.unique }}</strong>
                     <span v-if="uniqueBreakdown" class="text-medium-emphasis">{{ uniqueBreakdown }}</span>
+                  </div>
+                </div>
+
+                <div v-if="inBaselineMode" class="summary-block">
+                  <div class="summary-heading">◎ {{ activeBaseline.name }}</div>
+                  <div class="text-caption text-medium-emphasis">
+                    {{ Object.keys(activeBaseline.entries || {}).length }} terms in the reference ·
+                    {{
+                      activeBaseline.origin && activeBaseline.origin.kind === 'consensus'
+                        ? 'taken from the consensus'
+                        : `taken from ${projectNameOf(activeBaseline.origin && activeBaseline.origin.projectId)}`
+                    }}
+                  </div>
+                  <div>
+                    ⊙ Not in the reference <strong>{{ metrics.unlisted }}</strong>
+                  </div>
+                  <div>
+                    ⊖ In the reference, unused <strong>{{ metrics.missing }}</strong>
+                  </div>
+                  <div v-if="baselineSkipped.length" class="text-caption text-medium-emphasis mt-1">
+                    Left out when the reference was taken: {{ baselineSkipped.map((entry) => entry.name).join(', ') }}
                   </div>
                 </div>
 
@@ -271,6 +383,9 @@
                   </div>
                   <div class="mt-1">
                     ✓ Matches <strong>{{ metrics.matches }}</strong>
+                    <span v-if="metrics.silent" class="text-medium-emphasis">
+                      ≈ {{ metrics.silent }} of them silently accepted
+                    </span>
                   </div>
                   <div>
                     ▲ Minor <strong>{{ metrics.minor }}</strong>
@@ -288,6 +403,54 @@
                     </span>
                     <span class="text-medium-emphasis">{{ metrics.agreementLevel }}</span>
                   </div>
+                  <div v-if="metrics.silent || metrics.ignored" class="text-caption text-medium-emphasis">
+                    <template v-if="metrics.silent">≈ {{ metrics.silent }} of it silently accepted</template>
+                    <template v-if="metrics.silent && metrics.ignored"> · </template>
+                    <template v-if="metrics.ignored">⃠ {{ metrics.ignored }} terms left out entirely</template>
+                  </div>
+                </div>
+              </div>
+
+              <!-- The single agreement figure says *that* the workspace
+                   disagrees, never who with whom. These bars say who. Every one
+                   of them carries the number of rows it rests on: 100 % out of
+                   three rows is not 100 % out of three hundred. -->
+              <div v-if="divergenceBars.length" class="mt-4">
+                <div class="summary-heading">How far apart the projects are</div>
+                <div
+                  v-for="bar in divergenceBars"
+                  :key="bar.key"
+                  class="bar-row"
+                  role="img"
+                  :aria-label="bar.ariaLabel"
+                >
+                  <span class="bar-label">{{ bar.label }}</span>
+                  <span class="coverage-track bar-track">
+                    <span class="bar-fill" :class="`bar-fill--${bar.level}`" :style="{ width: bar.percent + '%' }" />
+                  </span>
+                  <strong class="bar-value">{{ bar.percent }} %</strong>
+                  <span class="text-caption text-medium-emphasis">{{ bar.detail }}</span>
+                </div>
+              </div>
+              <div v-else-if="selectedProjects.length > 1" class="text-caption text-medium-emphasis mt-4">
+                No two projects rate the same term on the scale — there is no distance to measure yet.
+              </div>
+
+              <div v-if="inBaselineMode" class="mt-4">
+                <div class="summary-heading">How closely each project follows ◎ {{ activeBaseline.name }}</div>
+                <div
+                  v-for="bar in baselineBars"
+                  :key="bar.key"
+                  class="bar-row"
+                  role="img"
+                  :aria-label="bar.ariaLabel"
+                >
+                  <span class="bar-label">{{ bar.label }}</span>
+                  <span class="coverage-track bar-track">
+                    <span class="bar-fill" :class="`bar-fill--${bar.level}`" :style="{ width: bar.percent + '%' }" />
+                  </span>
+                  <strong class="bar-value">{{ bar.percent }} %</strong>
+                  <span class="text-caption text-medium-emphasis">{{ bar.detail }}</span>
                 </div>
               </div>
             </v-card-text>
@@ -314,26 +477,8 @@
                   style="max-width: 240px"
                 />
                 <v-select
-                  v-model="sortBy"
-                  :items="[
-                    { value: 'term', title: 'Term' },
-                    { value: 'coverage', title: 'Coverage' },
-                    { value: 'delta', title: 'Divergence' }
-                  ]"
-                  label="Sort by"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  style="max-width: 180px"
-                />
-                <v-select
                   v-model="coverageFilter"
-                  :items="[
-                    { value: '', title: 'Any coverage' },
-                    { value: 'all', title: '◉ all' },
-                    { value: 'partial', title: '◐ partial' },
-                    { value: 'unique', title: '◑ unique' }
-                  ]"
+                  :items="coverageFilterItems"
                   label="Coverage"
                   density="compact"
                   variant="outlined"
@@ -342,14 +487,7 @@
                 />
                 <v-select
                   v-model="deltaFilter"
-                  :items="[
-                    { value: '', title: 'Any Δ' },
-                    { value: 'deviating', title: 'Deviations only' },
-                    { value: 'critical', title: '▲▲▲ critical' },
-                    { value: 'inconsistent', title: '⚠ inconsistent' },
-                    { value: 'unset', title: '⊘ unset' },
-                    { value: 'accepted', title: '✎ accepted' }
-                  ]"
+                  :items="deltaFilterItems"
                   label="Δ Status"
                   density="compact"
                   variant="outlined"
@@ -357,22 +495,79 @@
                   style="max-width: 200px"
                 />
                 <v-checkbox v-model="unresolvedOnly" label="◌ unresolved only" density="compact" hide-details />
+                <v-select
+                  v-model="activeBaselineId"
+                  :items="baselineItems"
+                  label="Compare against"
+                  placeholder="each other"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  clearable
+                  style="max-width: 240px"
+                  @click:clear="comparisonMode = 'peer'"
+                />
+                <v-btn size="small" variant="tonal" @click="openBaselineDialog('')">Take a reference…</v-btn>
+                <template v-if="activeBaseline">
+                  <v-btn size="x-small" variant="text" @click="openBaselineDialog(activeBaseline.id)">Edit</v-btn>
+                  <v-btn size="x-small" variant="text" color="error" @click="deleteBaseline(activeBaseline.id)">
+                    Delete
+                  </v-btn>
+                </template>
+                <v-checkbox
+                  v-if="metrics.ignored"
+                  v-model="showIgnored"
+                  :label="`⃠ show ${metrics.ignored} not important`"
+                  density="compact"
+                  hide-details
+                />
               </div>
 
               <div class="matrix-scroll">
                 <table class="comparison-matrix">
                   <thead>
+                    <!-- Every header sorts. The first click gives the order that
+                         column is worth reading in — widest coverage, worst
+                         divergence, best status — the second turns it around. -->
                     <tr>
-                      <th>Term</th>
-                      <th v-for="project in selectedProjects" :key="project.id">{{ project.name }}</th>
-                      <th>Coverage</th>
-                      <th>Δ Status</th>
+                      <th
+                        v-for="header in sortHeaders"
+                        :key="header.column"
+                        role="button"
+                        tabindex="0"
+                        class="matrix-header"
+                        :class="{ 'matrix-header--sorted': sort.column === header.column }"
+                        :aria-sort="ariaSortOf(header.column)"
+                        :title="`Sort by ${header.label}`"
+                        @click="toggleSort(header.column)"
+                        @keydown.enter.prevent="toggleSort(header.column)"
+                        @keydown.space.prevent="toggleSort(header.column)"
+                      >
+                        {{ header.label }}
+                        <span class="sort-marker" aria-hidden="true">{{ sortMarkerOf(header.column) }}</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="row in pagedRows" :key="row.key">
-                      <td class="matrix-term">
+                    <tr v-for="row in pagedRows" :key="row.key" :class="{ 'matrix-row--ignored': row.ignored }">
+                      <td
+                        class="matrix-term"
+                        :class="{ 'matrix-term--drop-target': isDropTarget(row) }"
+                        draggable="true"
+                        title="Drag onto another term to merge the two"
+                        @dragstart="startRowDrag(row, $event)"
+                        @dragover="dragOverRow(row, $event)"
+                        @dragleave="dropTargetKey = ''"
+                        @dragend="endRowDrag"
+                        @drop.prevent="dropOnRow(row)"
+                      >
                         <span v-if="!row.resolved" class="unresolved-marker" title="Not in the vocabulary">◌</span>
+                        <span
+                          v-if="row.ignored"
+                          class="ignored-marker"
+                          :title="row.ignored.reason || 'Marked as not important — out of every figure'"
+                          >⃠</span
+                        >
                         {{ row.name }}
                         <span
                           v-if="row.possibleFalseDifference"
@@ -383,17 +578,57 @@
                         <v-btn
                           size="x-small"
                           variant="text"
-                          class="merge-button"
+                          class="row-action"
+                          :title="
+                            row.term
+                              ? 'Rename this term. The old name keeps resolving.'
+                              : 'Not in the vocabulary yet — give it a name and a kind.'
+                          "
+                          @click="openRenameDialog(row)"
+                        >
+                          {{ row.term ? 'Rename…' : 'Name…' }}
+                        </v-btn>
+                        <v-btn
+                          size="x-small"
+                          variant="text"
+                          class="row-action"
                           title="Same thing under another name? Merge the two rows into one term."
                           @click="openMergeDialog(row)"
                         >
                           Merge…
                         </v-btn>
+                        <v-btn
+                          v-if="row.ignored"
+                          size="x-small"
+                          variant="text"
+                          class="row-action"
+                          title="Take this term back into the comparison"
+                          @click="includeRow(row)"
+                        >
+                          Include again
+                        </v-btn>
+                        <v-btn
+                          v-else
+                          size="x-small"
+                          variant="text"
+                          class="row-action"
+                          title="Take this term out of the comparison and out of every figure"
+                          @click="openIgnoreDialog(row)"
+                        >
+                          Not important
+                        </v-btn>
+                      </td>
+                      <td v-if="inBaselineMode" class="matrix-baseline">
+                        <span v-if="row.baselineStatus" class="status-chip" :class="statusClass(row.baselineStatus)">
+                          {{ statusLabel(row.baselineStatus) }}
+                        </span>
+                        <span v-else class="text-medium-emphasis" title="Not in the reference">—</span>
                       </td>
                       <td
                         v-for="project in selectedProjects"
                         :key="project.id"
                         class="matrix-cell"
+                        :class="{ 'matrix-cell--accepted': isAcceptanceApplied(row, project.id) }"
                         :title="cellTitle(row, project.id)"
                         @click="openProjectRadar(project.id)"
                       >
@@ -401,9 +636,9 @@
                           <div v-for="(value, index) in cellFor(row, project.id).values" :key="index">
                             <span
                               class="status-chip"
-                              :class="`status-chip--${(value.status || 'unset').toLowerCase()}`"
+                              :class="statusClass(value.status)"
                             >
-                              {{ value.status || '⊘ unset' }}
+                              {{ statusLabel(value.status) }}
                             </span>
                             <span
                               v-if="cellFor(row, project.id).values.length > 1"
@@ -414,6 +649,44 @@
                           </div>
                         </template>
                         <span v-else class="text-medium-emphasis">—</span>
+
+                        <!-- The decision is shown on the cell it was taken for,
+                             marked ≈ and reversible from the same place. A
+                             decision that no longer fits the data says so
+                             instead of quietly disappearing. -->
+                        <div v-if="acceptanceFor(row, project.id)" class="cell-acceptance">
+                          <span
+                            class="acceptance-marker"
+                            :title="acceptanceTitle(row, project.id)"
+                            >≈</span
+                          >
+                          <span class="text-caption text-medium-emphasis">
+                            {{ acceptanceLabel(row, project.id) }}
+                          </span>
+                          <v-btn
+                            size="x-small"
+                            variant="text"
+                            class="row-action"
+                            title="Take the silent acceptance back"
+                            @click.stop="clearAcceptance(row, project.id)"
+                          >
+                            Undo
+                          </v-btn>
+                        </div>
+                        <v-btn
+                          v-else-if="canOfferAcceptance(row, project.id)"
+                          size="x-small"
+                          variant="text"
+                          class="row-action"
+                          :title="
+                            cellFor(row, project.id)
+                              ? 'Take another project’s status here — the difference stops counting as one'
+                              : 'No opinion of its own — go along with what the others say'
+                          "
+                          @click.stop="openAcceptDialog(row, project.id)"
+                        >
+                          ≈ accept
+                        </v-btn>
                       </td>
                       <td>{{ coverageLabel(row.coverage) }}</td>
                       <td class="matrix-delta">
@@ -581,7 +854,7 @@
                     }"
                   />
                   <title>
-                    {{ point.name }} — {{ projectNamesOf([point.projectId]) }} — {{ point.status }} ({{
+                    {{ point.name }} — {{ projectNamesOf([point.projectId]) }} — {{ statusLabel(point.status) }} ({{
                       point.origin.entryTitle
                     }})
                   </title>
@@ -640,8 +913,8 @@
                     {{ project.name }}:
                     <template v-if="cellFor(selectedOverlayRow, project.id)">
                       <span v-for="(value, index) in cellFor(selectedOverlayRow, project.id).values" :key="index">
-                        <span class="status-chip" :class="`status-chip--${(value.status || 'unset').toLowerCase()}`">
-                          {{ value.status || '⊘ unset' }}
+                        <span class="status-chip" :class="statusClass(value.status)">
+                          {{ statusLabel(value.status) }}
                         </span>
                         <span class="text-caption text-medium-emphasis">
                           ↳ {{ value.origin.entryTitle }} · {{ value.origin.categoryTitle }} ("{{
@@ -681,6 +954,195 @@
         </v-card>
       </template>
 
+      <!-- Taking a reference: the target state is copied out of the matrix and
+           held still. It has to be a copy — a reference that moved with the
+           projects would be a mirror. -->
+      <v-dialog v-model="baselineDialog" max-width="560">
+        <v-card>
+          <v-card-title class="text-subtitle-2">
+            {{ baselineEditId ? 'Update the reference' : 'Take a reference from the matrix' }}
+          </v-card-title>
+          <v-card-text>
+            <p class="text-caption text-medium-emphasis">
+              Every project is then measured against this target one at a time, instead of against the others. The
+              statuses are copied as they stand now and stay put until you take the reference again.
+            </p>
+            <v-text-field
+              v-model="baselineName"
+              label="Name"
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="mt-3"
+            />
+            <v-select
+              v-model="baselineSource"
+              :items="baselineSourceItems"
+              label="Take it from"
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="mt-3"
+            />
+            <p class="text-caption text-medium-emphasis mt-1">
+              A term a project rates twice and differently is left out, and so is a tie in the consensus — a reference
+              that freezes a contradiction is not a reference.
+            </p>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn size="small" variant="text" @click="baselineDialog = false">Cancel</v-btn>
+            <v-btn size="small" variant="tonal" :disabled="!canSaveBaseline" @click="confirmBaseline">
+              {{ baselineEditId ? 'Update' : 'Take reference' }}
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Silent acceptance: agreement reached rather than a difference waived.
+           Unlike ✎ accepted the term stays in Comparable and counts as a match —
+           the agreement figure must not fall the more people agree. -->
+      <v-dialog v-model="acceptDialog" max-width="560">
+        <v-card v-if="acceptRow">
+          <v-card-title class="text-subtitle-2">
+            {{ projectNameOf(acceptProjectId) }} accepts — {{ acceptRow.name }}
+          </v-card-title>
+          <v-card-text>
+            <p v-if="acceptIsAbsence" class="text-caption text-medium-emphasis">
+              {{ projectNameOf(acceptProjectId) }} says nothing about this term and goes along with what the other
+              projects say. The term counts as agreed rather than as a gap.
+            </p>
+            <template v-else>
+              <p class="text-caption text-medium-emphasis">
+                {{ projectNameOf(acceptProjectId) }} keeps its own entry, but takes the status below as the one that
+                counts. The projects still differ — the difference just stops being counted as one.
+              </p>
+              <v-select
+                v-model="acceptFrom"
+                :items="acceptSources"
+                item-title="title"
+                item-value="id"
+                label="Take the status from"
+                density="compact"
+                variant="outlined"
+                hide-details
+                class="mt-3"
+              />
+            </template>
+            <v-textarea
+              v-model="acceptComment"
+              label="Reason (optional)"
+              density="compact"
+              variant="outlined"
+              rows="2"
+              hide-details
+              class="mt-3"
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-btn
+              v-if="acceptanceFor(acceptRow, acceptProjectId)"
+              size="small"
+              variant="text"
+              @click="clearAcceptance(acceptRow, acceptProjectId), (acceptDialog = false)"
+            >
+              Remove
+            </v-btn>
+            <v-spacer />
+            <v-btn size="small" variant="text" @click="acceptDialog = false">Cancel</v-btn>
+            <v-btn size="small" variant="tonal" :disabled="!canAccept" @click="confirmAccept">Accept</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Rename: the id stays, so blips and overrides survive, and the old name
+           stays an alias so data written under it keeps resolving. On a row the
+           vocabulary does not resolve there is nothing to rename — the dialog
+           creates the term instead, which needs a kind and never guesses one. -->
+      <v-dialog v-model="renameDialog" max-width="520">
+        <v-card v-if="renameRow">
+          <v-card-title class="text-subtitle-2">
+            {{ renameCreatesTerm ? 'Name' : 'Rename' }} "{{ renameRow.name }}"
+          </v-card-title>
+          <v-card-text>
+            <p class="text-caption text-medium-emphasis">
+              <template v-if="renameCreatesTerm">
+                "{{ renameRow.name }}" is not in the vocabulary yet. It becomes a term under the name you give here,
+                and every spelling in this row becomes one of its aliases.
+              </template>
+              <template v-else>
+                The term keeps its identity: every blip written under the old name keeps resolving to it, and any
+                manual classification stays in force. This changes the workspace vocabulary, so it applies to every
+                project — not just the ones compared here.
+              </template>
+            </p>
+            <v-text-field
+              v-model="renameName"
+              label="Name"
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="mt-3"
+              @keydown.enter="confirmRename"
+            />
+            <template v-if="renameNeedsKind">
+              <v-select
+                v-model="renameKind"
+                :items="termKindItems"
+                label="Kind"
+                density="compact"
+                variant="outlined"
+                hide-details
+                class="mt-3"
+                style="max-width: 200px"
+              />
+              <p class="text-caption text-medium-emphasis mt-1">
+                A term needs a kind, and it is never guessed.
+              </p>
+            </template>
+            <v-alert v-if="renameError" type="warning" density="compact" variant="tonal" class="mt-3">
+              {{ renameError }}
+            </v-alert>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn size="small" variant="text" @click="renameDialog = false">Cancel</v-btn>
+            <v-btn size="small" variant="tonal" :disabled="!canRename" @click="confirmRename">
+              {{ renameCreatesTerm ? 'Create term' : 'Rename' }}
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Not important: the row leaves the comparison and every figure on this
+           page. A reason is optional but offered, because the next reader of the
+           report is the one who has to trust the decision. -->
+      <v-dialog v-model="ignoreDialog" max-width="520">
+        <v-card v-if="ignoreRow">
+          <v-card-title class="text-subtitle-2">Mark "{{ ignoreRow.name }}" as not important</v-card-title>
+          <v-card-text>
+            <p class="text-caption text-medium-emphasis">
+              The term drops out of the matrix and out of every number in the summary — it is not hidden, it is left
+              out of the question. Nothing is deleted; you can take it back at any time.
+            </p>
+            <v-textarea
+              v-model="ignoreReason"
+              label="Reason (optional)"
+              density="compact"
+              variant="outlined"
+              rows="2"
+              hide-details
+              class="mt-3"
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn size="small" variant="text" @click="ignoreDialog = false">Cancel</v-btn>
+            <v-btn size="small" variant="tonal" @click="confirmIgnore">Mark as not important</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <!-- Merge: the answer to "these two rows are the same thing". Assigning a
            spelling to a term and folding one term into another are one action
            from where the user stands, so they are one dialog (design §5.1). -->
@@ -707,7 +1169,7 @@
             <template v-if="mergeNeedsKind">
               <v-select
                 v-model="mergeKind"
-                :items="['tool', 'practice']"
+                :items="termKindItems"
                 label="Kind of the target term"
                 density="compact"
                 variant="outlined"
@@ -766,7 +1228,7 @@
 <script>
 import { computed, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
-import { buildAliasIndex } from '../../services/vocabulary'
+import { buildAliasIndex, normalize, TERM_KINDS } from '../../services/vocabulary'
 import { buildComparisonExport, downloadComparisonJson, downloadComparisonHtml } from '../../utils/comparisonExport'
 import {
   buildComparison,
@@ -778,6 +1240,13 @@ import {
   buildRadarOverlay,
   layoutRadarOverlay,
   quadrantLabelsOf,
+  canonicalStatus,
+  agreementLevel,
+  buildBaselineFromProject,
+  buildBaselineFromConsensus,
+  sortRows,
+  projectSortColumn,
+  SORT_COLUMN,
   DATA_SOURCES
 } from '../../services/comparison'
 
@@ -823,18 +1292,43 @@ export default {
     // every metric except vocabulary coverage recomputes on the active selection
     // (design §4.2); coverage is computed from the unfiltered units inside
     // buildComparison (design §5.1).
+    // ── Reference baselines (F7) ─────────────────────────────────────────────
+    //
+    // Two questions, one table: "do the projects agree with each other" and
+    // "does each of them match the target". The mode says which one is being
+    // asked; everything downstream follows from the engine's answer.
+
+    const comparisonMode = ref('peer')
+    const activeBaselineId = ref('')
+
+    const baselines = computed(() => store.workspace.comparisonBaselines || [])
+    const activeBaseline = computed(
+      () => baselines.value.find((baseline) => baseline.id === activeBaselineId.value) || null
+    )
+    // Baseline mode without a baseline would silently be peer mode; the guard is
+    // here rather than in the engine, which should never have to second-guess
+    // what it was handed.
+    const effectiveBaseline = computed(() => (comparisonMode.value === 'baseline' ? activeBaseline.value : null))
+    const inBaselineMode = computed(() => Boolean(effectiveBaseline.value))
+
     const comparison = computed(() =>
       buildComparison(store.workspace, selectedProjectIds.value, {
         source: dataSource.value,
         visibleKinds: visibleKinds.value,
-        aliasIndex: aliasIndex.value
+        aliasIndex: aliasIndex.value,
+        baseline: effectiveBaseline.value
       })
     )
 
     const allUnits = computed(() => comparison.value.allUnits)
     const units = computed(() => comparison.value.units)
     const rows = computed(() => comparison.value.rows)
+    // Rows marked "not important" (F1). They are out of `rows` and out of every
+    // metric; the table can still show them on request so the mark can be taken
+    // back without hunting for the term somewhere else.
+    const ignoredRows = computed(() => comparison.value.ignoredRows)
     const metrics = computed(() => comparison.value.metrics)
+    const baselineAgreement = computed(() => comparison.value.baselineAgreement)
 
     // DE-4: warn, stay in the current source. One unmaintained project must not
     // tip the whole comparison into noise mode.
@@ -950,6 +1444,11 @@ export default {
       }
     }
 
+    // The kinds a term can have, straight from the vocabulary module so the
+    // picker cannot drift from what the store accepts. A stable array for the
+    // same reason as the filter lists above.
+    const termKindItems = [...TERM_KINDS]
+
     /** Every term in the workspace, as options for assigning by hand. */
     const termItems = computed(() =>
       (store.workspace.vocabulary || [])
@@ -1034,7 +1533,10 @@ export default {
     //
     // The view may reorder and hide rows; it must not recompute any of them.
 
-    const sortBy = ref('term')
+    // Sorting is a column and a direction, set by clicking a header (F6). The
+    // comparator itself is in the engine — "worst status this project gives the
+    // term" is a statement about the comparison, not about the table.
+    const sort = ref({ column: SORT_COLUMN.TERM, direction: 'asc' })
     const coverageFilter = ref('')
     // Filters on the *visible* badge, i.e. the one that won the precedence in
     // design §5.3 — never on a condition that was outranked.
@@ -1042,14 +1544,87 @@ export default {
     const unresolvedOnly = ref(false)
     const search = ref('')
 
-    const DELTA_ORDER = ['none', 'match', 'accepted', 'unset', 'inconsistent', 'minor', 'significant', 'critical']
-    const COVERAGE_ORDER = ['unique', 'partial', 'all']
+    /** One entry per column of the matrix, in the order they are rendered. */
+    const sortHeaders = computed(() => [
+      { column: SORT_COLUMN.TERM, label: 'Term' },
+      // The reference sits left of the projects, because it is what they are
+      // being read against — not another column in the row of equals.
+      ...(inBaselineMode.value ? [{ column: SORT_COLUMN.BASELINE, label: '◎ Reference' }] : []),
+      ...selectedProjects.value.map((project) => ({
+        column: projectSortColumn(project.id),
+        label: project.name
+      })),
+      { column: SORT_COLUMN.COVERAGE, label: 'Coverage' },
+      { column: SORT_COLUMN.DELTA, label: 'Δ Status' }
+    ])
+
+    // A click on the active column turns it around; a click on another column
+    // starts it in its own natural order rather than inheriting the previous
+    // direction, which would otherwise sort the new column backwards.
+    function toggleSort(column) {
+      sort.value =
+        sort.value.column === column
+          ? { column, direction: sort.value.direction === 'asc' ? 'desc' : 'asc' }
+          : { column, direction: 'asc' }
+      return sort.value
+    }
+
+    function ariaSortOf(column) {
+      if (sort.value.column !== column) return 'none'
+      return sort.value.direction === 'asc' ? 'ascending' : 'descending'
+    }
+
+    function sortMarkerOf(column) {
+      if (sort.value.column !== column) return ''
+      return sort.value.direction === 'asc' ? '▲' : '▼'
+    }
+
+    // A project that leaves the selection takes its column with it; the sort
+    // would otherwise stay on a column nobody can see or click again.
+    watch(sortHeaders, (headers) => {
+      if (!headers.some((header) => header.column === sort.value.column)) {
+        sort.value = { column: SORT_COLUMN.TERM, direction: 'asc' }
+      }
+    })
+
+    // Item lists are built once here rather than as array literals in the
+    // template: a literal is a fresh array on every render, so VSelect re-keys
+    // its items under the open menu and the selection never sticks. Every select
+    // in this tab that works takes its items from a constant or a computed.
+    const coverageFilterItems = [
+      { value: '', title: 'Any coverage' },
+      { value: 'all', title: '◉ all' },
+      { value: 'partial', title: '◐ partial' },
+      { value: 'unique', title: '◑ unique' }
+    ]
+    const deltaFilterItems = [
+      { value: '', title: 'Any Δ' },
+      { value: 'deviating', title: 'Deviations only' },
+      { value: 'critical', title: '▲▲▲ critical' },
+      { value: 'inconsistent', title: '⚠ inconsistent' },
+      { value: 'unset', title: '⊘ unset' },
+      { value: 'accepted', title: '✎ accepted' },
+      { value: 'silent', title: '≈ silently accepted' },
+      { value: 'unlisted', title: '⊙ not in the reference' },
+      { value: 'missing', title: '⊖ in the reference, unused' }
+    ]
+
+    // Ignored rows are shown only on request, and then still marked — the point
+    // of the mark is that the row is out of the comparison, not that it is gone.
+    const showIgnored = ref(false)
+
+    const matrixRows = computed(() =>
+      showIgnored.value ? [...rows.value, ...ignoredRows.value] : rows.value
+    )
 
     const visibleRows = computed(() => {
       const term = search.value.trim().toLowerCase()
-      const filtered = rows.value.filter((row) => {
+      const filtered = matrixRows.value.filter((row) => {
         if (coverageFilter.value && row.coverage !== coverageFilter.value) return false
-        if (deltaFilter.value === 'deviating' && ['match', 'none'].includes(row.delta)) return false
+        // A silent acceptance is agreement, so it is not a deviation; a row
+        // with no target to match is not one either.
+        if (deltaFilter.value === 'deviating' && ['match', 'none', 'silent', 'unlisted'].includes(row.delta))
+          return false
         else if (deltaFilter.value && deltaFilter.value !== 'deviating' && row.delta !== deltaFilter.value) return false
         if (unresolvedOnly.value && row.resolved) return false
         if (!term) return true
@@ -1068,16 +1643,7 @@ export default {
         )
       })
 
-      return [...filtered].sort((a, b) => {
-        if (sortBy.value === 'coverage') {
-          const byCoverage = COVERAGE_ORDER.indexOf(b.coverage) - COVERAGE_ORDER.indexOf(a.coverage)
-          if (byCoverage !== 0) return byCoverage
-        } else if (sortBy.value === 'delta') {
-          const byDelta = DELTA_ORDER.indexOf(b.delta) - DELTA_ORDER.indexOf(a.delta)
-          if (byDelta !== 0) return byDelta
-        }
-        return a.name.localeCompare(b.name)
-      })
+      return sortRows(filtered, sort.value)
     })
 
     // Rows are paged for the same reason the work list is: one row carries a
@@ -1088,7 +1654,7 @@ export default {
     // A changed filter is a new question and starts at the top again; a rebuilt
     // comparison — someone saved an override — is not, and must not throw away
     // an expanded table.
-    watch([search, coverageFilter, deltaFilter, unresolvedOnly], () => {
+    watch([search, coverageFilter, deltaFilter, unresolvedOnly, showIgnored], () => {
       rowLimit.value = ROW_PAGE
     })
 
@@ -1103,6 +1669,59 @@ export default {
       rowLimit.value = Number.MAX_SAFE_INTEGER
       return rowLimit.value
     }
+
+    // ── Summary bars (F8) ────────────────────────────────────────────────────
+    //
+    // The engine produces the figures; this only decides how to say them. Each
+    // bar carries its number as text and an aria-label as well, so the picture
+    // is never the only place the information lives.
+
+    const pairwiseDivergence = computed(() => comparison.value.pairwiseDivergence)
+
+    /** Green / amber / red on the same thresholds the agreement level uses. */
+    function divergenceLevel(percent) {
+      return agreementLevel(100 - percent)
+    }
+
+    function rowsDetail(comparedRows) {
+      return comparedRows === 1 ? 'over 1 term' : `over ${comparedRows} terms`
+    }
+
+    const divergenceBars = computed(() =>
+      pairwiseDivergence.value
+        .filter((pair) => pair.comparedRows > 0)
+        .map((pair) => {
+          const label = `${projectNameOf(pair.a)} ↔ ${projectNameOf(pair.b)}`
+          return {
+            key: `${pair.a}::${pair.b}`,
+            label,
+            percent: pair.percent,
+            level: divergenceLevel(pair.percent),
+            detail: rowsDetail(pair.comparedRows),
+            ariaLabel: `${label}: ${pair.percent} % apart ${rowsDetail(pair.comparedRows)}`
+          }
+        })
+        // Worst first — the pair worth talking about should not be at the bottom.
+        .sort((a, b) => b.percent - a.percent || a.label.localeCompare(b.label))
+    )
+
+    const baselineBars = computed(() =>
+      selectedProjects.value
+        .map((project) => {
+          const agreement = agreementWith(project.id)
+          return {
+            key: project.id,
+            label: project.name,
+            percent: agreement.percent,
+            level: agreementLevel(agreement.percent),
+            detail: rowsDetail(agreement.comparedRows),
+            ariaLabel: `${project.name}: follows the reference on ${agreement.percent} % ${rowsDetail(
+              agreement.comparedRows
+            )}`
+          }
+        })
+        .sort((a, b) => a.percent - b.percent || a.label.localeCompare(b.label))
+    )
 
     /** Unique terms per project, the breakdown design §5.2 asks for. */
     const uniqueBreakdown = computed(() => {
@@ -1123,7 +1742,10 @@ export default {
       critical: '▲▲▲ critical',
       inconsistent: '⚠ inconsistent',
       unset: '⊘ unset',
-      accepted: '✎ accepted'
+      accepted: '✎ accepted',
+      silent: '≈ silently accepted',
+      unlisted: '⊙ not in the reference',
+      missing: '⊖ in the reference, unused'
     }
 
     function coverageLabel(coverage) {
@@ -1132,6 +1754,21 @@ export default {
 
     function deltaLabel(delta) {
       return DELTA_LABELS[delta] || delta
+    }
+
+    /**
+     * The status as the table shows it: one canonical spelling for the whole
+     * matrix, whatever the projects happen to have stored (design F4). An empty
+     * status is the `⊘ unset` marker rather than a blank cell — the difference
+     * between "no status" and "no entry at all" has to stay readable.
+     */
+    function statusLabel(status) {
+      return canonicalStatus(status) || '⊘ unset'
+    }
+
+    /** The chip colour, keyed off the normalized status so casing cannot miss. */
+    function statusClass(status) {
+      return `status-chip--${normalize(status) || 'unset'}`
     }
 
     function cellFor(row, projectId) {
@@ -1150,7 +1787,10 @@ export default {
       if (cell) {
         cell.values.forEach((value) => {
           const origin = [value.origin.entryTitle, value.origin.categoryTitle].filter(Boolean).join(' · ')
-          lines.push(`${value.status || '⊘ unset'} ↳ ${origin} ("${value.origin.rawName}")`)
+          // The canonical spelling is what the cell shows; the raw one is kept
+          // right next to it, because that is what someone would search for in
+          // the project data.
+          lines.push(`${statusLabel(value.status)} ↳ ${origin} ("${value.origin.rawName}")`)
         })
       } else {
         lines.push('Not used in this project')
@@ -1158,6 +1798,293 @@ export default {
       const other = (row.reasons || []).filter((reason) => reason !== row.delta)
       if (other.length) lines.push(`also applies: ${other.map((reason) => deltaLabel(reason)).join(', ')}`)
       return lines.join('\n')
+    }
+
+    // ── Silent acceptance (F3) ───────────────────────────────────────────────
+    //
+    // Two shapes of the same decision: a project with nothing to say goes along
+    // with the others, or a project with something different to say takes
+    // another project's status instead. Unlike the ✎ override this keeps the
+    // term *in* Comparable and counts it as a match — agreement reached is
+    // still agreement.
+
+    const acceptDialog = ref(false)
+    const acceptRow = ref(null)
+    const acceptProjectId = ref('')
+    const acceptFrom = ref('')
+    const acceptComment = ref('')
+
+    /** True while the dialog is about a project that says nothing about the term. */
+    const acceptIsAbsence = computed(() => {
+      const row = acceptRow.value
+      if (!row || !acceptProjectId.value) return false
+      return !cellFor(row, acceptProjectId.value)
+    })
+
+    /** The projects whose status the accepting one could take over. */
+    const acceptSources = computed(() => {
+      const row = acceptRow.value
+      if (!row) return []
+      return selectedProjects.value
+        .filter((project) => project.id !== acceptProjectId.value && cellFor(row, project.id))
+        .map((project) => ({
+          id: project.id,
+          title: `${project.name} — ${cellFor(row, project.id)
+            .values.map((value) => statusLabel(value.status))
+            .join(' / ')}`
+        }))
+    })
+
+    const canAccept = computed(() => {
+      if (!acceptRow.value || !acceptProjectId.value) return false
+      return acceptIsAbsence.value || Boolean(acceptFrom.value)
+    })
+
+    function acceptanceFor(row, projectId) {
+      return row?.acceptances?.[projectId] || null
+    }
+
+    function isAcceptanceApplied(row, projectId) {
+      return Boolean(row?.appliedAcceptances?.get?.(projectId))
+    }
+
+    function isAcceptanceStale(row, projectId) {
+      return Boolean(row?.staleAcceptances?.includes(projectId))
+    }
+
+    function openAcceptDialog(row, projectId) {
+      acceptRow.value = row
+      acceptProjectId.value = projectId
+      const stored = acceptanceFor(row, projectId)
+      acceptFrom.value = stored?.acceptedFrom || acceptSources.value[0]?.id || ''
+      acceptComment.value = stored?.comment || ''
+      acceptDialog.value = true
+      return true
+    }
+
+    function confirmAccept() {
+      const row = acceptRow.value
+      if (!canAccept.value) return false
+      // The same context an override records: which projects took part and what
+      // each of them said. Without it a project could go on silently agreeing
+      // with a statement nobody makes any more.
+      const context = overrideContextOf(row, selectedProjectIds.value)
+      const saved = store.setComparisonAcceptance(row.key, acceptProjectId.value, {
+        mode: acceptIsAbsence.value ? 'absence' : 'status',
+        acceptedFrom: acceptIsAbsence.value ? '' : acceptFrom.value,
+        comment: acceptComment.value,
+        ...context
+      })
+      acceptDialog.value = false
+      return saved
+    }
+
+    function clearAcceptance(row, projectId) {
+      return store.clearComparisonAcceptance(row.key, projectId)
+    }
+
+    /**
+     * Whether the cell is even in a position to accept anything: somebody else
+     * has to have said something, and the project must not already agree. There
+     * is nothing silent to accept about a status two projects already share.
+     */
+    function canOfferAcceptance(row, projectId) {
+      if (!row || row.ignored) return false
+      const others = selectedProjects.value.filter(
+        (project) => project.id !== projectId && cellFor(row, project.id)
+      )
+      if (!others.length) return false
+      const own = cellFor(row, projectId)
+      if (!own) return true
+      if (own.values.length !== 1) return false
+      return others.some((project) => {
+        const values = cellFor(row, project.id).values
+        return values.length === 1 && normalize(values[0].status) !== normalize(own.values[0].status)
+      })
+    }
+
+    function projectNameOf(projectId) {
+      return projects.value.find((project) => project.id === projectId)?.name || projectId
+    }
+
+    function acceptanceLabel(row, projectId) {
+      const acceptance = acceptanceFor(row, projectId)
+      if (!acceptance) return ''
+      const base =
+        acceptance.mode === 'absence'
+          ? 'goes along with the others'
+          : `takes ${projectNameOf(acceptance.acceptedFrom)}’s status`
+      return isAcceptanceApplied(row, projectId) ? base : `${base} — no longer applies`
+    }
+
+    function acceptanceTitle(row, projectId) {
+      const acceptance = acceptanceFor(row, projectId)
+      if (!acceptance) return ''
+      const lines = [acceptanceLabel(row, projectId)]
+      if (acceptance.comment) lines.push(acceptance.comment)
+      if (isAcceptanceStale(row, projectId)) lines.push('the situation has changed since — worth a look')
+      if (acceptance.setAt) lines.push(acceptance.setAt)
+      return lines.join('\n')
+    }
+
+    // ── Rename (F2) ──────────────────────────────────────────────────────────
+    //
+    // store.renameTerm keeps the id and turns the old name into an alias, so
+    // every blip written under the old spelling keeps resolving and every
+    // override keyed by the id stays in force. What it cannot do is rename a
+    // row the vocabulary does not resolve: there is no term there, only text.
+    // For those the dialog offers the one thing that *is* meaningful — making
+    // the row a term under the chosen name, which needs a kind and never
+    // guesses one.
+
+    const renameDialog = ref(false)
+    const renameRow = ref(null)
+    const renameName = ref('')
+    const renameKind = ref('')
+    const renameError = ref('')
+
+    /** True while the dialog would create a term rather than rename one. */
+    const renameCreatesTerm = computed(() => Boolean(renameRow.value) && !renameRow.value.term)
+
+    const renameNeedsKind = computed(() => renameCreatesTerm.value && renameRow.value?.kind === 'unassigned')
+
+    const canRename = computed(() => {
+      if (!renameRow.value || !renameName.value.trim()) return false
+      return !renameNeedsKind.value || TERM_KINDS.includes(renameKind.value)
+    })
+
+    function openRenameDialog(row) {
+      renameRow.value = row
+      renameName.value = row?.name || ''
+      renameKind.value = row?.kind !== 'unassigned' ? row?.kind || '' : ''
+      renameError.value = ''
+      renameDialog.value = true
+      return true
+    }
+
+    function confirmRename() {
+      const row = renameRow.value
+      if (!canRename.value) return false
+      const name = renameName.value.trim()
+      try {
+        renameError.value = ''
+        if (row.term) {
+          if (!store.renameTerm(row.term.id, name)) {
+            renameError.value = `"${name}" already belongs to another term. Merge the two instead of renaming.`
+            return false
+          }
+        } else {
+          const kind = row.kind !== 'unassigned' ? row.kind : renameKind.value
+          const termId = store.createTerm(name, kind)
+          if (!termId) {
+            renameError.value = 'The term could not be created. Pick another name.'
+            return false
+          }
+          // Every spelling that landed in this row becomes an alias, or the row
+          // would split into "the new term" and "the old text" at the next
+          // redraw.
+          rawNamesOf(row).forEach((rawName) => store.addAlias(termId, rawName))
+          // Same row, new key — everything decided about it moves with it.
+          carryRowDecisions(row.key, `term:${termId}`)
+        }
+        renameDialog.value = false
+        return true
+      } catch (error) {
+        renameError.value = error?.message || String(error)
+        return false
+      }
+    }
+
+    // ── The vocabulary’s own terms (F2) ──────────────────────────────────────
+    //
+    // The section used to list only what the vocabulary could *not* resolve.
+    // That is the work list; this is the vocabulary itself, and without it a
+    // term could be created here but never corrected here.
+
+    const termSearch = ref('')
+    const TERM_PAGE = 25
+    const termLimit = ref(TERM_PAGE)
+
+    const matchingTerms = computed(() => {
+      const needle = termSearch.value.trim().toLowerCase()
+      return (store.workspace.vocabulary || [])
+        .filter((term) => {
+          if (!needle) return true
+          return [term.name, ...(term.aliases || [])].some((text) =>
+            String(text || '')
+              .toLowerCase()
+              .includes(needle)
+          )
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+    })
+
+    const visibleTerms = computed(() => matchingTerms.value.slice(0, termLimit.value))
+
+    watch(termSearch, () => {
+      termLimit.value = TERM_PAGE
+    })
+
+    function showMoreTerms() {
+      termLimit.value += TERM_PAGE
+      return termLimit.value
+    }
+
+    function renameVocabularyTerm(term, name) {
+      const canonical = String(name || '').trim()
+      if (!canonical || canonical === term.name) return false
+      return guarded(() => {
+        if (!store.renameTerm(term.id, canonical)) {
+          throw new Error(`"${canonical}" already belongs to another term. Merge the two instead of renaming.`)
+        }
+        return true
+      })
+    }
+
+    function setVocabularyTermKind(term, kind) {
+      return guarded(() => store.setTermKind(term.id, kind))
+    }
+
+    function setVocabularyTermNote(term, note) {
+      return guarded(() => store.setTermNote(term.id, note))
+    }
+
+    function removeVocabularyAlias(term, alias) {
+      return guarded(() => store.removeAlias(term.id, alias))
+    }
+
+    // Deleting a term does not delete any project data — the blips keep their
+    // spelling and simply stop resolving, which is why this needs no more than
+    // one confirmation.
+    function deleteVocabularyTerm(term) {
+      return guarded(() => store.deleteTerm(term.id))
+    }
+
+    // ── Not important (F1) ───────────────────────────────────────────────────
+
+    const ignoreDialog = ref(false)
+    const ignoreRow = ref(null)
+    const ignoreReason = ref('')
+
+    function openIgnoreDialog(row) {
+      ignoreRow.value = row
+      ignoreReason.value = row?.ignored?.reason || ''
+      ignoreDialog.value = true
+      return true
+    }
+
+    function confirmIgnore() {
+      const row = ignoreRow.value
+      if (!row) return false
+      const marked = store.setComparisonIgnored(row.key, { reason: ignoreReason.value })
+      ignoreDialog.value = false
+      return marked
+    }
+
+    /** Takes the row back into the comparison. No dialog — nothing is lost. */
+    function includeRow(row) {
+      if (!row?.key) return false
+      return store.clearComparisonIgnored(row.key)
     }
 
     /** Jumps into the radar of the project whose cell was clicked. */
@@ -1278,9 +2205,191 @@ export default {
 
     function confirmMerge() {
       if (!canMerge.value) return false
-      const merged = mergeRowInto(mergeRow.value, mergeTarget.value, mergeKind.value)
-      if (merged) mergeDialog.value = false
+      const source = mergeRow.value
+      const targetKey = mergeTarget.value?.key || ''
+      const merged = mergeRowInto(source, mergeTarget.value, mergeKind.value)
+      if (merged) {
+        carryRowDecisions(source.key, targetKey)
+        mergeDialog.value = false
+      }
       return merged
+    }
+
+    // ── Taking a reference (F7) ──────────────────────────────────────────────
+
+    const baselineDialog = ref(false)
+    const baselineName = ref('')
+    const baselineSource = ref('')
+    const baselineSkipped = ref([])
+    const baselineEditId = ref('')
+
+    const CONSENSUS_SOURCE = 'consensus'
+
+    /** Where a reference can be taken from: any selected project, or the consensus. */
+    const baselineSourceItems = computed(() => [
+      { value: CONSENSUS_SOURCE, title: 'What the projects mostly say' },
+      ...selectedProjects.value.map((project) => ({ value: project.id, title: project.name }))
+    ])
+
+    const baselineItems = computed(() =>
+      baselines.value.map((baseline) => ({
+        value: baseline.id,
+        title: `${baseline.name} (${Object.keys(baseline.entries || {}).length} terms)`
+      }))
+    )
+
+    function openBaselineDialog(baselineId = '') {
+      const existing = baselines.value.find((baseline) => baseline.id === baselineId) || null
+      baselineEditId.value = existing?.id || ''
+      baselineName.value = existing?.name || ''
+      baselineSource.value = existing?.origin?.projectId || selectedProjects.value[0]?.id || CONSENSUS_SOURCE
+      baselineSkipped.value = []
+      baselineDialog.value = true
+      return true
+    }
+
+    /**
+     * The rows a reference is taken from: always the peer-mode rows, never the
+     * ones already measured against another reference. Taking a target from a
+     * table that is itself relative to a target would be a copy of a copy.
+     */
+    function baselineSourceRows() {
+      return buildComparison(store.workspace, selectedProjectIds.value, {
+        source: dataSource.value,
+        visibleKinds: visibleKinds.value,
+        aliasIndex: aliasIndex.value
+      }).rows
+    }
+
+    function buildBaselineEntries() {
+      const sourceRows = baselineSourceRows()
+      return baselineSource.value === CONSENSUS_SOURCE
+        ? buildBaselineFromConsensus(sourceRows, selectedProjectIds.value)
+        : buildBaselineFromProject(sourceRows, baselineSource.value)
+    }
+
+    const canSaveBaseline = computed(() => Boolean(baselineName.value.trim() && baselineSource.value))
+
+    function confirmBaseline() {
+      if (!canSaveBaseline.value) return false
+      const { entries, skipped } = buildBaselineEntries()
+      const origin = {
+        kind: baselineSource.value === CONSENSUS_SOURCE ? 'consensus' : 'project',
+        projectId: baselineSource.value === CONSENSUS_SOURCE ? '' : baselineSource.value,
+        dataSource: dataSource.value
+      }
+
+      if (baselineEditId.value) {
+        store.renameComparisonBaseline(baselineEditId.value, baselineName.value)
+        store.updateComparisonBaseline(baselineEditId.value, entries, origin)
+        activeBaselineId.value = baselineEditId.value
+      } else {
+        const id = store.createComparisonBaseline({ name: baselineName.value, origin, entries })
+        if (!id) return false
+        activeBaselineId.value = id
+      }
+      // What could not be taken over is named rather than quietly missing: a
+      // reference with holes in it must say where they are.
+      baselineSkipped.value = skipped
+      comparisonMode.value = 'baseline'
+      baselineDialog.value = false
+      return true
+    }
+
+    function deleteBaseline(baselineId) {
+      const deleted = store.deleteComparisonBaseline(baselineId)
+      if (deleted && activeBaselineId.value === baselineId) {
+        activeBaselineId.value = ''
+        comparisonMode.value = 'peer'
+      }
+      return deleted
+    }
+
+    // Choosing a reference is what someone means by choosing one; and a
+    // reference that is deleted or never chosen must not leave the table
+    // claiming to measure against something.
+    watch(activeBaselineId, (id) => {
+      if (id) comparisonMode.value = 'baseline'
+    })
+
+    watch([comparisonMode, baselines], () => {
+      if (comparisonMode.value === 'baseline' && !activeBaseline.value) {
+        activeBaselineId.value = baselines.value[0]?.id || ''
+        if (!activeBaselineId.value) comparisonMode.value = 'peer'
+      }
+    })
+
+    function agreementWith(projectId) {
+      return baselineAgreement.value[projectId] || { percent: 0, comparedRows: 0, byClass: {} }
+    }
+
+    /**
+     * Moves everything recorded against one row key onto another.
+     *
+     * A row's key changes whenever its identity changes without its meaning
+     * changing — a spelling becoming a term, two rows merging. The decisions
+     * taken about it are about the thing, not about the key, so they travel
+     * with it. Left behind, they would be inert at best and a phantom row in
+     * the reference at worst.
+     */
+    function carryRowDecisions(fromKey, toKey) {
+      if (!fromKey || !toKey || fromKey === toKey) return false
+      store.moveComparisonIgnored(fromKey, toKey)
+      store.moveComparisonAcceptances(fromKey, toKey)
+      store.moveComparisonBaselineEntries(fromKey, toKey)
+      return true
+    }
+
+    // ── Drag & drop merge (F5) ───────────────────────────────────────────────
+    //
+    // Dragging one term onto another is the shortest way to say "these two are
+    // the same thing". It only *opens* the merge dialog: the merge changes the
+    // workspace vocabulary for every project, so it is confirmed however it was
+    // started. Only the term cell is draggable — the project cells already have
+    // a click of their own.
+
+    const dragSourceKey = ref('')
+    const dropTargetKey = ref('')
+
+    function startRowDrag(row, event) {
+      dragSourceKey.value = row.key
+      if (event?.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'link'
+        // Some browsers refuse to start a drag without any payload.
+        event.dataTransfer.setData('text/plain', row.name)
+      }
+      return row.key
+    }
+
+    function isDropTarget(row) {
+      return Boolean(dragSourceKey.value) && dropTargetKey.value === row.key && dragSourceKey.value !== row.key
+    }
+
+    function dragOverRow(row, event) {
+      if (!dragSourceKey.value || dragSourceKey.value === row.key) return false
+      event?.preventDefault?.()
+      if (event?.dataTransfer) event.dataTransfer.dropEffect = 'link'
+      dropTargetKey.value = row.key
+      return true
+    }
+
+    function endRowDrag() {
+      dragSourceKey.value = ''
+      dropTargetKey.value = ''
+      return true
+    }
+
+    function dropOnRow(row) {
+      const sourceKey = dragSourceKey.value
+      endRowDrag()
+      if (!sourceKey || sourceKey === row.key) return false
+      // Looked up over every row the comparison knows, not just the ones the
+      // table happens to show: a rebuild mid-drag must not lose the source.
+      const source = [...rows.value, ...ignoredRows.value].find((entry) => entry.key === sourceKey)
+      if (!source) return false
+      openMergeDialog(source)
+      mergeTargetKey.value = row.key
+      return true
     }
 
     // ── Export (Phase 6) ─────────────────────────────────────────────────────
@@ -1294,6 +2403,10 @@ export default {
         metrics: metrics.value,
         dataSource: dataSource.value,
         visibleKinds: visibleKinds.value,
+        ignoredRows: ignoredRows.value,
+        baseline: effectiveBaseline.value,
+        baselineAgreement: baselineAgreement.value,
+        pairwiseDivergence: pairwiseDivergence.value,
         overlay: overlayExport()
       })
     }
@@ -1443,7 +2556,7 @@ export default {
           path: symbolPath(point),
           color: projectColor(point.projectId),
           name: point.name,
-          status: point.status,
+          status: statusLabel(point.status),
           project: projectNamesOf([point.projectId]),
           unresolved: point.unresolved,
           unassignedKind: point.unassignedKind
@@ -1528,6 +2641,7 @@ export default {
       showMoreUnresolved,
       suggestionsFor,
       projectNamesOf,
+      projectNameOf,
       canCreateTerm,
       assignGroup,
       createTermFromGroup,
@@ -1535,6 +2649,7 @@ export default {
       dismissSuggestion,
       vocabularyError,
       termItems,
+      termKindItems,
       mergeDialog,
       mergeRow,
       mergeTargetKey,
@@ -1547,11 +2662,91 @@ export default {
       openMergeDialog,
       mergeRowInto,
       confirmMerge,
-      sortBy,
+      carryRowDecisions,
+      dragSourceKey,
+      dropTargetKey,
+      startRowDrag,
+      dragOverRow,
+      endRowDrag,
+      dropOnRow,
+      isDropTarget,
+      comparisonMode,
+      activeBaselineId,
+      activeBaseline,
+      inBaselineMode,
+      baselines,
+      baselineItems,
+      baselineAgreement,
+      agreementWith,
+      pairwiseDivergence,
+      divergenceBars,
+      baselineBars,
+      baselineDialog,
+      baselineName,
+      baselineSource,
+      baselineSourceItems,
+      baselineSkipped,
+      baselineEditId,
+      canSaveBaseline,
+      openBaselineDialog,
+      confirmBaseline,
+      deleteBaseline,
+      sort,
+      sortHeaders,
+      toggleSort,
+      ariaSortOf,
+      sortMarkerOf,
       coverageFilter,
+      coverageFilterItems,
       deltaFilter,
+      deltaFilterItems,
       unresolvedOnly,
       search,
+      ignoredRows,
+      showIgnored,
+      matrixRows,
+      acceptDialog,
+      acceptRow,
+      acceptProjectId,
+      acceptFrom,
+      acceptComment,
+      acceptIsAbsence,
+      acceptSources,
+      canAccept,
+      acceptanceFor,
+      acceptanceLabel,
+      acceptanceTitle,
+      canOfferAcceptance,
+      isAcceptanceApplied,
+      isAcceptanceStale,
+      openAcceptDialog,
+      confirmAccept,
+      clearAcceptance,
+      renameDialog,
+      renameRow,
+      renameName,
+      renameKind,
+      renameError,
+      renameCreatesTerm,
+      renameNeedsKind,
+      canRename,
+      openRenameDialog,
+      confirmRename,
+      termSearch,
+      matchingTerms,
+      visibleTerms,
+      showMoreTerms,
+      renameVocabularyTerm,
+      setVocabularyTermKind,
+      setVocabularyTermNote,
+      removeVocabularyAlias,
+      deleteVocabularyTerm,
+      ignoreDialog,
+      ignoreRow,
+      ignoreReason,
+      openIgnoreDialog,
+      confirmIgnore,
+      includeRow,
       visibleRows,
       pagedRows,
       showMoreRows,
@@ -1559,6 +2754,8 @@ export default {
       uniqueBreakdown,
       coverageLabel,
       deltaLabel,
+      statusLabel,
+      statusClass,
       cellFor,
       cellTitle,
       openProjectRadar,
@@ -1681,6 +2878,21 @@ export default {
   width: 120px;
 }
 
+.term-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.term-aliases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .unresolved-more {
   display: flex;
   align-items: center;
@@ -1749,8 +2961,100 @@ export default {
   vertical-align: top;
 }
 
+.matrix-header {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.matrix-header:hover,
+.matrix-header:focus-visible {
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.matrix-header--sorted {
+  color: rgb(var(--v-theme-primary));
+}
+
+.sort-marker {
+  font-size: 0.7rem;
+  margin-left: 2px;
+}
+
+.matrix-term {
+  cursor: grab;
+}
+
+.matrix-term--drop-target {
+  outline: 2px dashed rgb(var(--v-theme-primary));
+  outline-offset: -2px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+}
+
+.bar-label {
+  min-width: 180px;
+}
+
+.bar-track {
+  flex: 1 1 120px;
+  max-width: 260px;
+}
+
+.bar-value {
+  min-width: 44px;
+  text-align: right;
+}
+
+/* The Δ palette, not the status palette: a red Retire chip and a red critical
+   bar in the same card would be two different reds meaning two different
+   things (design §5.3). */
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2e7d32;
+}
+
+.bar-fill--moderate {
+  background: #ef6c00;
+}
+
+.bar-fill--low {
+  background: #c62828;
+}
+
+.matrix-baseline {
+  background: rgba(var(--v-theme-primary), 0.04);
+}
+
 .matrix-cell {
   cursor: pointer;
+}
+
+/* A cell whose value was set aside by a silent acceptance reads as settled
+   rather than as data — the number it contributes is not the one shown. */
+.matrix-cell--accepted .status-chip {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.cell-acceptance {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.acceptance-marker {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 700;
 }
 
 .unresolved-marker,
@@ -1800,17 +3104,32 @@ export default {
   color: #546e7a;
 }
 
+.delta-badge--silent {
+  color: #00838f;
+}
+
 /* Visible on every row rather than revealed on hover: "these two are the same
    thing" is the question the matrix provokes, and an action nobody finds is the
    same as one that does not exist. */
-.merge-button {
+.row-action {
   opacity: 0.5;
   transition: opacity 0.1s ease-in-out;
 }
 
-.comparison-matrix tr:hover .merge-button,
-.merge-button:focus-visible {
+.comparison-matrix tr:hover .row-action,
+.row-action:focus-visible {
   opacity: 1;
+}
+
+/* An ignored row that is being shown on request stays legible but reads as set
+   aside — it is not part of any figure on this page. */
+.matrix-row--ignored {
+  opacity: 0.55;
+}
+
+.ignored-marker {
+  color: rgb(var(--v-theme-secondary));
+  margin-right: 2px;
 }
 
 .overlay-svg {

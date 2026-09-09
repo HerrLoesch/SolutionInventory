@@ -469,9 +469,18 @@ describe('v3 workspace with radar data loads byte-identically', () => {
   // A workspace already stored at the current STORAGE_VERSION, carrying curated
   // radar data and a workspace-owned catalog (so no built-in refresh applies).
   // No migration step targets v3, so the only thing the load path may do to this
-  // file is *add* the three vocabulary/comparison fields — never change one that
-  // is already there.
-  const ADDED_ON_LOAD = ['vocabulary', 'comparisonOverrides', 'dismissedSuggestions']
+  // file is *add* the vocabulary/comparison fields — never change one that is
+  // already there. Every new field of that family belongs in this list, and
+  // nowhere else: a field that changes an existing one would fail the test
+  // below rather than be listed here.
+  const ADDED_ON_LOAD = [
+    'vocabulary',
+    'comparisonOverrides',
+    'comparisonIgnored',
+    'comparisonAcceptances',
+    'comparisonBaselines',
+    'dismissedSuggestions'
+  ]
 
   it('leaves every stored workspace field untouched', () => {
     const store = useWorkspaceStore()
@@ -483,7 +492,7 @@ describe('v3 workspace with radar data loads byte-identically', () => {
     expect(loaded).toEqual(v3WorkspaceRadar.workspace)
   })
 
-  it('adds exactly the three vocabulary/comparison fields and nothing else', () => {
+  it('adds exactly the vocabulary/comparison fields and nothing else', () => {
     const store = useWorkspaceStore()
     store.loadFromData(clone(v3WorkspaceRadar))
 
@@ -491,6 +500,9 @@ describe('v3 workspace with radar data loads byte-identically', () => {
     expect(added.sort()).toEqual([...ADDED_ON_LOAD].sort())
     expect(store.workspace.vocabulary).toEqual([])
     expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.comparisonIgnored).toEqual({})
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual([])
     expect(store.workspace.dismissedSuggestions).toEqual([])
   })
 
@@ -529,6 +541,9 @@ describe('v3 workspace with radar data loads byte-identically', () => {
 
     expect(store.workspace.vocabulary).toEqual([])
     expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.comparisonIgnored).toEqual({})
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual([])
     expect(store.workspace.dismissedSuggestions).toEqual([])
   })
 
@@ -583,6 +598,9 @@ describe('acceptance — after the comparison feature', () => {
 
     expect(store.workspace.vocabulary).toEqual([])
     expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.comparisonIgnored).toEqual({})
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual([])
     expect(store.workspace.dismissedSuggestions).toEqual([])
   })
 

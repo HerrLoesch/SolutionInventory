@@ -1459,6 +1459,286 @@ describe('comparison overrides', () => {
   })
 })
 
+// ── Terms marked "not important" (F1) ────────────────────────────────────────
+//
+// Keyed by comparison *row* key rather than term.id, because the mark has to
+// work on a row the vocabulary does not resolve yet.
+describe('terms marked not important', () => {
+  it('stores the mark with its reason and a timestamp', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonIgnored('term-vue', { reason: 'not our call' })).toBe(true)
+    expect(store.workspace.comparisonIgnored['term-vue']).toMatchObject({ reason: 'not our call' })
+    expect(store.workspace.comparisonIgnored['term-vue'].setAt).toEqual(expect.any(String))
+  })
+
+  it('works on an unresolved row key just as well as on a term', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonIgnored('raw:postgres')).toBe(true)
+    expect(store.workspace.comparisonIgnored['raw:postgres']).toMatchObject({ reason: '' })
+  })
+
+  it('refuses a mark without a key', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonIgnored('')).toBe(false)
+    expect(store.workspace.comparisonIgnored).toEqual({})
+  })
+
+  it('takes a mark back, and reports when there was none', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('term-vue')
+
+    expect(store.clearComparisonIgnored('term-vue')).toBe(true)
+    expect(store.clearComparisonIgnored('term-vue')).toBe(false)
+    expect(store.workspace.comparisonIgnored).toEqual({})
+  })
+
+  it('carries the mark to another row key, which is what a merge needs', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('raw:postgres', { reason: 'duplicate' })
+
+    expect(store.moveComparisonIgnored('raw:postgres', 'term-pg')).toBe(true)
+    expect(store.workspace.comparisonIgnored).toEqual({
+      'term-pg': expect.objectContaining({ reason: 'duplicate' })
+    })
+  })
+
+  it('keeps the target’s own reason when both rows were marked', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('raw:postgres', { reason: 'source' })
+    store.setComparisonIgnored('term-pg', { reason: 'target' })
+
+    store.moveComparisonIgnored('raw:postgres', 'term-pg')
+
+    expect(store.workspace.comparisonIgnored['term-pg'].reason).toBe('target')
+    expect('raw:postgres' in store.workspace.comparisonIgnored).toBe(false)
+  })
+
+  it('does nothing for a missing source, a missing target or a move onto itself', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('term-pg')
+
+    expect(store.moveComparisonIgnored('raw:nope', 'term-pg')).toBe(false)
+    expect(store.moveComparisonIgnored('term-pg', '')).toBe(false)
+    expect(store.moveComparisonIgnored('term-pg', 'term-pg')).toBe(false)
+    expect(Object.keys(store.workspace.comparisonIgnored)).toEqual(['term-pg'])
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('term-x', { reason: 'out of scope' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonIgnored['term-x']).toMatchObject({ reason: 'out of scope' })
+  })
+})
+
+// ── Silent acceptances (F3) ──────────────────────────────────────────────────
+describe('silent acceptances', () => {
+  it('stores an accepted absence with its context', () => {
+    const store = useWorkspaceStore()
+
+    expect(
+      store.setComparisonAcceptance('term:vue', 'p-beta', {
+        mode: 'absence',
+        comment: 'no opinion',
+        contextProjects: ['p-alpha'],
+        contextStatuses: { 'p-alpha': 'Adopt' }
+      })
+    ).toBe(true)
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
+      mode: 'absence',
+      acceptedFrom: '',
+      comment: 'no opinion',
+      contextProjects: ['p-alpha'],
+      contextStatuses: { 'p-alpha': 'Adopt' }
+    })
+  })
+
+  it('stores an accepted status together with the project it came from', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status', acceptedFrom: 'p-alpha' })
+
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
+      mode: 'status',
+      acceptedFrom: 'p-alpha'
+    })
+  })
+
+  it('refuses an unknown mode, a missing key and accepting one’s own status', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'maybe' })).toBe(false)
+    expect(store.setComparisonAcceptance('', 'p-beta', { mode: 'absence' })).toBe(false)
+    expect(store.setComparisonAcceptance('term:vue', '', { mode: 'absence' })).toBe(false)
+    expect(store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status' })).toBe(false)
+    expect(store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status', acceptedFrom: 'p-beta' })).toBe(false)
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+  })
+
+  it('takes one project’s acceptance back and leaves the others alone', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'absence' })
+    store.setComparisonAcceptance('term:vue', 'p-gamma', { mode: 'absence' })
+
+    expect(store.clearComparisonAcceptance('term:vue', 'p-beta')).toBe(true)
+    expect(Object.keys(store.workspace.comparisonAcceptances['term:vue'])).toEqual(['p-gamma'])
+    expect(store.clearComparisonAcceptance('term:vue', 'p-beta')).toBe(false)
+  })
+
+  it('drops the row entry once its last acceptance is gone', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'absence' })
+
+    store.clearComparisonAcceptance('term:vue', 'p-beta')
+
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+  })
+
+  it('carries every acceptance of a row to another key, keeping the target’s own', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('raw:vue', 'p-beta', { mode: 'absence', comment: 'source' })
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'absence', comment: 'target' })
+    store.setComparisonAcceptance('raw:vue', 'p-gamma', { mode: 'absence', comment: 'only here' })
+
+    expect(store.moveComparisonAcceptances('raw:vue', 'term:vue')).toBe(true)
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-beta'].comment).toBe('target')
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-gamma'].comment).toBe('only here')
+    expect('raw:vue' in store.workspace.comparisonAcceptances).toBe(false)
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status', acceptedFrom: 'p-alpha' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
+      mode: 'status',
+      acceptedFrom: 'p-alpha'
+    })
+  })
+})
+
+// ── Reference baselines (F7) ─────────────────────────────────────────────────
+describe('reference baselines', () => {
+  const entries = { 'term:vue': { name: 'Vue', status: 'Adopt' } }
+
+  it('stores a named copy of the target statuses', () => {
+    const store = useWorkspaceStore()
+
+    const id = store.createComparisonBaseline({
+      name: 'Target Q3',
+      origin: { kind: 'project', projectId: 'p-alpha', dataSource: 'radar' },
+      entries
+    })
+
+    expect(id).toEqual(expect.any(String))
+    expect(store.workspace.comparisonBaselines).toEqual([
+      expect.objectContaining({ id, name: 'Target Q3', entries, origin: expect.objectContaining({ kind: 'project' }) })
+    ])
+  })
+
+  it('copies the entries instead of holding on to the caller’s object', () => {
+    const store = useWorkspaceStore()
+    const source = { 'term:vue': { name: 'Vue', status: 'Adopt' } }
+    const id = store.createComparisonBaseline({ name: 'Target', entries: source })
+
+    delete source['term:vue']
+
+    expect(store.workspace.comparisonBaselines.find((baseline) => baseline.id === id).entries).toHaveProperty(
+      'term:vue'
+    )
+  })
+
+  it('refuses a baseline without a name', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.createComparisonBaseline({ name: '  ', entries })).toBe('')
+    expect(store.workspace.comparisonBaselines).toEqual([])
+  })
+
+  it('renames, re-takes and deletes one', () => {
+    const store = useWorkspaceStore()
+    const id = store.createComparisonBaseline({ name: 'Target', entries })
+
+    expect(store.renameComparisonBaseline(id, 'Target Q4')).toBe(true)
+    expect(store.renameComparisonBaseline(id, ' ')).toBe(false)
+    expect(store.renameComparisonBaseline('nope', 'x')).toBe(false)
+
+    const next = { 'term:scrum': { name: 'Scrum', status: 'Trial' } }
+    expect(store.updateComparisonBaseline(id, next, { kind: 'consensus', projectId: '' })).toBe(true)
+    const baseline = store.workspace.comparisonBaselines[0]
+    expect(baseline).toMatchObject({ name: 'Target Q4', entries: next, origin: { kind: 'consensus' } })
+    expect(baseline.updatedAt).toEqual(expect.any(String))
+
+    expect(store.deleteComparisonBaseline(id)).toBe(true)
+    expect(store.deleteComparisonBaseline(id)).toBe(false)
+    expect(store.workspace.comparisonBaselines).toEqual([])
+  })
+
+  it('keeps several side by side', () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({ name: 'Where we were', entries })
+    store.createComparisonBaseline({ name: 'Where we want to be', entries })
+
+    expect(store.workspace.comparisonBaselines.map((baseline) => baseline.name)).toEqual([
+      'Where we were',
+      'Where we want to be'
+    ])
+  })
+
+  it('re-keys its entries when a row changes identity but not meaning', () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({ name: 'A', entries: { 'raw:vue': { name: 'Vue', status: 'Adopt' } } })
+    store.createComparisonBaseline({ name: 'B', entries: { 'raw:vue': { name: 'Vue', status: 'Trial' } } })
+
+    expect(store.moveComparisonBaselineEntries('raw:vue', 'term:vue')).toBe(true)
+
+    // Every reference is re-keyed — a target left under a key nothing produces
+    // would come back as a phantom gap.
+    store.workspace.comparisonBaselines.forEach((baseline) => {
+      expect('raw:vue' in baseline.entries).toBe(false)
+      expect(baseline.entries['term:vue']).toBeTruthy()
+    })
+  })
+
+  it('keeps a target the destination already had, and reports when there was nothing to move', () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({
+      name: 'A',
+      entries: { 'raw:vue': { name: 'Vue', status: 'Adopt' }, 'term:vue': { name: 'Vue', status: 'Hold' } }
+    })
+
+    store.moveComparisonBaselineEntries('raw:vue', 'term:vue')
+
+    expect(store.workspace.comparisonBaselines[0].entries['term:vue'].status).toBe('Hold')
+    expect(store.moveComparisonBaselineEntries('raw:nope', 'term:vue')).toBe(false)
+    expect(store.moveComparisonBaselineEntries('term:vue', 'term:vue')).toBe(false)
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({ name: 'Target', entries })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonBaselines[0]).toMatchObject({ name: 'Target', entries })
+  })
+})
+
 // ── Workspace comparison tab (Todo 4.2) ──────────────────────────────────────
 describe('workspace comparison tab', () => {
   function twoProjects(store) {

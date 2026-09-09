@@ -16,6 +16,9 @@ export function createWorkspace(projects = [], questionnaires = []) {
     // predates them gets them from normalizeWorkspaceVocabularyFields on load.
     vocabulary: [],
     comparisonOverrides: {},
+    comparisonIgnored: {},
+    comparisonAcceptances: {},
+    comparisonBaselines: [],
     dismissedSuggestions: []
   }
 }

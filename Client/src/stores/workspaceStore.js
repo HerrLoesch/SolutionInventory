@@ -18,8 +18,9 @@ import {
   assertNoAliasCollisions,
   TERM_KINDS
 } from '../services/vocabulary'
+import { ACCEPTANCE_MODES } from '../services/comparison'
 import { prepareImportedCatalog } from '../services/catalogImport'
-import { createWorkspace, createProject, createQuestionnaire, generateSlugId } from './workspaceFactories'
+import { createId, createWorkspace, createProject, createQuestionnaire, generateSlugId } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
 import {
   migrateProjectRadar,
@@ -1205,6 +1206,184 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return true
   }
 
+  // ── Terms marked "not important" (F1) ──────────────────────────────────────
+  //
+  // Keyed by the comparison *row* key, not by term.id: the mark has to work on
+  // a row the vocabulary does not resolve yet, and those have no term to key by.
+  // A row key is `term:<id>` or `raw:<normalized name>`, both stable for as long
+  // as the row exists.
+  //
+  // The mark takes the row out of the comparison entirely, including out of the
+  // metrics — it is a decision, not a filter. Nothing is deleted, so it can be
+  // taken back.
+
+  function comparisonIgnored() {
+    if (!workspace.value.comparisonIgnored || typeof workspace.value.comparisonIgnored !== 'object') {
+      workspace.value.comparisonIgnored = {}
+    }
+    return workspace.value.comparisonIgnored
+  }
+
+  function setComparisonIgnored(rowKey, { reason = '' } = {}) {
+    if (!rowKey) return false
+    comparisonIgnored()[rowKey] = { reason: String(reason || ''), setAt: new Date().toISOString() }
+    return true
+  }
+
+  function clearComparisonIgnored(rowKey) {
+    const ignored = comparisonIgnored()
+    if (!(rowKey in ignored)) return false
+    delete ignored[rowKey]
+    return true
+  }
+
+  /**
+   * Carries the mark from one row key to another — what a merge needs, because
+   * the row that was folded away takes its key with it. Keeps an existing mark
+   * on the target rather than overwriting it: both rows were held to be
+   * unimportant, and the target's own reason is the one that was written about
+   * the row that survives.
+   */
+  function moveComparisonIgnored(fromKey, toKey) {
+    const ignored = comparisonIgnored()
+    if (!fromKey || !toKey || fromKey === toKey || !(fromKey in ignored)) return false
+    if (!(toKey in ignored)) ignored[toKey] = ignored[fromKey]
+    delete ignored[fromKey]
+    return true
+  }
+
+  // ── Silent acceptances (F3) ────────────────────────────────────────────────
+  //
+  // "This project goes along with what the others say about this term" — either
+  // because it has no opinion of its own (mode 'absence') or because it takes
+  // another project's status over its own (mode 'status').
+  //
+  // Keyed by comparison row key *and* project id, for the same reason the
+  // "not important" mark is: the decision has to be possible on a row the
+  // vocabulary does not resolve yet. The context is stored alongside so the
+  // engine can tell when the situation the decision was taken in has moved on.
+
+  function comparisonAcceptances() {
+    if (!workspace.value.comparisonAcceptances || typeof workspace.value.comparisonAcceptances !== 'object') {
+      workspace.value.comparisonAcceptances = {}
+    }
+    return workspace.value.comparisonAcceptances
+  }
+
+  function setComparisonAcceptance(
+    rowKey,
+    projectId,
+    { mode, acceptedFrom = '', comment = '', contextProjects = [], contextStatuses = {} }
+  ) {
+    if (!rowKey || !projectId || !ACCEPTANCE_MODES.includes(mode)) return false
+    // Accepting a status is accepting *somebody's* status, and not one's own.
+    if (mode === 'status' && (!acceptedFrom || acceptedFrom === projectId)) return false
+
+    const all = comparisonAcceptances()
+    if (!all[rowKey]) all[rowKey] = {}
+    all[rowKey][projectId] = {
+      mode,
+      acceptedFrom: mode === 'status' ? acceptedFrom : '',
+      comment: String(comment || ''),
+      setAt: new Date().toISOString(),
+      contextProjects: [...contextProjects],
+      contextStatuses: { ...contextStatuses }
+    }
+    return true
+  }
+
+  function clearComparisonAcceptance(rowKey, projectId) {
+    const all = comparisonAcceptances()
+    if (!all[rowKey] || !(projectId in all[rowKey])) return false
+    delete all[rowKey][projectId]
+    // An empty row entry is noise in the stored file and in every diff of it.
+    if (!Object.keys(all[rowKey]).length) delete all[rowKey]
+    return true
+  }
+
+  /** Carries every acceptance on one row to another row key — what a merge needs. */
+  function moveComparisonAcceptances(fromKey, toKey) {
+    const all = comparisonAcceptances()
+    if (!fromKey || !toKey || fromKey === toKey || !all[fromKey]) return false
+    all[toKey] = { ...all[fromKey], ...(all[toKey] || {}) }
+    delete all[fromKey]
+    return true
+  }
+
+  // ── Reference baselines (F7) ───────────────────────────────────────────────
+  //
+  // A target state pulled out of the matrix and held still, so every project can
+  // be measured against it one at a time. Stored as a *copy* of the statuses on
+  // purpose: a reference that moved with the projects would be a mirror, not a
+  // reference. Kept as a list so several can exist side by side — "where we were
+  // in Q2" and "where we want to be" are both useful and neither replaces the
+  // other.
+
+  function comparisonBaselines() {
+    if (!Array.isArray(workspace.value.comparisonBaselines)) workspace.value.comparisonBaselines = []
+    return workspace.value.comparisonBaselines
+  }
+
+  function createComparisonBaseline({ name, origin = {}, entries = {} }) {
+    const canonical = String(name || '').trim()
+    if (!canonical) return ''
+    const baseline = {
+      id: createId('baseline'),
+      name: canonical,
+      createdAt: new Date().toISOString(),
+      origin: { ...origin },
+      entries: { ...entries }
+    }
+    comparisonBaselines().push(baseline)
+    return baseline.id
+  }
+
+  function renameComparisonBaseline(baselineId, name) {
+    const baseline = comparisonBaselines().find((entry) => entry.id === baselineId)
+    const canonical = String(name || '').trim()
+    if (!baseline || !canonical) return false
+    baseline.name = canonical
+    return true
+  }
+
+  /** Replaces the held statuses — "take the reference again as things stand now". */
+  function updateComparisonBaseline(baselineId, entries, origin = null) {
+    const baseline = comparisonBaselines().find((entry) => entry.id === baselineId)
+    if (!baseline) return false
+    baseline.entries = { ...entries }
+    if (origin) baseline.origin = { ...origin }
+    baseline.updatedAt = new Date().toISOString()
+    return true
+  }
+
+  /**
+   * Re-keys every reference entry from one row key to another. Needed whenever a
+   * row changes identity without changing meaning — a spelling becoming a term,
+   * two rows merging. Without it the reference would go on holding a target for
+   * a key nothing produces any more, and the row would come back as a phantom
+   * gap under its old name.
+   */
+  function moveComparisonBaselineEntries(fromKey, toKey) {
+    if (!fromKey || !toKey || fromKey === toKey) return false
+    let moved = false
+    for (const baseline of comparisonBaselines()) {
+      const entries = baseline.entries || {}
+      if (!(fromKey in entries)) continue
+      if (!(toKey in entries)) entries[toKey] = entries[fromKey]
+      delete entries[fromKey]
+      moved = true
+    }
+    return moved
+  }
+
+  function deleteComparisonBaseline(baselineId) {
+    const baselines = comparisonBaselines()
+    const index = baselines.findIndex((entry) => entry.id === baselineId)
+    if (index === -1) return false
+    baselines.splice(index, 1)
+    return true
+  }
+
   // ── Vocabulary ─────────────────────────────────────────────────────────────
   //
   // The workspace vocabulary is a resolution layer over the free-text answers
@@ -1726,6 +1905,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     getComparisonOverride,
     setComparisonOverride,
     clearComparisonOverride,
+    setComparisonIgnored,
+    clearComparisonIgnored,
+    moveComparisonIgnored,
+    setComparisonAcceptance,
+    clearComparisonAcceptance,
+    moveComparisonAcceptances,
+    createComparisonBaseline,
+    renameComparisonBaseline,
+    updateComparisonBaseline,
+    moveComparisonBaselineEntries,
+    deleteComparisonBaseline,
     dismissSuggestion,
     isSuggestionDismissed,
     resolveTerm,

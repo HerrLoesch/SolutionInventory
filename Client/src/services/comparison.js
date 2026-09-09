@@ -225,11 +225,17 @@ export function coverageOf(row, projectIds) {
 // The five-step scale the status distance is measured on (design §6.1).
 export const STATUS_SCALE = ['adopt', 'trial', 'assess', 'hold', 'retire']
 
+/** Display form of the five rings, from the innermost outwards. */
+export const STATUS_LABELS = ['Adopt', 'Trial', 'Assess', 'Hold', 'Retire']
+
 export const DELTA = {
   NONE: 'none', // — : coverage unique, nothing to compare
   INCONSISTENT: 'inconsistent',
   UNSET: 'unset',
   ACCEPTED: 'accepted',
+  SILENT: 'silent',
+  UNLISTED: 'unlisted', // ⊙ : not in the reference the comparison runs against
+  MISSING: 'missing', // ⊖ : in the reference, but no project uses it
   MATCH: 'match',
   MINOR: 'minor',
   SIGNIFICANT: 'significant',
@@ -239,6 +245,28 @@ export const DELTA = {
 /** Position of a status on the scale, or -1 for anything not on it. */
 export function statusRank(status) {
   return STATUS_SCALE.indexOf(normalize(status))
+}
+
+/**
+ * The status as it should be *shown*: the canonical spelling from
+ * STATUS_LABELS when the value is on the scale.
+ *
+ * Statuses are free text — they come from a catalog's statusOptions labels and
+ * from hand-edited blips, so the same workspace holds "Adopt" and "adopt". The
+ * engine has always normalized before ranking, so the comparison never saw a
+ * difference; only the table did, and it read like a data problem where there
+ * was none.
+ *
+ * A status *off* the scale is returned untouched. Rewriting it would hide a
+ * real finding: such a value already classifies the row as `⊘ unset`, and
+ * making it look canonical would suggest it had been understood. Nothing here
+ * writes back to the stored data either — cleaning the projects themselves is
+ * the MCP server's `export_cleaned_data` (docs/todos.md §2), not this tab's.
+ */
+export function canonicalStatus(status) {
+  const rank = statusRank(status)
+  if (rank === -1) return String(status || '').trim()
+  return STATUS_LABELS[rank]
 }
 
 /**
@@ -259,57 +287,270 @@ export function classifyDistance(distance) {
   return DELTA.CRITICAL
 }
 
+// ── Silent acceptance (F3) ───────────────────────────────────────────────────
+//
+// One project going along with what another says, in the two shapes that
+// question actually takes:
+//
+//   absence  the project says nothing about the term and accepts what the
+//            others say — "I simply have no other opinion"
+//   status   the project says something *different* and accepts another
+//            project's status instead
+//
+// This is not the `✎ accepted` override. That one takes a term *out* of
+// Comparable, because the difference was judged not worth measuring. A silent
+// acceptance is the opposite: agreement was reached, so the term stays in and
+// counts as a match. Excluding it would make the agreement figure fall the more
+// people agree, which is the one thing it must never do.
+
+export const ACCEPTANCE_MODES = ['absence', 'status']
+
+/**
+ * The acceptances on this row that actually apply right now, by project id.
+ *
+ * An acceptance is stored as a decision and checked against the current data
+ * every time, never trusted blindly: a project that has since formed its own
+ * opinion is no longer accepting an absence, and a status accepted from a
+ * project that is not in the selection cannot be resolved to a rank. In both
+ * cases the entry stays stored — it is the user's reasoning — but it does not
+ * silently change a number it no longer fits.
+ */
+export function effectiveAcceptances(row, projectIds, acceptances) {
+  const selected = new Set(projectIds || [])
+  const applied = new Map()
+
+  for (const [projectId, acceptance] of Object.entries(acceptances || {})) {
+    if (!selected.has(projectId)) continue
+    const values = row?.cells?.get?.(projectId)?.values || []
+
+    if (acceptance?.mode === 'absence') {
+      // The project has an opinion after all; there is no absence to accept.
+      if (values.length) continue
+      applied.set(projectId, acceptance)
+      continue
+    }
+
+    if (acceptance?.mode === 'status') {
+      if (!values.length) continue
+      const from = acceptance.acceptedFrom
+      if (!from || from === projectId || !selected.has(from)) continue
+      if (!(row?.cells?.get?.(from)?.values || []).length) continue
+      applied.set(projectId, acceptance)
+    }
+  }
+  return applied
+}
+
+// ── Reference baselines (F7) ─────────────────────────────────────────────────
+//
+// A held-still target state every project is measured against one by one,
+// instead of measuring the projects against each other. The two questions are
+// genuinely different: "do we agree" and "does everyone follow the standard"
+// have different answers as soon as the standard is not what the majority does.
+//
+// A baseline is a flat map from row key to the status that is supposed to hold.
+// It is a *copy*, deliberately: the point is that it stays put while the
+// projects move.
+
+/**
+ * A baseline taken from one project's column.
+ *
+ * A cell that contradicts itself is left out and reported in `skipped` instead:
+ * a reference that freezes a contradiction is not a reference, and picking one
+ * of the two takes at random would put a coin toss into every later figure. So
+ * is a status the scale does not know — there would be no distance to measure
+ * against it.
+ */
+export function buildBaselineFromProject(rows, projectId) {
+  const entries = {}
+  const skipped = []
+
+  for (const row of rows || []) {
+    const values = row?.cells?.get?.(projectId)?.values || []
+    if (!values.length) continue
+    const statuses = new Set(values.map((value) => normalize(value.status)))
+    if (statuses.size > 1) {
+      skipped.push({ key: row.key, name: row.name, reason: DELTA.INCONSISTENT })
+      continue
+    }
+    if (statusRank(values[0].status) === -1) {
+      skipped.push({ key: row.key, name: row.name, reason: DELTA.UNSET })
+      continue
+    }
+    entries[row.key] = { name: row.name, status: canonicalStatus(values[0].status) }
+  }
+  return { entries, skipped }
+}
+
+/**
+ * A baseline taken from what the projects mostly say: per row the most common
+ * status among the selected projects.
+ *
+ * A tie is skipped rather than broken. "Half of us say Adopt and half say
+ * Retire" is not a target state, and picking the alphabetically first one would
+ * dress a disagreement up as a decision.
+ */
+export function buildBaselineFromConsensus(rows, projectIds) {
+  const selected = projectIds || []
+  const entries = {}
+  const skipped = []
+
+  for (const row of rows || []) {
+    const tally = new Map()
+    for (const projectId of selected) {
+      const values = row?.cells?.get?.(projectId)?.values || []
+      if (values.length !== 1) continue
+      const rank = statusRank(values[0].status)
+      if (rank === -1) continue
+      tally.set(rank, (tally.get(rank) || 0) + 1)
+    }
+    if (!tally.size) {
+      skipped.push({ key: row.key, name: row.name, reason: DELTA.UNSET })
+      continue
+    }
+    const top = Math.max(...tally.values())
+    const leaders = [...tally.entries()].filter(([, count]) => count === top)
+    if (leaders.length > 1) {
+      skipped.push({ key: row.key, name: row.name, reason: 'tie' })
+      continue
+    }
+    entries[row.key] = { name: row.name, status: STATUS_LABELS[leaders[0][0]] }
+  }
+  return { entries, skipped }
+}
+
+/** The status a baseline holds for a row, or '' when it does not list it. */
+export function baselineStatusOf(baseline, rowKey) {
+  return baseline?.entries?.[rowKey]?.status || ''
+}
+
+/**
+ * The rank a project contributes to a row once its silent acceptance is taken
+ * into account, or -1 when it contributes none.
+ *
+ * -1 covers three different situations on purpose — no entry, several
+ * contradictory ones, and a status the scale does not know. They differ in what
+ * they mean, and every caller reports that difference in its own way, but they
+ * are the same thing to arithmetic: there is no distance to measure.
+ */
+function acceptedRankOf(row, projectId, applied) {
+  const acceptance = applied?.get?.(projectId)
+  const source = acceptance?.mode === 'status' ? acceptance.acceptedFrom : projectId
+  const values = row?.cells?.get?.(source)?.values || []
+  if (values.length !== 1) return -1
+  return statusRank(values[0].status)
+}
+
 /**
  * The Δ status of a row: exactly one badge, chosen by the fixed precedence from
  * design §5.3. The conditions are not mutually exclusive — a term can be
  * inconsistent in project A and unrated in project B — so the order is what
  * keeps `Excluded` free of overlap (DE-8).
  *
- *   1. —              coverage unique
- *   2. ⚠ inconsistent DE-3
- *   3. ⊘ unset        DE-7
- *   4. ✎ accepted     an override is set
- *   5. ✓ ▲ ▲▲ ▲▲▲     status distance
+ *   1. —                 nothing to compare
+ *   2. ⚠ inconsistent    DE-3
+ *   3. ⊘ unset           DE-7
+ *   4. ✎ accepted        an override is set
+ *   5. ≈ silent          a silent acceptance settled it (F3)
+ *   6. ✓ ▲ ▲▲ ▲▲▲        status distance
  *
  * Step 1 is first because it enforces `Excluded ⊆ Compared`: what is not
  * compared at all cannot be excluded from the comparison. Steps 2 and 3 outrank
  * the override because a data finding must not be hidden by an accepted
  * difference, and 2 before 3 because two contradictory ratings inside one
- * project are the more urgent finding than a missing one.
+ * project are the more urgent finding than a missing one. The override outranks
+ * the silent acceptance because it is the explicit decision of the two.
+ *
+ * Step 1 is also where an accepted *absence* earns the row its place: a term
+ * only one project rates is normally `—`, but once another project has said it
+ * goes along with that rating, there is something to report.
  *
  * An excluded state takes the term out of the distance calculation *entirely*.
  * Dropping just the affected project and deriving a distance from the rest would
- * report an agreement produced by omission (design §6.1).
+ * report an agreement produced by omission (design §6.1). A silent acceptance is
+ * the one case where a project's own value is set aside — and only because
+ * somebody said in so many words that it should be.
  *
  * `reasons` lists every condition that also applies, for the cell tooltip —
  * nothing is hidden, it is only counted once.
  *
  * @returns {{ delta: string, distance: number|null, reasons: string[] }}
  */
-export function deltaOf(row, projectIds, { coverage = null, override = null } = {}) {
+export function deltaOf(
+  row,
+  projectIds,
+  { coverage = null, override = null, acceptances = null, baseline = null } = {}
+) {
   const effectiveCoverage = coverage || coverageOf(row, projectIds)
   const reasons = []
+  const applied = effectiveAcceptances(row, projectIds, acceptances)
 
-  const participating = (projectIds || [])
-    .map((projectId) => row?.cells?.get?.(projectId))
-    .filter((cell) => (cell?.values || []).length > 0)
+  const participatingIds = (projectIds || []).filter(
+    (projectId) => (row?.cells?.get?.(projectId)?.values || []).length > 0
+  )
+  const participating = participatingIds.map((projectId) => row.cells.get(projectId))
 
   const inconsistent = participating.some(isCellInconsistent)
   const unset = participating.some((cell) => cell.values.some((value) => normalize(value.status) === ''))
   const accepted = override?.level === 'accepted'
+  const silent = applied.size > 0
 
   if (inconsistent) reasons.push(DELTA.INCONSISTENT)
   if (unset) reasons.push(DELTA.UNSET)
   if (accepted) reasons.push(DELTA.ACCEPTED)
+  if (silent) reasons.push(DELTA.SILENT)
 
-  if (effectiveCoverage === COVERAGE.UNIQUE) return { delta: DELTA.NONE, distance: null, reasons }
+  // Against a reference (F7) the question is a different one: not "do the
+  // projects agree with each other" but "does each of them match the target".
+  // A term the reference does not list has no target to match, and a term no
+  // project uses is a gap in the projects rather than a divergence between
+  // them — both are reported as themselves rather than folded into `—`.
+  if (baseline) {
+    const target = statusRank(baselineStatusOf(baseline, row?.key))
+    if (target === -1) return { delta: DELTA.UNLISTED, distance: null, reasons }
+    if (!participating.length) return { delta: DELTA.MISSING, distance: null, reasons }
+    if (inconsistent) return { delta: DELTA.INCONSISTENT, distance: null, reasons }
+    if (unset) return { delta: DELTA.UNSET, distance: null, reasons }
+    if (accepted) return { delta: DELTA.ACCEPTED, distance: null, reasons }
+
+    const ranks = participatingIds.map((projectId) => {
+      const acceptance = applied.get(projectId)
+      const source = acceptance?.mode === 'status' ? acceptance.acceptedFrom : projectId
+      return statusRank(row.cells.get(source).values[0].status)
+    })
+    // The same reading as in peer mode: a status the scale does not know has no
+    // distance to the target. `|-1 - target|` is an arithmetic result, not a
+    // distance — reporting it would turn "we cannot say" into "▲ minor".
+    if (ranks.some((rank) => rank === -1)) {
+      if (!reasons.includes(DELTA.UNSET)) reasons.push(DELTA.UNSET)
+      return { delta: DELTA.UNSET, distance: null, reasons }
+    }
+    const worst = Math.max(...ranks.map((rank) => Math.abs(rank - target)))
+    if (override?.level === 'critical') return { delta: DELTA.CRITICAL, distance: worst, reasons }
+    if (silent && worst === 0) return { delta: DELTA.SILENT, distance: worst, reasons }
+    return { delta: classifyDistance(worst), distance: worst, reasons }
+  }
+
+  // A project that accepts the absence joins the comparison without adding a
+  // rank: it is a voice, not a second data point. It is also the only thing
+  // that can pull a `◑ unique` row into the comparison — and it still needs
+  // somebody to be accepting *something*.
+  const acceptedAbsences = [...applied.values()].filter((entry) => entry.mode === 'absence').length
+  const notCompared =
+    participating.length === 0 || (effectiveCoverage === COVERAGE.UNIQUE && acceptedAbsences === 0)
+  if (notCompared) return { delta: DELTA.NONE, distance: null, reasons }
   if (inconsistent) return { delta: DELTA.INCONSISTENT, distance: null, reasons }
   if (unset) return { delta: DELTA.UNSET, distance: null, reasons }
   if (accepted) return { delta: DELTA.ACCEPTED, distance: null, reasons }
 
   // Every participating cell holds exactly one status here: inconsistency and
-  // unset are already ruled out above.
-  const ranks = participating.map((cell) => statusRank(cell.values[0].status))
+  // unset are already ruled out above. A project accepting another's status
+  // contributes that other project's rank instead of its own.
+  const ranks = participatingIds.map((projectId) => {
+    const acceptance = applied.get(projectId)
+    const source = acceptance?.mode === 'status' ? acceptance.acceptedFrom : projectId
+    return statusRank(row.cells.get(source).values[0].status)
+  })
   // A status outside the five-step scale (an imported catalog could bring one)
   // has no defined distance. Treating it as unset is the honest reading: we
   // cannot say how far apart the projects are.
@@ -321,8 +562,11 @@ export function deltaOf(row, projectIds, { coverage = null, override = null } = 
   const distance = maxDistance(ranks)
   // An upgrade to critical stays *in* Comparable and counts as critical
   // (design §6.2) — unlike "accepted", which takes the term out of it.
-  const delta = override?.level === 'critical' ? DELTA.CRITICAL : classifyDistance(distance)
-  return { delta, distance, reasons }
+  if (override?.level === 'critical') return { delta: DELTA.CRITICAL, distance, reasons }
+  // A remaining distance means a *third* project still disagrees. Two projects
+  // settling their difference must not hide that one.
+  if (silent && distance === 0) return { delta: DELTA.SILENT, distance, reasons }
+  return { delta: classifyDistance(distance), distance, reasons }
 }
 
 /**
@@ -370,20 +614,37 @@ export function agreementLevel(percent) {
  *
  * Three invariants hold by construction and are asserted in the tests (DE-8):
  *   1. matches + minor + significant + critical === comparable
- *   2. `excluded` counts only within `compared` — never a unique term
+ *   2. `excluded` counts only within `compared` — never an uncompared term
  *   3. no term appears in two exclusion reasons; unset + inconsistent +
  *      accepted === excluded exactly, not approximately
  *
- * The second holds because coverage `unique` is the *first* step of the badge
- * precedence: a unique term can very well be internally inconsistent or unrated
- * (DE-3 needs only one project for that), but it was never part of `compared`.
+ * The second holds because `—` is the *first* step of the badge precedence: an
+ * uncompared term can very well be internally inconsistent or unrated (DE-3
+ * needs only one project for that), but it was never part of `compared`.
  * Counting it would subtract something that was never in there and make
  * `comparable` too small.
+ *
+ * Whether a row is compared is read off its Δ rather than off its coverage: a
+ * silently accepted absence (F3) leaves the coverage at `◑ unique` — that is
+ * still the fact of the matter — while the row does now belong in the
+ * comparison. Coverage reports what the data says, Δ reports what it means.
+ *
+ * `silent` counts as a match, because that is what it is: agreement. It is also
+ * reported on its own, so a high agreement figure can always be asked how much
+ * of it was decided rather than found.
  */
-export function computeMetrics(rows, projectIds, { overrides = {}, vocabulary = null } = {}) {
+export function computeMetrics(
+  rows,
+  projectIds,
+  { overrides = {}, acceptances = {}, baseline = null, vocabulary = null, ignoredCount = 0 } = {}
+) {
   const selected = projectIds || []
   const counts = {
     total: rows.length,
+    // Rows taken out by hand. Counted *next to* the figures rather than in
+    // them, so nobody reads an agreement that was produced by leaving things
+    // out without seeing how much was left out (F1).
+    ignored: ignoredCount,
     all: 0,
     partial: 0,
     unique: 0,
@@ -395,6 +656,12 @@ export function computeMetrics(rows, projectIds, { overrides = {}, vocabulary = 
     accepted: 0,
     comparable: 0,
     matches: 0,
+    // Part of `matches`, never in addition to it (F3).
+    silent: 0,
+    // Baseline mode only (F7): rows with no target to match, and targets no
+    // project uses. Neither is a divergence, so neither is compared.
+    unlisted: 0,
+    missing: 0,
     minor: 0,
     significant: 0,
     critical: 0
@@ -406,23 +673,42 @@ export function computeMetrics(rows, projectIds, { overrides = {}, vocabulary = 
   for (const row of rows) {
     const coverage = coverageOf(row, selected)
     const override = row.term ? overrides[row.term.id] || null : null
-    const { delta } = deltaOf(row, selected, { coverage, override })
+    const { delta } = deltaOf(row, selected, { coverage, override, acceptances: acceptances[row.key], baseline })
 
-    if (coverage === COVERAGE.ALL) counts.all++
-    if (coverage === COVERAGE.PARTIAL) counts.partial++
-    if (coverage === COVERAGE.UNIQUE) {
-      counts.unique++
-      const owner = selected.find((projectId) => (row.cells.get(projectId)?.values || []).length > 0)
-      if (owner !== undefined) counts.uniqueByProject[owner]++
-      // Everything below is scoped to `compared` on purpose.
+    // The coverage buckets describe what the *projects* say. A reference row no
+    // project produced (F7) says nothing about coverage: coverageOf reports it
+    // as `unique` because it conflates "one project" with "none", and counting
+    // it there would make `unique` bigger than its own per-project breakdown.
+    // It is reported as `⊖ missing` below instead.
+    const owner = selected.find((projectId) => (row.cells.get(projectId)?.values || []).length > 0)
+    if (owner !== undefined) {
+      if (coverage === COVERAGE.ALL) counts.all++
+      if (coverage === COVERAGE.PARTIAL) counts.partial++
+      if (coverage === COVERAGE.UNIQUE) {
+        counts.unique++
+        counts.uniqueByProject[owner]++
+      }
+    }
+
+    // Everything below is scoped to `compared` on purpose.
+    if (delta === DELTA.UNLISTED) {
+      counts.unlisted++
       continue
     }
+    if (delta === DELTA.MISSING) {
+      counts.missing++
+      continue
+    }
+    if (delta === DELTA.NONE) continue
 
     counts.compared++
     if (delta === DELTA.INCONSISTENT) counts.inconsistent++
     else if (delta === DELTA.UNSET) counts.unset++
     else if (delta === DELTA.ACCEPTED) counts.accepted++
-    else if (delta === DELTA.MATCH) counts.matches++
+    else if (delta === DELTA.SILENT) {
+      counts.silent++
+      counts.matches++
+    } else if (delta === DELTA.MATCH) counts.matches++
     else if (delta === DELTA.MINOR) counts.minor++
     else if (delta === DELTA.SIGNIFICANT) counts.significant++
     else if (delta === DELTA.CRITICAL) counts.critical++
@@ -437,6 +723,109 @@ export function computeMetrics(rows, projectIds, { overrides = {}, vocabulary = 
   return counts
 }
 
+/**
+ * How closely each project follows a reference, one project at a time (F7).
+ *
+ * This is the figure the reference exists for: `agreementPercent` says whether
+ * the projects agree with *each other*, which can be high while every one of
+ * them ignores the target. Counted only over rows the reference lists and the
+ * project actually rates — a project cannot follow a target it was never asked
+ * about, and counting those as misses would punish it for the reference being
+ * broader than its own scope.
+ *
+ * `comparedRows` travels with the percentage everywhere it is shown. 100 % out
+ * of three rows and 100 % out of three hundred are not the same statement.
+ */
+export function computeBaselineAgreement(rows, projectIds, baseline, { acceptances = {} } = {}) {
+  const result = {}
+
+  for (const projectId of projectIds || []) {
+    const byClass = { match: 0, minor: 0, significant: 0, critical: 0 }
+    let comparedRows = 0
+
+    for (const row of rows || []) {
+      const target = statusRank(baselineStatusOf(baseline, row.key))
+      if (target === -1) continue
+
+      const applied = effectiveAcceptances(row, projectIds, acceptances[row.key])
+      const rank = acceptedRankOf(row, projectId, applied)
+      if (rank === -1) continue
+
+      comparedRows++
+      byClass[classifyDistance(Math.abs(rank - target))]++
+    }
+
+    result[projectId] = {
+      comparedRows,
+      byClass,
+      percent: comparedRows === 0 ? 0 : Math.round((byClass.match / comparedRows) * 100)
+    }
+  }
+  return result
+}
+
+/**
+ * How far apart two projects are, one pair at a time (F8).
+ *
+ * The summary's `agreementPercent` is a single number over all projects at
+ * once: it says *that* the workspace disagrees, never *who* with whom. Three
+ * projects where two are identical and the third is far out read exactly like
+ * three projects that each drift a little.
+ *
+ *   percent = Σ distance / (4 × comparedRows) × 100
+ *
+ * 0 % is identical, 100 % is every term at opposite ends of the scale. Counted
+ * over the rows where *both* projects give exactly one status on the scale —
+ * anywhere else there is no defined distance, and guessing one would be putting
+ * a number on an absence.
+ *
+ * A project that silently accepted the other's status (F3) is measured by what
+ * it accepted, exactly as everywhere else: the pair settled it, so the pair is
+ * not apart on that row. It is *not* dropped from the count, though — dropping
+ * the rows two projects agree on would remove the zeros and drive the figure up
+ * the more they agree.
+ *
+ * `comparedRows` is returned with every percentage and must be shown with it:
+ * 100 % out of three rows and 100 % out of three hundred are not the same
+ * statement.
+ */
+export function computePairwiseDivergence(rows, projectIds, { acceptances = {} } = {}) {
+  const ids = projectIds || []
+  const worstDistance = STATUS_SCALE.length - 1
+  const pairs = []
+
+  for (let first = 0; first < ids.length; first++) {
+    for (let second = first + 1; second < ids.length; second++) {
+      const a = ids[first]
+      const b = ids[second]
+      const byClass = { match: 0, minor: 0, significant: 0, critical: 0 }
+      let comparedRows = 0
+      let total = 0
+
+      for (const row of rows || []) {
+        const applied = effectiveAcceptances(row, ids, acceptances[row.key])
+        const rankA = acceptedRankOf(row, a, applied)
+        const rankB = acceptedRankOf(row, b, applied)
+        if (rankA === -1 || rankB === -1) continue
+
+        const distance = Math.abs(rankA - rankB)
+        comparedRows++
+        total += distance
+        byClass[classifyDistance(distance)]++
+      }
+
+      pairs.push({
+        a,
+        b,
+        comparedRows,
+        byClass,
+        percent: comparedRows === 0 ? 0 : Math.round((total / (comparedRows * worstDistance)) * 100)
+      })
+    }
+  }
+  return pairs
+}
+
 export const OVERRIDE_LEVELS = ['accepted', 'critical']
 
 /**
@@ -446,12 +835,12 @@ export const OVERRIDE_LEVELS = ['accepted', 'critical']
  * offers the vocabulary assignment first there, which keeps overrides from being
  * orphaned on a spelling that disappears a moment later. And not on a row that
  * already falls out of `Comparable` for another reason (`⚠ inconsistent`,
- * `⊘ unset`) or is not compared at all (`◑ unique`): there is no automatic
- * classification to override.
+ * `⊘ unset`) or is not compared at all (`◑ unique`, and against a reference
+ * `⊙ unlisted` / `⊖ missing`): there is no automatic classification to override.
  */
 export function canOverride(row, delta) {
   if (!row?.resolved || !row?.term?.id) return false
-  return delta !== DELTA.NONE && delta !== DELTA.INCONSISTENT && delta !== DELTA.UNSET
+  return ![DELTA.NONE, DELTA.INCONSISTENT, DELTA.UNSET, DELTA.UNLISTED, DELTA.MISSING].includes(delta)
 }
 
 /**
@@ -500,6 +889,32 @@ export function isOverrideStale(override, row, delta, projectIds) {
   if (!override) return false
   if (!canOverride(row, delta)) return true
   return isOverrideContextChanged(override, row, projectIds)
+}
+
+/**
+ * The projects whose silent acceptance (F3) needs looking at: it is stored but
+ * either does not apply any more, or was taken in a situation that has since
+ * moved on.
+ *
+ * The same reasoning as for overrides, and deliberately the same context check:
+ * a project must not go on silently agreeing with a statement nobody is making
+ * any more. The decision is kept either way — it is the user's reasoning, not
+ * the engine's — but it is flagged rather than applied quietly.
+ */
+export function staleAcceptanceProjectIds(row, projectIds, acceptances, applied = null) {
+  const inForce = applied || effectiveAcceptances(row, projectIds, acceptances)
+  const selected = new Set(projectIds || [])
+  const stale = []
+
+  for (const [projectId, acceptance] of Object.entries(acceptances || {})) {
+    if (!selected.has(projectId)) continue
+    if (!inForce.has(projectId)) {
+      stale.push(projectId)
+      continue
+    }
+    if (isOverrideContextChanged(acceptance, row, projectIds)) stale.push(projectId)
+  }
+  return stale
 }
 
 /**
@@ -606,7 +1021,12 @@ export function exactMatchGroups(units, aliasIndex) {
  * `inconsistent` in the same column (design §5.3).
  */
 export function markPossibleFalseDifferences(decorated) {
-  const unresolvedUnique = decorated.filter((row) => row.coverage === COVERAGE.UNIQUE && !row.resolved)
+  // `row.cells.size === 0` is the reference's own row for a target no project
+  // uses (F7). ⁉ says "this difference may not be real"; that row is not a
+  // difference at all, it is the gap the reference exists to show.
+  const unresolvedUnique = decorated.filter(
+    (row) => row.coverage === COVERAGE.UNIQUE && !row.resolved && row.cells.size > 0
+  )
   const flagged = new Set(unresolvedUnique.map((row) => row.key))
   if (!unresolvedUnique.length) return flagged
 
@@ -635,43 +1055,221 @@ export function markPossibleFalseDifferences(decorated) {
 /**
  * The full comparison result: one decorated row per term, plus the metrics. This
  * is what the view renders — it may sort and filter, but must not compute.
+ *
+ * Rows marked "not important" (F1) come back separately in `ignoredRows` and
+ * are absent from `rows` and from every metric, `total` included. That is the
+ * difference between the mark and a filter: a filter hides a row from the eye,
+ * this one takes it out of the question being asked. `metrics.ignored` says how
+ * many, so a figure produced by leaving things out still announces itself.
  */
-export function buildComparison(workspace, projectIds, { source = 'radar', visibleKinds = null, aliasIndex } = {}) {
+export function buildComparison(
+  workspace,
+  projectIds,
+  { source = 'radar', visibleKinds = null, aliasIndex, baseline = null } = {}
+) {
   const allUnits = collectUnits(workspace, projectIds, { source, aliasIndex })
   const units = visibleKinds ? allUnits.filter((unit) => visibleKinds.includes(unit.kind)) : allUnits
   const overrides = workspace?.comparisonOverrides || {}
+  const ignored = workspace?.comparisonIgnored || {}
+  const acceptances = workspace?.comparisonAcceptances || {}
 
+  // A reference can hold a target for a term no selected project uses at all.
+  // No unit produces that row, so it would simply be absent — and a target
+  // nobody follows is exactly the thing a reference is meant to surface. The
+  // row is built empty and lands on `⊖ missing` in deltaOf.
   const rows = buildRows(units, aliasIndex)
+  if (baseline) {
+    const present = new Set(rows.map((row) => row.key))
+    for (const [key, entry] of Object.entries(baseline.entries || {})) {
+      if (present.has(key)) continue
+      rows.push({
+        key,
+        term: null,
+        name: entry?.name || key,
+        resolved: key.startsWith('term:'),
+        kind: 'unassigned',
+        cells: new Map()
+      })
+    }
+  }
+
   const decorated = rows.map((row) => {
     const coverage = coverageOf(row, projectIds)
     const override = row.term ? overrides[row.term.id] || null : null
-    const { delta, distance, reasons } = deltaOf(row, projectIds, { coverage, override })
+    const rowAcceptances = acceptances[row.key] || null
+    const { delta, distance, reasons } = deltaOf(row, projectIds, {
+      coverage,
+      override,
+      acceptances: rowAcceptances,
+      baseline
+    })
+    const applied = effectiveAcceptances(row, projectIds, rowAcceptances)
     return {
       ...row,
       coverage,
       delta,
       distance,
       reasons,
+      baselineStatus: baseline ? baselineStatusOf(baseline, row.key) : '',
       override,
       overrideStale: isOverrideStale(override, row, delta, projectIds),
-      canOverride: canOverride(row, delta)
+      canOverride: canOverride(row, delta),
+      ignored: ignored[row.key] || null,
+      // What is stored, and what of it actually applies right now — the two are
+      // deliberately kept apart so the cell can show a decision that no longer
+      // fits the data instead of quietly dropping it.
+      acceptances: rowAcceptances,
+      appliedAcceptances: applied,
+      staleAcceptances: staleAcceptanceProjectIds(row, projectIds, rowAcceptances, applied)
     }
   })
 
-  const flagged = markPossibleFalseDifferences(decorated)
+  // The ⁉ marker is derived over the rows that are actually compared: an
+  // ignored row cannot be a false difference, because it is not a difference.
+  const compared = decorated.filter((row) => !row.ignored)
+  const ignoredRows = decorated.filter((row) => row.ignored)
+  const flagged = markPossibleFalseDifferences(compared)
   decorated.forEach((row) => {
     row.possibleFalseDifference = flagged.has(row.key)
   })
 
+  const measured = rows.filter((row) => !ignored[row.key])
   return {
     allUnits,
     units,
-    rows: decorated,
-    metrics: computeMetrics(rows, projectIds, {
+    rows: compared,
+    ignoredRows,
+    baseline,
+    // Only meaningful against a reference; an empty object otherwise, so the
+    // view never has to guard for the shape.
+    baselineAgreement: baseline ? computeBaselineAgreement(measured, projectIds, baseline, { acceptances }) : {},
+    pairwiseDivergence: computePairwiseDivergence(measured, projectIds, { acceptances }),
+    metrics: computeMetrics(measured, projectIds, {
       overrides,
+      acceptances,
+      baseline,
+      ignoredCount: ignoredRows.length,
       vocabulary: vocabularyCoverage(allUnits, aliasIndex)
     })
   }
+}
+
+// ── Sorting the matrix (F6) ──────────────────────────────────────────────────
+//
+// The table is sorted by clicking a column header, so the comparator has to
+// know about every column — including one per project. It lives here rather
+// than in the view for the same reason everything else does: ordering rows by
+// "worst status in this project" is a statement about the comparison, not about
+// the table.
+//
+// `asc` is the order a first click produces, and it is the *useful* one per
+// column rather than a literal ascent: the thing worth looking at first comes
+// first. Sorting a matrix of findings alphabetically-by-accident on the first
+// click is the behaviour this replaces.
+
+/** Widest coverage first. */
+export const COVERAGE_SORT_ORDER = [COVERAGE.ALL, COVERAGE.PARTIAL, COVERAGE.UNIQUE]
+
+/** Most notable divergence first; `—` (nothing to compare) last. */
+export const DELTA_SORT_ORDER = [
+  DELTA.CRITICAL,
+  DELTA.SIGNIFICANT,
+  DELTA.MINOR,
+  DELTA.INCONSISTENT,
+  DELTA.UNSET,
+  DELTA.ACCEPTED,
+  DELTA.SILENT,
+  DELTA.MATCH,
+  DELTA.NONE
+]
+
+export const SORT_COLUMN = { TERM: 'term', BASELINE: 'baseline', COVERAGE: 'coverage', DELTA: 'delta' }
+
+/** The sort column id of a project column. */
+export function projectSortColumn(projectId) {
+  return `project:${projectId}`
+}
+
+/** The project id a project column sorts by, or '' for any other column. */
+export function projectIdOfSortColumn(column) {
+  return String(column || '').startsWith('project:') ? String(column).slice('project:'.length) : ''
+}
+
+/**
+ * How a row ranks in one project's column.
+ *
+ * Three groups, and the group is *never* flipped by the sort direction: a cell
+ * the project says nothing about belongs at the end either way. It is not the
+ * "best" or the "worst" status, it is the absence of one, and letting it head
+ * the table on a descending sort would read as a finding.
+ *
+ * Within the ranked group a cell with several takes counts by its worst one —
+ * the same reading the ⚠ badge already gives that cell.
+ */
+function projectSortKey(row, projectId) {
+  const values = row?.cells?.get?.(projectId)?.values || []
+  if (!values.length) return { group: 2, rank: 0 }
+  const ranked = values.map((value) => statusRank(value.status)).filter((rank) => rank !== -1)
+  if (!ranked.length) return { group: 1, rank: 0 }
+  return { group: 0, rank: Math.max(...ranked) }
+}
+
+/** Index in a fixed order, with anything unknown sorted after all of it. */
+function orderIndex(order, value) {
+  const index = order.indexOf(value)
+  return index === -1 ? order.length : index
+}
+
+/**
+ * Compares two decorated rows for one column and direction.
+ *
+ * The term name is always the tiebreaker, so the same selection sorts the same
+ * way twice. Without it the order would depend on the order the rows happened
+ * to be built in, and the table would rearrange itself under an unrelated edit.
+ */
+export function compareRows(a, b, { column = SORT_COLUMN.TERM, direction = 'asc' } = {}) {
+  const sign = direction === 'desc' ? -1 : 1
+  const byName = String(a?.name || '').localeCompare(String(b?.name || ''))
+
+  const projectId = projectIdOfSortColumn(column)
+  if (projectId) {
+    const keyA = projectSortKey(a, projectId)
+    const keyB = projectSortKey(b, projectId)
+    if (keyA.group !== keyB.group) return keyA.group - keyB.group
+    if (keyA.rank !== keyB.rank) return sign * (keyA.rank - keyB.rank)
+    return byName
+  }
+
+  if (column === SORT_COLUMN.BASELINE) {
+    // Same reading as a project column: best target first, no target last.
+    const rankA = statusRank(a?.baselineStatus)
+    const rankB = statusRank(b?.baselineStatus)
+    if (rankA === -1 || rankB === -1) {
+      if (rankA !== rankB) return rankA === -1 ? 1 : -1
+      return byName
+    }
+    if (rankA !== rankB) return sign * (rankA - rankB)
+    return byName
+  }
+
+  if (column === SORT_COLUMN.COVERAGE) {
+    const byCoverage = orderIndex(COVERAGE_SORT_ORDER, a?.coverage) - orderIndex(COVERAGE_SORT_ORDER, b?.coverage)
+    if (byCoverage !== 0) return sign * byCoverage
+    return byName
+  }
+
+  if (column === SORT_COLUMN.DELTA) {
+    const byDelta = orderIndex(DELTA_SORT_ORDER, a?.delta) - orderIndex(DELTA_SORT_ORDER, b?.delta)
+    if (byDelta !== 0) return sign * byDelta
+    return byName
+  }
+
+  return sign * byName
+}
+
+/** The rows in the order one column asks for. Does not mutate the input. */
+export function sortRows(rows, options = {}) {
+  return [...(rows || [])].sort((a, b) => compareRows(a, b, options))
 }
 
 // ── Radar overlay (design §5.4) ──────────────────────────────────────────────
@@ -803,9 +1401,6 @@ export function buildRadarOverlay(rows, projectIds, referenceProject, { minConfl
 
   return { points, conflicts, withoutStatus }
 }
-
-/** Display form of the five rings, from the innermost outwards. */
-export const STATUS_LABELS = ['Adopt', 'Trial', 'Assess', 'Hold', 'Retire']
 
 /**
  * Quadrant angle ranges in SVG radians (y down, positive is clockwise), in the

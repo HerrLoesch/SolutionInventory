@@ -106,6 +106,33 @@ describe('buildComparisonExport', () => {
     expect(term).toHaveProperty('delta')
   })
 
+  it('names the terms marked as not important, so an omission is not silent', () => {
+    const { index } = buildAliasIndex(designExample.vocabulary)
+    const ignoredWorkspace = { ...designExample, comparisonIgnored: {} }
+    const { rows } = buildComparison(ignoredWorkspace, PROJECTS, { aliasIndex: index })
+    const victim = rows[0]
+    ignoredWorkspace.comparisonIgnored = { [victim.key]: { reason: 'out of scope', setAt: '2026-09-07T09:00:00.000Z' } }
+
+    const built = buildComparison(ignoredWorkspace, PROJECTS, { aliasIndex: index })
+    const data = exportOf({
+      workspace: ignoredWorkspace,
+      rows: built.rows,
+      metrics: built.metrics,
+      ignoredRows: built.ignoredRows
+    })
+
+    expect(data.terms.map((term) => term.name)).not.toContain(victim.name)
+    expect(data.ignored).toEqual([
+      expect.objectContaining({ name: victim.name, reason: 'out of scope', setAt: '2026-09-07T09:00:00.000Z' })
+    ])
+    expect(buildComparisonHtml(data)).toContain('Not important')
+  })
+
+  it('carries an empty list when nothing was marked, rather than omitting the field', () => {
+    expect(exportOf().ignored).toEqual([])
+    expect(buildComparisonHtml(exportOf())).not.toContain('Not important')
+  })
+
   it('carries the overrides in force', () => {
     expect(Object.keys(exportOf().overrides)).toHaveLength(2)
   })
@@ -121,6 +148,18 @@ describe('buildComparisonExport', () => {
 
 // Todo 6.3: a report that leaves the tool must carry its own uncertainty.
 describe('unresolved names in the export', () => {
+  it('gives every status one spelling and keeps the stored one next to it', () => {
+    const data = exportOf()
+    const values = data.terms.flatMap((term) => term.projects.flatMap((project) => project.values))
+
+    values
+      .filter((value) => value.status)
+      .forEach((value) => {
+        expect(['Adopt', 'Trial', 'Assess', 'Hold', 'Retire']).toContain(value.status)
+        expect(value).toHaveProperty('rawStatus')
+      })
+  })
+
   it('marks every unresolved term', () => {
     const data = exportOf()
     const unresolved = data.terms.filter((term) => term.unresolved)

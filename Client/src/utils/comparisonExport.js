@@ -7,6 +7,8 @@
 // was resolved (Todo 6.3). Without that a reader cannot tell a real divergence
 // from two spellings of the same thing.
 
+import { canonicalStatus } from '../services/comparison'
+
 const COVERAGE_LABELS = { all: '◉ all', partial: '◐ partial', unique: '◑ unique' }
 const DELTA_LABELS = {
   none: '—',
@@ -16,7 +18,10 @@ const DELTA_LABELS = {
   critical: '▲▲▲ critical',
   inconsistent: '⚠ inconsistent',
   unset: '⊘ unset',
-  accepted: '✎ accepted'
+  accepted: '✎ accepted',
+  silent: '≈ silently accepted',
+  unlisted: '⊙ not in the reference',
+  missing: '⊖ in the reference, unused'
 }
 
 function esc(value) {
@@ -47,6 +52,10 @@ export function buildComparisonExport({
   dataSource,
   visibleKinds,
   overlay = null,
+  ignoredRows = [],
+  baseline = null,
+  baselineAgreement = null,
+  pairwiseDivergence = [],
   exportedAt = new Date().toISOString()
 }) {
   return {
@@ -59,6 +68,20 @@ export function buildComparisonExport({
       projects: projectIds.map((projectId) => ({ id: projectId, name: projectNameOf(projects, projectId) }))
     },
     metrics,
+    // Who is apart from whom, not just that the workspace is. Each entry
+    // carries the number of rows behind its percentage (F8).
+    pairwiseDivergence,
+    // The reference travels whole, not just its name. A report that says a
+    // project follows the target 62 % of the time is unreadable without the
+    // target itself (F7).
+    baseline: baseline
+      ? {
+          name: baseline.name,
+          origin: baseline.origin || {},
+          entries: baseline.entries || {},
+          agreement: baselineAgreement || {}
+        }
+      : null,
     terms: rows.map((row) => ({
       name: row.name,
       termId: row.term?.id || null,
@@ -70,17 +93,41 @@ export function buildComparisonExport({
       coverage: row.coverage,
       delta: row.delta,
       distance: row.distance,
+      baselineStatus: row.baselineStatus || '',
       otherReasons: row.reasons.filter((reason) => reason !== row.delta),
       override: row.override ? { ...row.override, needsReview: Boolean(row.overrideStale) } : null,
       projects: projectIds.map((projectId) => ({
         projectId,
+        // What this project silently accepted, if anything. `applies` is the
+        // difference between a decision in force and one the data has moved
+        // past — a reader must be able to tell the two apart (F3).
+        acceptance: row.acceptances?.[projectId]
+          ? {
+              ...row.acceptances[projectId],
+              applies: Boolean(row.appliedAcceptances?.get?.(projectId)),
+              needsReview: Boolean(row.staleAcceptances?.includes(projectId))
+            }
+          : null,
         values: (row.cells.get(projectId)?.values || []).map((value) => ({
-          status: value.status,
+          // The canonical spelling for reading, the stored one for tracing the
+          // value back into the project data (design F4).
+          status: canonicalStatus(value.status),
+          rawStatus: value.status,
           entryTitle: value.origin.entryTitle,
           categoryTitle: value.origin.categoryTitle,
           rawName: value.origin.rawName
         }))
       }))
+    })),
+    // Terms taken out of the comparison by hand. They are in none of the
+    // figures above, so the report has to name them: an agreement produced by
+    // leaving things out must say what was left out (F1).
+    ignored: ignoredRows.map((row) => ({
+      name: row.name,
+      termId: row.term?.id || null,
+      unresolved: !row.resolved,
+      reason: row.ignored?.reason || '',
+      setAt: row.ignored?.setAt || ''
     })),
     // The overlay travels as finished chart data — coordinates, colours and
     // symbol paths. The view already computed all of it, and a report that had
@@ -217,7 +264,15 @@ function overlaySection(overlay) {
 
 /** A standalone HTML report of the same content. */
 export function buildComparisonHtml(exportData) {
-  const { selection, metrics, terms, overlay } = exportData
+  const {
+    selection,
+    metrics,
+    terms,
+    overlay,
+    ignored = [],
+    baseline = null,
+    pairwiseDivergence = []
+  } = exportData
   const projectNames = selection.projects.map((project) => project.name)
 
   const header = [
@@ -246,6 +301,7 @@ export function buildComparisonHtml(exportData) {
       metrics.partial +
       ' &middot; ◑ ' +
       metrics.unique +
+      (metrics.ignored ? ' &middot; ⃠ ' + metrics.ignored + ' not important (excluded from every figure)' : '') +
       '</div>',
     '<div><strong>Compared</strong> ' +
       metrics.compared +
@@ -262,6 +318,7 @@ export function buildComparisonHtml(exportData) {
       '</div>',
     '<div>✓ ' +
       metrics.matches +
+      (metrics.silent ? ' (≈ ' + metrics.silent + ' silently accepted)' : '') +
       ' &middot; ▲ ' +
       metrics.minor +
       ' &middot; ▲▲ ' +
@@ -275,6 +332,7 @@ export function buildComparisonHtml(exportData) {
 
   const head =
     '<tr><th>Term</th>' +
+    (baseline ? '<th>&#9678; Reference</th>' : '') +
     selection.projects.map((project) => '<th>' + esc(project.name) + '</th>').join('') +
     '<th>Coverage</th><th>&Delta; Status</th></tr>'
 
@@ -310,6 +368,7 @@ export function buildComparisonHtml(exportData) {
         marker +
         esc(term.name) +
         '</td>' +
+        (baseline ? '<td class="baseline">' + esc(term.baselineStatus || '—') + '</td>' : '') +
         cells +
         '<td>' +
         esc(COVERAGE_LABELS[term.coverage] || term.coverage) +
@@ -338,8 +397,99 @@ export function buildComparisonHtml(exportData) {
     '.overlay .ring{font-size:9px;font-weight:600;text-transform:uppercase;}',
     '.overlay .quadrant{font-size:11px;font-weight:600;fill:rgba(0,0,0,.55);}',
     '.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:6px;}',
-    '.legend-item{display:inline-flex;align-items:center;gap:4px;}'
+    '.legend-item{display:inline-flex;align-items:center;gap:4px;}',
+    '.ignored{font-size:12px;color:rgba(0,0,0,.6);margin:0;padding-left:18px;}',
+    '.baseline{background:rgba(21,101,192,.06);}',
+    '.bar-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:4px;}',
+    '.bar-label{min-width:180px;}',
+    '.bar-track{flex:1 1 120px;max-width:260px;height:6px;border-radius:3px;background:rgba(0,0,0,.1);overflow:hidden;}',
+    '.bar-fill{display:block;height:100%;}'
   ].join('\n')
+
+  // The terms nobody wanted compared, named rather than silently missing.
+  const ignoredSection = ignored.length
+    ? [
+        '<h2>⃠ Not important</h2>',
+        '<p class="subtitle">Taken out of the comparison by hand. None of the figures above include them.</p>',
+        '<ul class="ignored">' +
+          ignored
+            .map(
+              (term) =>
+                '<li>' +
+                (term.unresolved ? '<span class="unresolved">◌</span> ' : '') +
+                esc(term.name) +
+                (term.reason ? ' — ' + esc(term.reason) : '') +
+                '</li>'
+            )
+            .join('') +
+          '</ul>'
+      ]
+    : []
+
+  // Bars as plain markup: a report that has to fetch a chart library is a
+  // report that shows nothing on a machine without a network.
+  function barRow(label, percent, comparedRows, colour) {
+    return (
+      '<div class="bar-row"><span class="bar-label">' +
+      esc(label) +
+      '</span><span class="bar-track"><span class="bar-fill" style="width:' +
+      Math.max(0, Math.min(100, percent)) +
+      '%;background:' +
+      colour +
+      '"></span></span><strong>' +
+      percent +
+      ' %</strong><span class="origin">over ' +
+      comparedRows +
+      (comparedRows === 1 ? ' term' : ' terms') +
+      '</span></div>'
+    )
+  }
+
+  function barColour(goodPercent) {
+    if (goodPercent >= 85) return '#2e7d32'
+    return goodPercent >= 65 ? '#ef6c00' : '#c62828'
+  }
+
+  const divergenceSection = pairwiseDivergence.filter((pair) => pair.comparedRows > 0).length
+    ? [
+        '<h2>How far apart the projects are</h2>',
+        pairwiseDivergence
+          .filter((pair) => pair.comparedRows > 0)
+          .slice()
+          .sort((first, second) => second.percent - first.percent)
+          .map((pair) =>
+            barRow(
+              projectNameOf(selection.projects, pair.a) + ' ↔ ' + projectNameOf(selection.projects, pair.b),
+              pair.percent,
+              pair.comparedRows,
+              barColour(100 - pair.percent)
+            )
+          )
+          .join('')
+      ]
+    : []
+
+  // How closely each project follows the reference — the figure the reference
+  // exists for, and one the peer agreement cannot stand in for.
+  const baselineSection =
+    baseline && Object.keys(baseline.agreement || {}).length
+      ? [
+          '<h2>&#9678; ' + esc(baseline.name) + '</h2>',
+          '<p class="subtitle">' +
+            Object.keys(baseline.entries || {}).length +
+            ' terms &middot; ' +
+            (baseline.origin && baseline.origin.kind === 'consensus'
+              ? 'taken from the consensus'
+              : 'taken from one project') +
+            '</p>',
+          selection.projects
+            .map((project) => {
+              const agreement = baseline.agreement[project.id] || { percent: 0, comparedRows: 0 }
+              return barRow(project.name, agreement.percent, agreement.comparedRows, barColour(agreement.percent))
+            })
+            .join('')
+        ]
+      : []
 
   return [
     '<!DOCTYPE html>',
@@ -357,6 +507,9 @@ export function buildComparisonHtml(exportData) {
     summary.join('\n'),
     '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>',
     '<p class="footnote">◌ marks a name the vocabulary does not resolve; such rows match on exact text only. ⁉ marks a possible false difference.</p>',
+    divergenceSection.join('\n'),
+    baselineSection.join('\n'),
+    ignoredSection.join('\n'),
     overlaySection(overlay).join('\n'),
     '</body>',
     '</html>'

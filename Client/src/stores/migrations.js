@@ -53,8 +53,8 @@ export function migrateProjectRadar(project) {
 }
 
 /**
- * Adds the three workspace-level fields the vocabulary and comparison features
- * own, if a stored workspace does not carry them yet. Runs version-independently
+ * Adds the workspace-level fields the vocabulary and comparison features own,
+ * if a stored workspace does not carry them yet. Runs version-independently
  * on every load, exactly like migrateProjectRadar above and for the same reason:
  * a missing field is an *absence*, not an older format, so it needs no
  * STORAGE_VERSION bump and no entry in runWorkspaceMigrations. Bumping would
@@ -62,9 +62,9 @@ export function migrateProjectRadar(project) {
  * applyStoredData passes the workspace through whole, so unknown fields survive
  * a round trip through a build that does not know them.
  *
- * All three are added together even though only `vocabulary` is used at first.
- * The alternative — one normalization per feature — would mean proving the
- * golden-master property three times instead of once.
+ * They are added together even though only `vocabulary` is used at first. The
+ * alternative — one normalization per feature — would mean proving the
+ * golden-master property once per feature instead of once.
  *
  * Additive and idempotent: an existing field of the right type is left exactly
  * as it is, and a field of the wrong type is replaced rather than trusted.
@@ -75,6 +75,13 @@ export function normalizeWorkspaceVocabularyFields(workspace) {
   if (!workspace.comparisonOverrides || typeof workspace.comparisonOverrides !== 'object') {
     workspace.comparisonOverrides = {}
   }
+  if (!workspace.comparisonIgnored || typeof workspace.comparisonIgnored !== 'object') {
+    workspace.comparisonIgnored = {}
+  }
+  if (!workspace.comparisonAcceptances || typeof workspace.comparisonAcceptances !== 'object') {
+    workspace.comparisonAcceptances = {}
+  }
+  if (!Array.isArray(workspace.comparisonBaselines)) workspace.comparisonBaselines = []
   if (!Array.isArray(workspace.dismissedSuggestions)) workspace.dismissedSuggestions = []
 }
 

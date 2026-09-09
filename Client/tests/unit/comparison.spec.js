@@ -7,8 +7,12 @@ import {
   coverageOf,
   COVERAGE,
   deltaOf,
+  effectiveAcceptances,
+  staleAcceptanceProjectIds,
+  ACCEPTANCE_MODES,
   DELTA,
   statusRank,
+  canonicalStatus,
   maxDistance,
   classifyDistance,
   STATUS_SCALE,
@@ -29,6 +33,18 @@ import {
   layoutRadarOverlay,
   quadrantMapOf,
   quadrantLabelsOf,
+  buildComparison,
+  buildBaselineFromProject,
+  buildBaselineFromConsensus,
+  baselineStatusOf,
+  computeBaselineAgreement,
+  computePairwiseDivergence,
+  sortRows,
+  compareRows,
+  projectSortColumn,
+  projectIdOfSortColumn,
+  SORT_COLUMN,
+  DELTA_SORT_ORDER,
   STATUS_LABELS,
   OTHER_QUADRANT,
   DATA_SOURCES
@@ -469,6 +485,32 @@ describe('statusRank / maxDistance / classifyDistance', () => {
   })
 })
 
+describe('canonicalStatus', () => {
+  it('gives every spelling on the scale one display form', () => {
+    expect(canonicalStatus('adopt')).toBe('Adopt')
+    expect(canonicalStatus('  ADOPT ')).toBe('Adopt')
+    expect(canonicalStatus('Adopt')).toBe('Adopt')
+    expect(STATUS_SCALE.map(canonicalStatus)).toEqual(STATUS_LABELS)
+  })
+
+  it('leaves a status off the scale alone instead of dressing it up', () => {
+    // It is already classified as ⊘ unset; making it look canonical would
+    // suggest the engine understood a value it did not.
+    expect(canonicalStatus('Evaluate')).toBe('Evaluate')
+    expect(canonicalStatus('  Evaluate ')).toBe('Evaluate')
+  })
+
+  it('turns an absent status into an empty string, never into a scale value', () => {
+    expect(canonicalStatus('')).toBe('')
+    expect(canonicalStatus(null)).toBe('')
+    expect(canonicalStatus(undefined)).toBe('')
+  })
+
+  it('does not change how far apart two spellings of the same status are', () => {
+    expect(statusRank('adopt')).toBe(statusRank(canonicalStatus('adopt')))
+  })
+})
+
 // The example matrix from design §5.3, reproduced exactly. If the design and
 // the engine ever drift apart, this is where it shows.
 describe('deltaOf — the design’s example rows', () => {
@@ -877,6 +919,17 @@ describe('the design’s example dataset', () => {
 // DE-5: an override belongs to a term, is valid workspace-wide, and may only be
 // set where there is an automatic classification to override.
 describe('criticality overrides', () => {
+  it('is not offered where the reference gives nothing to classify', () => {
+    const row = { key: 'term:x', name: 'X', resolved: true, term: { id: 'x' }, cells: new Map() }
+
+    // There is no automatic classification to override on a row the reference
+    // does not list, or on a target no project uses.
+    expect(canOverride(row, DELTA.UNLISTED)).toBe(false)
+    expect(canOverride(row, DELTA.MISSING)).toBe(false)
+    // A silent acceptance *is* a classification, so that one stays overridable.
+    expect(canOverride(row, DELTA.SILENT)).toBe(true)
+  })
+
   const TWO = ['a', 'b']
   const term = { id: 'term-x', name: 'X', kind: 'tool', aliases: [] }
 
@@ -1123,6 +1176,800 @@ describe('exactMatchGroups', () => {
     ]
 
     expect(exactMatchGroups(units, null)).toEqual([])
+  })
+})
+
+// F3 — one project going along with another. Not the ✎ override: this keeps the
+// term in Comparable and counts it as a match, because agreement reached is
+// still agreement.
+describe('deltaOf — silent acceptance', () => {
+  const TWO = ['a', 'b']
+  const THREE = ['a', 'b', 'c']
+
+  function rowOf(byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      if (status === null) continue
+      cells.set(projectId, {
+        projectId,
+        values: [].concat(status).map((entry) => ({ status: entry, origin: { rawName: 'x' } }))
+      })
+    }
+    return { key: 'term:x', name: 'X', term: { id: 'x' }, resolved: true, cells }
+  }
+
+  it('turns an accepted absence into agreement rather than an uncompared row', () => {
+    const row = rowOf({ a: 'Adopt' })
+
+    expect(deltaOf(row, TWO).delta).toBe(DELTA.NONE)
+    const result = deltaOf(row, TWO, { acceptances: { b: { mode: 'absence' } } })
+    expect(result).toMatchObject({ delta: DELTA.SILENT, distance: 0 })
+    expect(result.reasons).toContain(DELTA.SILENT)
+  })
+
+  it('lets a project take another’s status, so the difference stops counting', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    expect(deltaOf(row, TWO).delta).toBe(DELTA.CRITICAL)
+    expect(deltaOf(row, TWO, { acceptances: { b: { mode: 'status', acceptedFrom: 'a' } } })).toMatchObject({
+      delta: DELTA.SILENT,
+      distance: 0
+    })
+  })
+
+  it('does not let two projects settling their difference hide a third that has not', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire', c: 'Assess' })
+
+    const result = deltaOf(row, THREE, { acceptances: { b: { mode: 'status', acceptedFrom: 'a' } } })
+
+    // b now reads as Adopt, but c still says Assess — distance 2 remains.
+    expect(result).toMatchObject({ delta: DELTA.SIGNIFICANT, distance: 2 })
+    expect(result.reasons).toContain(DELTA.SILENT)
+  })
+
+  it('drops an absence acceptance once the project forms an opinion of its own', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    // The stored decision was about an absence that no longer exists.
+    expect(deltaOf(row, TWO, { acceptances: { b: { mode: 'absence' } } }).delta).toBe(DELTA.CRITICAL)
+  })
+
+  it('ignores a status accepted from a project that is not in the selection', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    expect(deltaOf(row, TWO, { acceptances: { b: { mode: 'status', acceptedFrom: 'z' } } }).delta).toBe(DELTA.CRITICAL)
+    expect(deltaOf(row, TWO, { acceptances: { b: { mode: 'status', acceptedFrom: 'b' } } }).delta).toBe(DELTA.CRITICAL)
+  })
+
+  it('never lets an acceptance outrank a data finding', () => {
+    // ⚠ two contradictory takes inside one project …
+    const inconsistent = rowOf({ a: ['Adopt', 'Retire'], b: 'Adopt' })
+    expect(deltaOf(inconsistent, TWO, { acceptances: { b: { mode: 'status', acceptedFrom: 'a' } } }).delta).toBe(
+      DELTA.INCONSISTENT
+    )
+
+    // ⊘ a missing status …
+    const unset = rowOf({ a: '', b: 'Adopt' })
+    expect(deltaOf(unset, TWO, { acceptances: { b: { mode: 'status', acceptedFrom: 'a' } } }).delta).toBe(DELTA.UNSET)
+
+    // … and the explicit override outranks the silent decision.
+    const differing = rowOf({ a: 'Adopt', b: 'Retire' })
+    expect(
+      deltaOf(differing, TWO, {
+        override: { level: 'accepted' },
+        acceptances: { b: { mode: 'status', acceptedFrom: 'a' } }
+      }).delta
+    ).toBe(DELTA.ACCEPTED)
+  })
+
+  it('keeps a critical upgrade critical', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    expect(
+      deltaOf(row, TWO, {
+        override: { level: 'critical' },
+        acceptances: { b: { mode: 'status', acceptedFrom: 'a' } }
+      }).delta
+    ).toBe(DELTA.CRITICAL)
+  })
+
+  it('needs somebody to actually be there — an absence accepting an absence is nothing', () => {
+    const row = rowOf({})
+
+    expect(deltaOf(row, TWO, { acceptances: { a: { mode: 'absence' }, b: { mode: 'absence' } } }).delta).toBe(
+      DELTA.NONE
+    )
+  })
+
+  it('reports only the acceptances that are in force', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+    const applied = effectiveAcceptances(row, TWO, {
+      b: { mode: 'status', acceptedFrom: 'a' },
+      a: { mode: 'absence' },
+      z: { mode: 'absence' }
+    })
+
+    // a has a value, so its absence acceptance does not apply; z is not selected.
+    expect([...applied.keys()]).toEqual(['b'])
+  })
+})
+
+describe('staleAcceptanceProjectIds', () => {
+  const TWO = ['a', 'b']
+
+  function rowOf(byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      cells.set(projectId, { projectId, values: [{ status, origin: { rawName: 'x' } }] })
+    }
+    return { key: 'term:x', name: 'X', term: { id: 'x' }, cells }
+  }
+
+  it('names the two modes the engine knows', () => {
+    expect(ACCEPTANCE_MODES).toEqual(['absence', 'status'])
+  })
+
+  it('reports nothing while the decision still fits the data', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+    const acceptances = {
+      b: { mode: 'status', acceptedFrom: 'a', contextProjects: ['a', 'b'], contextStatuses: { a: 'Adopt', b: 'Retire' } }
+    }
+
+    expect(staleAcceptanceProjectIds(row, TWO, acceptances)).toEqual([])
+  })
+
+  it('flags a decision the data has moved past', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+    // The absence it was taken about is gone — b has an opinion now.
+    expect(staleAcceptanceProjectIds(row, TWO, { b: { mode: 'absence' } })).toEqual(['b'])
+  })
+
+  it('flags a decision whose context has changed, without dropping it', () => {
+    const row = rowOf({ a: 'Trial', b: 'Retire' })
+    const acceptances = {
+      b: { mode: 'status', acceptedFrom: 'a', contextProjects: ['a', 'b'], contextStatuses: { a: 'Adopt', b: 'Retire' } }
+    }
+
+    // Still in force — but a says something else now than when this was decided.
+    expect(effectiveAcceptances(row, TWO, acceptances).has('b')).toBe(true)
+    expect(staleAcceptanceProjectIds(row, TWO, acceptances)).toEqual(['b'])
+  })
+
+  it('says nothing about a project outside the selection', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    expect(staleAcceptanceProjectIds(row, ['a'], { b: { mode: 'absence' } })).toEqual([])
+  })
+})
+
+describe('computeMetrics — silent acceptance', () => {
+  const TWO = ['a', 'b']
+
+  function rowOf(key, byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      cells.set(projectId, { projectId, values: [{ status, origin: { rawName: key } }] })
+    }
+    return { key, name: key, term: { id: key }, resolved: true, cells }
+  }
+
+  it('counts a silent acceptance as a match and reports it separately', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt', b: 'Retire' })]
+
+    const before = computeMetrics(rows, TWO)
+    expect(before).toMatchObject({ compared: 1, comparable: 1, matches: 0, critical: 1, silent: 0 })
+
+    const after = computeMetrics(rows, TWO, {
+      acceptances: { 'term:x': { b: { mode: 'status', acceptedFrom: 'a' } } }
+    })
+    expect(after).toMatchObject({ compared: 1, comparable: 1, matches: 1, critical: 0, silent: 1 })
+    expect(after.agreementPercent).toBe(100)
+  })
+
+  it('keeps the class counts adding up to comparable', () => {
+    const rows = [
+      rowOf('term:x', { a: 'Adopt', b: 'Retire' }),
+      rowOf('term:y', { a: 'Adopt', b: 'Trial' }),
+      rowOf('term:z', { a: 'Hold', b: 'Hold' })
+    ]
+
+    const metrics = computeMetrics(rows, TWO, {
+      acceptances: { 'term:x': { b: { mode: 'status', acceptedFrom: 'a' } } }
+    })
+
+    expect(metrics.matches + metrics.minor + metrics.significant + metrics.critical).toBe(metrics.comparable)
+    expect(metrics.silent).toBeLessThanOrEqual(metrics.matches)
+  })
+
+  it('brings an accepted absence into `compared` while coverage still says unique', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt' })]
+
+    const metrics = computeMetrics(rows, TWO, { acceptances: { 'term:x': { b: { mode: 'absence' } } } })
+
+    // The fact stays: only one project rates it. The reading changes.
+    expect(metrics.unique).toBe(1)
+    expect(metrics).toMatchObject({ compared: 1, comparable: 1, matches: 1, silent: 1 })
+  })
+})
+
+// F1 — a term marked "not important" leaves the comparison completely: it is a
+// decision about the question, not a filter over the answer.
+describe('buildComparison — terms marked not important', () => {
+  function workspaceWithIgnored(ignored) {
+    return { ...makeWorkspace(), comparisonIgnored: ignored }
+  }
+
+  it('keeps every row when nothing is marked', () => {
+    const comparison = buildComparison(makeWorkspace(), ALL)
+
+    expect(comparison.ignoredRows).toEqual([])
+    expect(comparison.metrics.ignored).toBe(0)
+    expect(comparison.rows.map((row) => row.name).sort()).toEqual(['.NET Core', 'Clean Arch'])
+  })
+
+  it('moves a marked row out of the rows and into ignoredRows', () => {
+    const comparison = buildComparison(workspaceWithIgnored({ 'raw:clean arch': { reason: 'legacy' } }), ALL)
+
+    expect(comparison.rows.map((row) => row.name)).toEqual(['.NET Core'])
+    expect(comparison.ignoredRows.map((row) => row.name)).toEqual(['Clean Arch'])
+    expect(comparison.ignoredRows[0].ignored).toEqual({ reason: 'legacy' })
+  })
+
+  it('takes the row out of every metric, `total` included', () => {
+    const before = buildComparison(makeWorkspace(), ALL).metrics
+    const after = buildComparison(workspaceWithIgnored({ 'raw:clean arch': { reason: '' } }), ALL).metrics
+
+    expect(after.total).toBe(before.total - 1)
+    expect(after.ignored).toBe(1)
+    // Clean Arch was the one compared row; without it nothing is compared.
+    expect(after.compared).toBe(before.compared - 1)
+    expect(after.matches + after.minor + after.significant + after.critical).toBe(after.comparable)
+  })
+
+  it('marks by row key, so an unresolved row can be marked too', () => {
+    // No vocabulary here, so both rows are keyed by their normalized text.
+    const comparison = buildComparison(workspaceWithIgnored({ 'raw:.net core': { reason: '' } }), ALL)
+
+    expect(comparison.ignoredRows.map((row) => row.resolved)).toEqual([false])
+    expect(comparison.rows.map((row) => row.name)).toEqual(['Clean Arch'])
+  })
+
+  it('never flags an ignored row as a possible false difference', () => {
+    // ⁉ marks a difference that may not be real; a row that is out of the
+    // comparison is not a difference at all.
+    const comparison = buildComparison(workspaceWithIgnored({ 'raw:clean arch': { reason: '' } }), ALL)
+
+    expect(comparison.ignoredRows.every((row) => !row.possibleFalseDifference)).toBe(true)
+  })
+
+  it('ignores a key that matches no row instead of failing', () => {
+    const comparison = buildComparison(workspaceWithIgnored({ 'term:gone': { reason: '' } }), ALL)
+
+    expect(comparison.ignoredRows).toEqual([])
+    expect(comparison.metrics.ignored).toBe(0)
+  })
+})
+
+// F8 — who is apart from whom. The single agreement figure cannot say that:
+// two identical projects and a third far out read like three that each drift.
+describe('computePairwiseDivergence', () => {
+  const THREE = ['a', 'b', 'c']
+
+  function rowOf(key, byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      cells.set(projectId, {
+        projectId,
+        values: [].concat(status).map((entry) => ({ status: entry, origin: { rawName: key } }))
+      })
+    }
+    return { key, name: key, term: { id: key }, cells }
+  }
+
+  it('reports 0 % for two projects that say the same thing', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt', b: 'Adopt' }), rowOf('term:y', { a: 'Hold', b: 'Hold' })]
+
+    expect(computePairwiseDivergence(rows, ['a', 'b'])).toEqual([
+      { a: 'a', b: 'b', percent: 0, comparedRows: 2, byClass: { match: 2, minor: 0, significant: 0, critical: 0 } }
+    ])
+  })
+
+  it('reports 100 % when every term sits at opposite ends of the scale', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt', b: 'Retire' }), rowOf('term:y', { a: 'Retire', b: 'Adopt' })]
+
+    expect(computePairwiseDivergence(rows, ['a', 'b'])[0]).toMatchObject({ percent: 100, comparedRows: 2 })
+  })
+
+  it('averages the distance over the rows, not over the projects', () => {
+    // Adopt/Adopt (0) and Adopt/Assess (2) → 2 / (2 rows × 4) = 25 %.
+    const rows = [rowOf('term:x', { a: 'Adopt', b: 'Adopt' }), rowOf('term:y', { a: 'Adopt', b: 'Assess' })]
+
+    expect(computePairwiseDivergence(rows, ['a', 'b'])[0]).toMatchObject({
+      percent: 25,
+      comparedRows: 2,
+      byClass: { match: 1, minor: 0, significant: 1, critical: 0 }
+    })
+  })
+
+  it('gives one entry per pair, not one per project', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt', b: 'Adopt', c: 'Retire' })]
+
+    const pairs = computePairwiseDivergence(rows, THREE)
+
+    expect(pairs.map((pair) => `${pair.a}${pair.b}`)).toEqual(['ab', 'ac', 'bc'])
+    expect(pairs.find((pair) => pair.a === 'a' && pair.b === 'b').percent).toBe(0)
+    expect(pairs.find((pair) => pair.a === 'a' && pair.b === 'c').percent).toBe(100)
+  })
+
+  it('counts only rows where both projects give one status on the scale', () => {
+    const rows = [
+      rowOf('term:x', { a: 'Adopt', b: 'Adopt' }),
+      rowOf('term:y', { a: 'Adopt' }), // b says nothing
+      rowOf('term:z', { a: ['Adopt', 'Hold'], b: 'Adopt' }), // a contradicts itself
+      rowOf('term:w', { a: 'Evaluate', b: 'Adopt' }) // not on the scale
+    ]
+
+    expect(computePairwiseDivergence(rows, ['a', 'b'])[0]).toMatchObject({ percent: 0, comparedRows: 1 })
+  })
+
+  it('measures a settled pair by what was accepted, and still counts the row', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt', b: 'Retire' })]
+
+    const settled = computePairwiseDivergence(rows, ['a', 'b'], {
+      acceptances: { 'term:x': { b: { mode: 'status', acceptedFrom: 'a' } } }
+    })
+
+    // Dropping the rows a pair agrees on would remove the zeros and drive the
+    // figure up the more they agree.
+    expect(settled[0]).toMatchObject({ percent: 0, comparedRows: 1 })
+  })
+
+  it('reports a pair with nothing in common as 0 rows rather than 0 % agreement', () => {
+    const rows = [rowOf('term:x', { a: 'Adopt' }), rowOf('term:y', { b: 'Retire' })]
+
+    expect(computePairwiseDivergence(rows, ['a', 'b'])[0]).toMatchObject({ percent: 0, comparedRows: 0 })
+  })
+
+  it('has nothing to say about fewer than two projects', () => {
+    expect(computePairwiseDivergence([rowOf('term:x', { a: 'Adopt' })], ['a'])).toEqual([])
+    expect(computePairwiseDivergence([], [])).toEqual([])
+  })
+
+  it('travels with the rest of the comparison', () => {
+    const comparison = buildComparison(makeWorkspace(), ALL)
+
+    // Clean Arch is Adopt in Alpha and Trial in Beta: 1 / 4 = 25 %.
+    expect(comparison.pairwiseDivergence).toEqual([
+      expect.objectContaining({ a: 'p-alpha', b: 'p-beta', percent: 25, comparedRows: 1 })
+    ])
+  })
+})
+
+// F7 — measuring every project against one held-still target instead of
+// against each other. The two questions have different answers as soon as the
+// target is not what the majority does.
+describe('reference baselines', () => {
+  const THREE = ['a', 'b', 'c']
+
+  function rowOf(key, byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      cells.set(projectId, {
+        projectId,
+        values: [].concat(status).map((entry) => ({ status: entry, origin: { rawName: key } }))
+      })
+    }
+    return { key, name: key, term: { id: key }, resolved: true, kind: 'tool', cells }
+  }
+
+  describe('buildBaselineFromProject', () => {
+    it('copies one project’s column, canonicalized', () => {
+      const rows = [rowOf('term:x', { a: 'adopt', b: 'Retire' }), rowOf('term:y', { a: 'Hold' })]
+
+      expect(buildBaselineFromProject(rows, 'a')).toEqual({
+        entries: { 'term:x': { name: 'term:x', status: 'Adopt' }, 'term:y': { name: 'term:y', status: 'Hold' } },
+        skipped: []
+      })
+    })
+
+    it('leaves out a cell that contradicts itself, and says so', () => {
+      const rows = [rowOf('term:x', { a: ['Adopt', 'Retire'] })]
+
+      const { entries, skipped } = buildBaselineFromProject(rows, 'a')
+      expect(entries).toEqual({})
+      expect(skipped).toEqual([{ key: 'term:x', name: 'term:x', reason: DELTA.INCONSISTENT }])
+    })
+
+    it('leaves out a status the scale does not know — there is no distance to it', () => {
+      const rows = [rowOf('term:x', { a: 'Evaluate' }), rowOf('term:y', { a: '' })]
+
+      const { entries, skipped } = buildBaselineFromProject(rows, 'a')
+      expect(entries).toEqual({})
+      expect(skipped.map((entry) => entry.reason)).toEqual([DELTA.UNSET, DELTA.UNSET])
+    })
+
+    it('skips rows the project says nothing about, without reporting them', () => {
+      const rows = [rowOf('term:x', { b: 'Adopt' })]
+
+      expect(buildBaselineFromProject(rows, 'a')).toEqual({ entries: {}, skipped: [] })
+    })
+  })
+
+  describe('buildBaselineFromConsensus', () => {
+    it('takes the most common status', () => {
+      const rows = [rowOf('term:x', { a: 'Adopt', b: 'Adopt', c: 'Retire' })]
+
+      expect(buildBaselineFromConsensus(rows, THREE).entries).toEqual({
+        'term:x': { name: 'term:x', status: 'Adopt' }
+      })
+    })
+
+    it('skips a tie rather than breaking it', () => {
+      const rows = [rowOf('term:x', { a: 'Adopt', b: 'Retire' })]
+
+      const { entries, skipped } = buildBaselineFromConsensus(rows, THREE)
+      expect(entries).toEqual({})
+      expect(skipped).toEqual([{ key: 'term:x', name: 'term:x', reason: 'tie' }])
+    })
+
+    it('ignores cells that contradict themselves or carry no usable status', () => {
+      const rows = [rowOf('term:x', { a: ['Adopt', 'Retire'], b: 'Hold', c: '' })]
+
+      expect(buildBaselineFromConsensus(rows, THREE).entries).toEqual({
+        'term:x': { name: 'term:x', status: 'Hold' }
+      })
+    })
+  })
+
+  describe('baselineStatusOf', () => {
+    it('reads the target of a row, and nothing where there is none', () => {
+      const baseline = { entries: { 'term:x': { name: 'X', status: 'Adopt' } } }
+
+      expect(baselineStatusOf(baseline, 'term:x')).toBe('Adopt')
+      expect(baselineStatusOf(baseline, 'term:z')).toBe('')
+      expect(baselineStatusOf(null, 'term:x')).toBe('')
+    })
+  })
+
+  describe('deltaOf against a baseline', () => {
+    const baseline = { entries: { 'term:x': { name: 'X', status: 'Adopt' } } }
+
+    it('measures every project against the target, worst one deciding', () => {
+      const row = rowOf('term:x', { a: 'Adopt', b: 'Trial' })
+
+      expect(deltaOf(row, THREE, { baseline })).toMatchObject({ delta: DELTA.MINOR, distance: 1 })
+    })
+
+    it('can disagree with the peer reading — everyone agreeing is not everyone right', () => {
+      const row = rowOf('term:x', { a: 'Retire', b: 'Retire' })
+
+      expect(deltaOf(row, THREE).delta).toBe(DELTA.MATCH)
+      expect(deltaOf(row, THREE, { baseline })).toMatchObject({ delta: DELTA.CRITICAL, distance: 4 })
+    })
+
+    it('reports a term the reference does not list as exactly that', () => {
+      const row = rowOf('term:z', { a: 'Adopt', b: 'Retire' })
+
+      expect(deltaOf(row, THREE, { baseline })).toMatchObject({ delta: DELTA.UNLISTED, distance: null })
+    })
+
+    it('reports a target no project uses as a gap, not as agreement', () => {
+      const row = rowOf('term:x', {})
+
+      expect(deltaOf(row, THREE, { baseline })).toMatchObject({ delta: DELTA.MISSING, distance: null })
+    })
+
+    it('keeps the data findings and the explicit override ahead of the measurement', () => {
+      expect(deltaOf(rowOf('term:x', { a: ['Adopt', 'Trial'] }), THREE, { baseline }).delta).toBe(DELTA.INCONSISTENT)
+      expect(deltaOf(rowOf('term:x', { a: '' }), THREE, { baseline }).delta).toBe(DELTA.UNSET)
+      expect(deltaOf(rowOf('term:x', { a: 'Retire' }), THREE, { baseline, override: { level: 'accepted' } }).delta).toBe(
+        DELTA.ACCEPTED
+      )
+      expect(deltaOf(rowOf('term:x', { a: 'Adopt' }), THREE, { baseline, override: { level: 'critical' } }).delta).toBe(
+        DELTA.CRITICAL
+      )
+    })
+
+    it('reports a status the scale does not know as unset, not as a small distance', () => {
+      // |rank(-1) - target| is an arithmetic result, not a distance. Reading it
+      // as one turns "we cannot say" into "▲ minor".
+      const row = rowOf('term:x', { a: 'Evaluate' })
+
+      expect(deltaOf(row, THREE, { baseline })).toMatchObject({ delta: DELTA.UNSET, distance: null })
+      expect(deltaOf(row, THREE, { baseline }).reasons).toContain(DELTA.UNSET)
+    })
+
+    it('reports it as unset wherever the unknown status sits on the row', () => {
+      const row = rowOf('term:x', { a: 'Adopt', b: 'Evaluate' })
+
+      expect(deltaOf(row, THREE, { baseline }).delta).toBe(DELTA.UNSET)
+    })
+
+    it('measures a project by what it silently accepted', () => {
+      const row = rowOf('term:x', { a: 'Adopt', b: 'Retire' })
+
+      expect(
+        deltaOf(row, THREE, { baseline, acceptances: { b: { mode: 'status', acceptedFrom: 'a' } } })
+      ).toMatchObject({ delta: DELTA.SILENT, distance: 0 })
+    })
+
+    it('measures a single project against the target, where peer mode had nothing to say', () => {
+      const row = rowOf('term:x', { a: 'Retire' })
+
+      expect(deltaOf(row, THREE).delta).toBe(DELTA.NONE)
+      expect(deltaOf(row, THREE, { baseline }).delta).toBe(DELTA.CRITICAL)
+    })
+  })
+
+  describe('computeBaselineAgreement', () => {
+    const baseline = {
+      entries: {
+        'term:x': { name: 'X', status: 'Adopt' },
+        'term:y': { name: 'Y', status: 'Trial' },
+        'term:z': { name: 'Z', status: 'Hold' }
+      }
+    }
+
+    it('reports each project on its own, with the number of rows behind it', () => {
+      const rows = [
+        rowOf('term:x', { a: 'Adopt', b: 'Retire' }),
+        rowOf('term:y', { a: 'Trial', b: 'Trial' }),
+        rowOf('term:z', { a: 'Assess' })
+      ]
+
+      const agreement = computeBaselineAgreement(rows, ['a', 'b'], baseline)
+
+      expect(agreement.a).toMatchObject({ percent: 67, comparedRows: 3 })
+      expect(agreement.a.byClass).toEqual({ match: 2, minor: 1, significant: 0, critical: 0 })
+      // b never rated Z, so it is not counted against it.
+      expect(agreement.b).toMatchObject({ percent: 50, comparedRows: 2 })
+    })
+
+    it('leaves out rows the reference does not list', () => {
+      const rows = [rowOf('term:x', { a: 'Adopt' }), rowOf('term:other', { a: 'Retire' })]
+
+      expect(computeBaselineAgreement(rows, ['a'], baseline).a).toMatchObject({ percent: 100, comparedRows: 1 })
+    })
+
+    it('leaves out a cell that contradicts itself or carries no usable status', () => {
+      const rows = [rowOf('term:x', { a: ['Adopt', 'Trial'] }), rowOf('term:y', { a: '' })]
+
+      expect(computeBaselineAgreement(rows, ['a'], baseline).a).toMatchObject({ percent: 0, comparedRows: 0 })
+    })
+
+    it('credits a project for what it silently accepted', () => {
+      const rows = [rowOf('term:x', { a: 'Adopt', b: 'Retire' })]
+
+      const agreement = computeBaselineAgreement(rows, ['a', 'b'], baseline, {
+        acceptances: { 'term:x': { b: { mode: 'status', acceptedFrom: 'a' } } }
+      })
+
+      expect(agreement.b).toMatchObject({ percent: 100, comparedRows: 1 })
+    })
+  })
+
+  describe('buildComparison against a baseline', () => {
+    it('adds a row for a target no project uses, and counts it as a gap', () => {
+      const workspace = makeWorkspace()
+      const baseline = { entries: { 'raw:kafka': { name: 'Kafka', status: 'Adopt' } } }
+
+      const comparison = buildComparison(workspace, ALL, { baseline })
+
+      const kafka = comparison.rows.find((row) => row.name === 'Kafka')
+      expect(kafka).toMatchObject({ delta: DELTA.MISSING, baselineStatus: 'Adopt' })
+      expect(comparison.metrics.missing).toBe(1)
+      expect(comparison.metrics.compared).toBe(0)
+    })
+
+    it('reports the terms outside the reference without counting them as agreement', () => {
+      const workspace = makeWorkspace()
+      const baseline = { entries: { 'raw:clean arch': { name: 'Clean Arch', status: 'Adopt' } } }
+
+      const comparison = buildComparison(workspace, ALL, { baseline })
+
+      expect(comparison.metrics.unlisted).toBe(1)
+      expect(comparison.metrics.compared).toBe(1)
+      expect(comparison.metrics.matches + comparison.metrics.minor).toBe(1)
+      expect(comparison.baselineAgreement['p-alpha'].comparedRows).toBe(1)
+    })
+
+    it('does not count a target nobody uses as a term unique to somebody', () => {
+      const workspace = makeWorkspace()
+      const baseline = { entries: { 'raw:kafka': { name: 'Kafka', status: 'Adopt' } } }
+
+      const { metrics } = buildComparison(workspace, ALL, { baseline })
+
+      // ◑ unique means "exactly one project uses it". No project uses this one,
+      // so counting it there would make `unique` exceed its own breakdown.
+      expect(metrics.missing).toBe(1)
+      const attributed = Object.values(metrics.uniqueByProject).reduce((sum, count) => sum + count, 0)
+      expect(attributed).toBe(metrics.unique)
+    })
+
+    it('does not call a target nobody uses a possible false difference', () => {
+      const workspace = makeWorkspace()
+      const baseline = { entries: { 'raw:kafka': { name: 'Kafka', status: 'Adopt' } } }
+
+      const kafka = buildComparison(workspace, ALL, { baseline }).rows.find((row) => row.name === 'Kafka')
+
+      // ⁉ means "this difference may not be real". A row no project produced is
+      // not a difference at all — it is the gap the reference is there to show.
+      expect(kafka.possibleFalseDifference).toBe(false)
+    })
+
+    it('keeps the metric invariants against a reference too', () => {
+      const workspace = makeWorkspace()
+      const baseline = {
+        entries: {
+          'raw:clean arch': { name: 'Clean Arch', status: 'Adopt' },
+          'raw:kafka': { name: 'Kafka', status: 'Trial' }
+        }
+      }
+
+      const { metrics } = buildComparison(workspace, ALL, { baseline })
+
+      // The same three invariants DE-8 states for peer mode: the classes add up
+      // to comparable, the exclusions add up exactly, and nothing uncompared is
+      // subtracted from a total it was never in.
+      expect(metrics.matches + metrics.minor + metrics.significant + metrics.critical).toBe(metrics.comparable)
+      expect(metrics.unset + metrics.inconsistent + metrics.accepted).toBe(metrics.excluded)
+      expect(metrics.compared - metrics.excluded).toBe(metrics.comparable)
+      expect(metrics.compared + metrics.unlisted + metrics.missing).toBeLessThanOrEqual(metrics.total)
+      expect(metrics.silent).toBeLessThanOrEqual(metrics.matches)
+    })
+
+    it('leaves baselineAgreement empty in peer mode rather than inventing one', () => {
+      const comparison = buildComparison(makeWorkspace(), ALL)
+
+      expect(comparison.baseline).toBeNull()
+      expect(comparison.baselineAgreement).toEqual({})
+      expect(comparison.metrics).toMatchObject({ unlisted: 0, missing: 0 })
+    })
+  })
+})
+
+// F6 — the matrix is sorted by clicking a header, so the comparator has to
+// cover a column per project as well as the fixed ones.
+describe('sortRows / compareRows', () => {
+  const TWO = ['p-a', 'p-b']
+
+  function row(name, { coverage = COVERAGE.ALL, delta = DELTA.MATCH, statuses = {} } = {}) {
+    const cells = new Map()
+    for (const [projectId, list] of Object.entries(statuses)) {
+      cells.set(projectId, {
+        projectId,
+        values: [].concat(list).map((status) => ({ status, origin: { rawName: name } }))
+      })
+    }
+    return { key: `term:${name}`, name, coverage, delta, cells }
+  }
+
+  it('sorts by term name, and turns it around on demand', () => {
+    const rows = [row('Vue'), row('Angular'), row('React')]
+
+    expect(sortRows(rows, { column: SORT_COLUMN.TERM }).map((entry) => entry.name)).toEqual([
+      'Angular',
+      'React',
+      'Vue'
+    ])
+    expect(
+      sortRows(rows, { column: SORT_COLUMN.TERM, direction: 'desc' }).map((entry) => entry.name)
+    ).toEqual(['Vue', 'React', 'Angular'])
+  })
+
+  it('does not mutate the rows it was given', () => {
+    const rows = [row('Vue'), row('Angular')]
+    const order = rows.map((entry) => entry.name)
+
+    sortRows(rows, { column: SORT_COLUMN.TERM })
+
+    expect(rows.map((entry) => entry.name)).toEqual(order)
+  })
+
+  it('puts the widest coverage first on the first click', () => {
+    const rows = [
+      row('Unique', { coverage: COVERAGE.UNIQUE }),
+      row('All', { coverage: COVERAGE.ALL }),
+      row('Partial', { coverage: COVERAGE.PARTIAL })
+    ]
+
+    expect(sortRows(rows, { column: SORT_COLUMN.COVERAGE }).map((entry) => entry.coverage)).toEqual([
+      COVERAGE.ALL,
+      COVERAGE.PARTIAL,
+      COVERAGE.UNIQUE
+    ])
+  })
+
+  it('puts the worst divergence first on the first click', () => {
+    const rows = DELTA_SORT_ORDER.map((delta) => row(delta, { delta }))
+
+    expect(sortRows([...rows].reverse(), { column: SORT_COLUMN.DELTA }).map((entry) => entry.delta)).toEqual(
+      DELTA_SORT_ORDER
+    )
+  })
+
+  it('sorts a project column by that project’s status, best first', () => {
+    const rows = [
+      row('Retired', { statuses: { 'p-a': 'Retire' } }),
+      row('Adopted', { statuses: { 'p-a': 'adopt' } }),
+      row('Trialled', { statuses: { 'p-a': 'Trial' } })
+    ]
+
+    expect(
+      sortRows(rows, { column: projectSortColumn('p-a') }).map((entry) => entry.name)
+    ).toEqual(['Adopted', 'Trialled', 'Retired'])
+  })
+
+  it('ranks a cell with several takes by its worst one', () => {
+    const rows = [
+      row('Mixed', { statuses: { 'p-a': ['Adopt', 'Hold'] } }),
+      row('Trialled', { statuses: { 'p-a': 'Trial' } })
+    ]
+
+    // Mixed holds Adopt (0) and Hold (3); the worse one decides, so it sorts
+    // behind a plain Trial (1).
+    expect(sortRows(rows, { column: projectSortColumn('p-a') }).map((entry) => entry.name)).toEqual([
+      'Trialled',
+      'Mixed'
+    ])
+  })
+
+  it('keeps cells without a value last in both directions', () => {
+    const rows = [
+      row('Missing', { statuses: {} }),
+      row('Adopted', { statuses: { 'p-a': 'Adopt' } }),
+      row('Retired', { statuses: { 'p-a': 'Retire' } })
+    ]
+
+    expect(sortRows(rows, { column: projectSortColumn('p-a') }).map((entry) => entry.name)).toEqual([
+      'Adopted',
+      'Retired',
+      'Missing'
+    ])
+    expect(
+      sortRows(rows, { column: projectSortColumn('p-a'), direction: 'desc' }).map((entry) => entry.name)
+    ).toEqual(['Retired', 'Adopted', 'Missing'])
+  })
+
+  it('sorts a value off the scale between the ranked ones and the empty ones', () => {
+    const rows = [
+      row('Missing', { statuses: {} }),
+      row('Unknown', { statuses: { 'p-a': 'Evaluate' } }),
+      row('Adopted', { statuses: { 'p-a': 'Adopt' } })
+    ]
+
+    expect(sortRows(rows, { column: projectSortColumn('p-a') }).map((entry) => entry.name)).toEqual([
+      'Adopted',
+      'Unknown',
+      'Missing'
+    ])
+  })
+
+  it('breaks every tie by name, so the same rows sort the same way twice', () => {
+    const rows = [row('Vue', { coverage: COVERAGE.ALL }), row('Angular', { coverage: COVERAGE.ALL })]
+
+    expect(sortRows(rows, { column: SORT_COLUMN.COVERAGE }).map((entry) => entry.name)).toEqual([
+      'Angular',
+      'Vue'
+    ])
+    expect(
+      sortRows(rows, { column: SORT_COLUMN.COVERAGE, direction: 'desc' }).map((entry) => entry.name)
+    ).toEqual(['Angular', 'Vue'])
+  })
+
+  it('reads a project id back out of a column id, and only out of one', () => {
+    expect(projectIdOfSortColumn(projectSortColumn('p-a'))).toBe('p-a')
+    expect(projectIdOfSortColumn(SORT_COLUMN.COVERAGE)).toBe('')
+    expect(projectIdOfSortColumn(undefined)).toBe('')
+  })
+
+  it('falls back to the term order for an unknown column, and survives empty input', () => {
+    const rows = [row('Vue'), row('Angular')]
+
+    expect(sortRows(rows, { column: 'nonsense' }).map((entry) => entry.name)).toEqual(['Angular', 'Vue'])
+    expect(sortRows(undefined)).toEqual([])
+    expect(compareRows(undefined, undefined)).toBe(0)
+    expect(TWO).toHaveLength(2)
   })
 })
 

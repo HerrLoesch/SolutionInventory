@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useWorkspaceStore } from '../../src/stores/workspaceStore'
 import ProjectComparison from '../../src/components/workspace/ProjectComparison.vue'
 import { createActivePinia, mountWithStore } from './helpers/mountWithStore'
+import { COVERAGE, DELTA } from '../../src/services/comparison'
+import { buildComparisonHtml } from '../../src/utils/comparisonExport'
+import { TERM_KINDS } from '../../src/services/vocabulary'
 import designExample from '../data/comparison/design-example-workspace.json'
 
 // Vuetify isn't installed in these tests, so only the logic exposed on
@@ -391,18 +394,82 @@ describe('comparison matrix', () => {
     expect(vue).toMatchObject({ coverage: 'partial', delta: 'critical', distance: 4, resolved: false })
   })
 
-  it('sorts by term, by coverage and by divergence', () => {
+  it('sorts by term, by coverage and by divergence from the column headers', () => {
     const { wrapper } = mountComparison(smallWorkspace())
 
     expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Scrum', 'Vue'])
 
-    wrapper.vm.sortBy = 'delta'
+    wrapper.vm.toggleSort('delta')
     // The critical row comes before the uncompared one.
     expect(wrapper.vm.visibleRows[0].name).toBe('Vue')
 
-    wrapper.vm.sortBy = 'coverage'
+    wrapper.vm.toggleSort('coverage')
     // Widest coverage first: partial (Vue) before unique (Scrum).
     expect(wrapper.vm.visibleRows.map((row) => row.coverage)).toEqual(['partial', 'unique'])
+  })
+
+  it('offers one sortable header per rendered column', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.sortHeaders.map((header) => header.column)).toEqual([
+      'term',
+      'project:p-alpha',
+      'project:p-beta',
+      'project:p-gamma',
+      'coverage',
+      'delta'
+    ])
+    expect(wrapper.vm.sortHeaders.map((header) => header.label)).toEqual([
+      'Term',
+      'Alpha',
+      'Beta',
+      'Gamma',
+      'Coverage',
+      'Δ Status'
+    ])
+  })
+
+  it('turns the active column around and starts a new column in its own order', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    expect(wrapper.vm.sort).toEqual({ column: 'term', direction: 'asc' })
+    expect(wrapper.vm.ariaSortOf('term')).toBe('ascending')
+    expect(wrapper.vm.ariaSortOf('coverage')).toBe('none')
+    expect(wrapper.vm.sortMarkerOf('term')).toBe('▲')
+
+    wrapper.vm.toggleSort('term')
+    expect(wrapper.vm.sort).toEqual({ column: 'term', direction: 'desc' })
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue', 'Scrum'])
+    expect(wrapper.vm.sortMarkerOf('term')).toBe('▼')
+
+    // Switching columns must not inherit the previous direction.
+    wrapper.vm.toggleSort('coverage')
+    expect(wrapper.vm.sort).toEqual({ column: 'coverage', direction: 'asc' })
+  })
+
+  it('sorts a project column by that project’s status, empty cells last either way', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    wrapper.vm.toggleSort('project:p-alpha')
+    // Alpha rates both; Adopt (Scrum and Vue) ties, so the name decides.
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Scrum', 'Vue'])
+
+    wrapper.vm.toggleSort('project:p-beta')
+    // Beta only knows Vue; the row it says nothing about goes last …
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue', 'Scrum'])
+    wrapper.vm.toggleSort('project:p-beta')
+    // … and stays last when the direction is turned around.
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue', 'Scrum'])
+  })
+
+  it('falls back to the term column when the sorted project leaves the selection', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    wrapper.vm.toggleSort('project:p-beta')
+    wrapper.vm.deselectProject('p-beta')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.sort).toEqual({ column: 'term', direction: 'asc' })
   })
 
   it('filters by coverage', () => {
@@ -410,6 +477,47 @@ describe('comparison matrix', () => {
     wrapper.vm.coverageFilter = 'unique'
 
     expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Scrum'])
+  })
+
+  // The toolbar selects once took their items from array literals in the
+  // template. A literal is a fresh array on every render, so VSelect re-keyed
+  // its items under the open menu and the chosen filter never stuck — while
+  // every test here still passed, because they set the state directly. This
+  // pins the shape that fixed it: one stable array per list, exposed from
+  // setup(). Vuetify is not installed in these tests, so the identity is what
+  // can be asserted; the rendered menu cannot.
+  it('offers the toolbar item lists as arrays that survive a re-render', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    const before = [wrapper.vm.coverageFilterItems, wrapper.vm.deltaFilterItems, wrapper.vm.termKindItems]
+    before.forEach((items) => expect(Array.isArray(items)).toBe(true))
+
+    wrapper.vm.search = 'vue'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.coverageFilterItems).toBe(before[0])
+    expect(wrapper.vm.deltaFilterItems).toBe(before[1])
+    expect(wrapper.vm.termKindItems).toBe(before[2])
+  })
+
+  // Every value the Δ filter offers must be one the engine can actually
+  // produce, and every coverage value likewise — a filter entry that matches
+  // nothing by construction looks like a broken control.
+  it('offers only filter values the engine can produce', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    const deltaValues = wrapper.vm.deltaFilterItems.map((item) => item.value).filter(Boolean)
+    expect(deltaValues).toContain('deviating')
+    deltaValues
+      .filter((value) => value !== 'deviating')
+      .forEach((value) => expect(Object.values(DELTA)).toContain(value))
+
+    wrapper.vm.coverageFilterItems
+      .map((item) => item.value)
+      .filter(Boolean)
+      .forEach((value) => expect(Object.values(COVERAGE)).toContain(value))
+
+    expect(wrapper.vm.termKindItems).toEqual([...TERM_KINDS])
   })
 
   it('filters on the visible badge, not on an outranked condition', () => {
@@ -441,6 +549,617 @@ describe('comparison matrix', () => {
     wrapper.vm.deltaFilter = ''
     wrapper.vm.unresolvedOnly = true
     expect(wrapper.vm.visibleRows.map((row) => row.name).sort()).toEqual(['Scrum', 'Vue'])
+  })
+
+  // F8 — the summary says who is apart from whom, and every bar carries the
+  // number of rows it rests on.
+  it('offers one divergence bar per project pair, worst first', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    const bars = wrapper.vm.divergenceBars
+    // Only Alpha and Beta share a term; Gamma has no radar entries at all.
+    expect(bars.map((bar) => bar.key)).toEqual(['p-alpha::p-beta'])
+    expect(bars[0]).toMatchObject({ label: 'Alpha ↔ Beta', percent: 100, level: 'low', detail: 'over 1 term' })
+    expect(bars[0].ariaLabel).toBe('Alpha ↔ Beta: 100 % apart over 1 term')
+  })
+
+  it('says so rather than drawing an empty chart when nothing can be measured', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.deselectProject('p-beta')
+
+    expect(wrapper.vm.divergenceBars).toEqual([])
+  })
+
+  it('drops the divergence to zero once the pair has settled it', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openAcceptDialog(
+      wrapper.vm.rows.find((row) => row.name === 'Vue'),
+      'p-beta'
+    )
+    wrapper.vm.acceptFrom = 'p-alpha'
+    wrapper.vm.confirmAccept()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.divergenceBars[0]).toMatchObject({ percent: 0, level: 'high', detail: 'over 1 term' })
+  })
+
+  it('shows one bar per project against the reference, weakest first', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    expect(wrapper.vm.baselineBars.every((bar) => bar.percent === 0)).toBe(true)
+
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+
+    const bars = wrapper.vm.baselineBars
+    expect(bars.map((bar) => bar.label)).toEqual(['Beta', 'Gamma', 'Alpha'])
+    expect(bars.find((bar) => bar.label === 'Alpha')).toMatchObject({ percent: 100, level: 'high' })
+    expect(bars.find((bar) => bar.label === 'Beta')).toMatchObject({ percent: 0, level: 'low', detail: 'over 1 term' })
+    // Gamma rates nothing the reference lists — 0 rows, not 0 % of something.
+    expect(bars.find((bar) => bar.label === 'Gamma').detail).toBe('over 0 terms')
+  })
+
+  it('carries the pairwise figures into the export and draws them in the report', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    const data = wrapper.vm.exportData()
+    // The export carries every pair, measured or not; the report draws only the
+    // ones with rows behind them.
+    expect(data.pairwiseDivergence).toHaveLength(3)
+    expect(data.pairwiseDivergence).toContainEqual(
+      expect.objectContaining({ a: 'p-alpha', b: 'p-beta', percent: 100, comparedRows: 1 })
+    )
+    const html = buildComparisonHtml(data)
+    expect(html).toContain('How far apart the projects are')
+    expect(html).toContain('Alpha ↔ Beta')
+  })
+
+  // F7 — the second question the matrix can answer: not "do the projects agree"
+  // but "does each of them match the target".
+  it('takes a reference from a project column and measures everyone against it', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    expect(wrapper.vm.confirmBaseline()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.inBaselineMode).toBe(true)
+    expect(wrapper.vm.comparisonMode).toBe('baseline')
+    expect(store.workspace.comparisonBaselines[0].name).toBe('Target')
+
+    // Alpha *is* the reference, so it follows it completely; Beta says Retire
+    // where the target says Adopt.
+    expect(wrapper.vm.agreementWith('p-alpha')).toMatchObject({ percent: 100 })
+    expect(wrapper.vm.agreementWith('p-beta')).toMatchObject({ percent: 0, comparedRows: 1 })
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue')).toMatchObject({
+      delta: 'critical',
+      baselineStatus: 'Adopt'
+    })
+  })
+
+  it('takes a reference from the consensus and reports what it had to leave out', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Consensus'
+    wrapper.vm.baselineSource = 'consensus'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+
+    // Alpha says Adopt and Beta says Retire about Vue — a tie, so no target.
+    expect(wrapper.vm.baselineSkipped.map((entry) => entry.name)).toEqual(['Vue'])
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').delta).toBe('unlisted')
+    // Scrum only Alpha rates, so the consensus is Alpha's answer.
+    expect(wrapper.vm.rows.find((row) => row.name === 'Scrum')).toMatchObject({
+      delta: 'match',
+      baselineStatus: 'Adopt'
+    })
+  })
+
+  it('gives the matrix a reference column and a header to sort it by', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    expect(wrapper.vm.sortHeaders.map((header) => header.column)).not.toContain('baseline')
+
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.sortHeaders.map((header) => header.column)).toEqual([
+      'term',
+      'baseline',
+      'project:p-alpha',
+      'project:p-beta',
+      'project:p-gamma',
+      'coverage',
+      'delta'
+    ])
+    wrapper.vm.toggleSort('baseline')
+    // Rows without a target sort last whichever way round it goes.
+    expect(wrapper.vm.visibleRows[wrapper.vm.visibleRows.length - 1].baselineStatus).toBeTruthy()
+  })
+
+  it('switching back to peer mode changes the reading but no stored data', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+    const stored = JSON.parse(JSON.stringify(store.workspace.comparisonBaselines))
+
+    wrapper.vm.comparisonMode = 'peer'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.inBaselineMode).toBe(false)
+    expect(wrapper.vm.metrics.unlisted).toBe(0)
+    expect(wrapper.vm.baselineAgreement).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual(stored)
+  })
+
+  it('drops back to comparing the projects when the reference is deleted', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.deleteBaseline(store.workspace.comparisonBaselines[0].id)).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.comparisonMode).toBe('peer')
+    expect(wrapper.vm.activeBaselineId).toBe('')
+    expect(wrapper.vm.inBaselineMode).toBe(false)
+  })
+
+  it('re-takes an existing reference under the same id instead of adding a second', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+    const id = store.workspace.comparisonBaselines[0].id
+
+    store.workspace.projects[0].radar[0].status = 'Trial'
+    wrapper.vm.openBaselineDialog(id)
+    expect(wrapper.vm.baselineName).toBe('Target')
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+
+    expect(store.workspace.comparisonBaselines).toHaveLength(1)
+    expect(store.workspace.comparisonBaselines[0].entries['raw:vue'].status).toBe('Trial')
+  })
+
+  it('carries the reference and each project’s agreement with it into the export', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openBaselineDialog('')
+    wrapper.vm.baselineName = 'Target'
+    wrapper.vm.baselineSource = 'p-alpha'
+    wrapper.vm.confirmBaseline()
+    await wrapper.vm.$nextTick()
+
+    const data = wrapper.vm.exportData()
+    expect(data.baseline).toMatchObject({ name: 'Target', origin: { kind: 'project', projectId: 'p-alpha' } })
+    expect(data.baseline.entries['raw:vue']).toMatchObject({ status: 'Adopt' })
+    expect(data.baseline.agreement['p-beta']).toMatchObject({ percent: 0, comparedRows: 1 })
+    expect(data.terms.find((term) => term.name === 'Vue').baselineStatus).toBe('Adopt')
+  })
+
+  // F5 — dragging one term onto another is the short way to say "these are the
+  // same thing". It opens the merge dialog rather than merging: the merge
+  // changes the vocabulary for every project, however it was started.
+  it('opens the merge dialog prefilled when one term is dropped on another', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const scrum = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+    const vue = wrapper.vm.rows.find((row) => row.name === 'Vue')
+
+    const event = { dataTransfer: { setData: () => {}, effectAllowed: '', dropEffect: '' } }
+    wrapper.vm.startRowDrag(scrum, event)
+    expect(wrapper.vm.dragSourceKey).toBe(scrum.key)
+
+    expect(wrapper.vm.dropOnRow(vue)).toBe(true)
+    expect(wrapper.vm.mergeDialog).toBe(true)
+    expect(wrapper.vm.mergeRow.key).toBe(scrum.key)
+    expect(wrapper.vm.mergeTargetKey).toBe(vue.key)
+    // Nothing has been merged yet — the dialog still has to be confirmed.
+    expect(wrapper.vm.rows).toHaveLength(2)
+  })
+
+  it('marks only a row that could actually take the drop', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const scrum = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+    const vue = wrapper.vm.rows.find((row) => row.name === 'Vue')
+    const event = () => ({ preventDefault: () => {}, dataTransfer: { dropEffect: '' } })
+
+    // Nothing is being dragged yet.
+    expect(wrapper.vm.dragOverRow(vue, event())).toBe(false)
+
+    wrapper.vm.startRowDrag(scrum, { dataTransfer: { setData: () => {} } })
+    expect(wrapper.vm.dragOverRow(scrum, event())).toBe(false)
+    expect(wrapper.vm.isDropTarget(scrum)).toBe(false)
+    expect(wrapper.vm.dragOverRow(vue, event())).toBe(true)
+    expect(wrapper.vm.isDropTarget(vue)).toBe(true)
+
+    wrapper.vm.endRowDrag()
+    expect(wrapper.vm.isDropTarget(vue)).toBe(false)
+  })
+
+  it('does nothing when a term is dropped on itself or nothing was dragged', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const vue = wrapper.vm.rows.find((row) => row.name === 'Vue')
+
+    expect(wrapper.vm.dropOnRow(vue)).toBe(false)
+    wrapper.vm.startRowDrag(vue, { dataTransfer: { setData: () => {} } })
+    expect(wrapper.vm.dropOnRow(vue)).toBe(false)
+    expect(wrapper.vm.mergeDialog).toBe(false)
+  })
+
+  it('carries a merged row’s decisions over to the row that survives', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const scrum = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+    const vue = wrapper.vm.rows.find((row) => row.name === 'Vue')
+    store.setComparisonIgnored(scrum.key, { reason: 'duplicate spelling' })
+    store.setComparisonAcceptance(scrum.key, 'p-beta', { mode: 'absence' })
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.startRowDrag(wrapper.vm.ignoredRows[0], { dataTransfer: { setData: () => {} } })
+    wrapper.vm.dropOnRow(vue)
+    wrapper.vm.mergeKind = 'tool'
+    expect(wrapper.vm.confirmMerge()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    // The decisions were about the thing the user just said these two are.
+    expect(store.workspace.comparisonIgnored[scrum.key]).toBeUndefined()
+    expect(store.workspace.comparisonIgnored[vue.key]).toMatchObject({ reason: 'duplicate spelling' })
+    expect(store.workspace.comparisonAcceptances[scrum.key]).toBeUndefined()
+    expect(store.workspace.comparisonAcceptances[vue.key]['p-beta']).toMatchObject({ mode: 'absence' })
+  })
+
+  // F3 — the two shapes of "we go along with that", offered on the cell the
+  // decision is about and counted as agreement rather than as a waived finding.
+  it('accepts an absence, so a term only one project rates counts as agreed', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    // Scrum is Alpha's alone; Beta and Gamma say nothing.
+    const before = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+    expect(before.delta).toBe('none')
+    expect(wrapper.vm.canOfferAcceptance(before, 'p-beta')).toBe(true)
+
+    wrapper.vm.openAcceptDialog(before, 'p-beta')
+    expect(wrapper.vm.acceptIsAbsence).toBe(true)
+    expect(wrapper.vm.confirmAccept()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    const after = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+    expect(after.delta).toBe('silent')
+    expect(wrapper.vm.isAcceptanceApplied(after, 'p-beta')).toBe(true)
+    expect(wrapper.vm.acceptanceLabel(after, 'p-beta')).toContain('goes along')
+    // Agreement reached counts as agreement, and says so separately.
+    expect(wrapper.vm.metrics.silent).toBe(1)
+    expect(wrapper.vm.metrics.matches).toBeGreaterThanOrEqual(1)
+  })
+
+  it('accepts another project’s status, so the difference stops counting as one', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const before = wrapper.vm.rows.find((row) => row.name === 'Vue')
+    expect(before.delta).toBe('critical')
+
+    wrapper.vm.openAcceptDialog(before, 'p-beta')
+    expect(wrapper.vm.acceptIsAbsence).toBe(false)
+    expect(wrapper.vm.acceptSources.map((source) => source.id)).toEqual(['p-alpha'])
+    wrapper.vm.acceptFrom = 'p-alpha'
+    wrapper.vm.acceptComment = 'Alpha owns the frontend'
+    expect(wrapper.vm.confirmAccept()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    const after = wrapper.vm.rows.find((row) => row.name === 'Vue')
+    expect(after.delta).toBe('silent')
+    expect(wrapper.vm.acceptanceLabel(after, 'p-beta')).toContain('Alpha')
+    expect(wrapper.vm.acceptanceTitle(after, 'p-beta')).toContain('Alpha owns the frontend')
+    // The cell keeps its own value — the comparison just reads Alpha's.
+    expect(after.cells.get('p-beta').values[0].status).toBe('Retire')
+  })
+
+  it('records the context, and flags the decision once the situation moves on', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    wrapper.vm.openAcceptDialog(
+      wrapper.vm.rows.find((row) => row.name === 'Vue'),
+      'p-beta'
+    )
+    wrapper.vm.acceptFrom = 'p-alpha'
+    wrapper.vm.confirmAccept()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.isAcceptanceStale(wrapper.vm.rows.find((row) => row.name === 'Vue'), 'p-beta')).toBe(false)
+
+    store.workspace.projects[0].radar[0].status = 'Trial'
+    await wrapper.vm.$nextTick()
+
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+    // Still in force — Beta reads as Trial now — but worth a look.
+    expect(row.delta).toBe('silent')
+    expect(wrapper.vm.isAcceptanceStale(row, 'p-beta')).toBe(true)
+    expect(wrapper.vm.acceptanceTitle(row, 'p-beta')).toContain('worth a look')
+  })
+
+  it('does not offer an acceptance where there is nothing to accept', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const vue = wrapper.vm.rows.find((row) => row.name === 'Vue')
+
+    // Gamma has nothing and neither has anyone else on a Gamma-only term …
+    const scrum = wrapper.vm.rows.find((row) => row.name === 'Scrum')
+    expect(wrapper.vm.canOfferAcceptance(scrum, 'p-alpha')).toBe(false)
+
+    // … and a project that already agrees has nothing to accept either.
+    wrapper.vm.deselectProject('p-gamma')
+    const agreeing = { ...vue, cells: new Map(vue.cells) }
+    agreeing.cells.set('p-beta', { projectId: 'p-beta', values: [{ status: 'Adopt', origin: { rawName: 'Vue' } }] })
+    expect(wrapper.vm.canOfferAcceptance(agreeing, 'p-beta')).toBe(false)
+  })
+
+  it('takes an acceptance back from the cell it was set on', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openAcceptDialog(
+      wrapper.vm.rows.find((row) => row.name === 'Vue'),
+      'p-beta'
+    )
+    wrapper.vm.acceptFrom = 'p-alpha'
+    wrapper.vm.confirmAccept()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.clearAcceptance(wrapper.vm.rows.find((row) => row.name === 'Vue'), 'p-beta')).toBe(true)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').delta).toBe('critical')
+    expect(wrapper.vm.metrics.silent).toBe(0)
+  })
+
+  it('does not report a silent acceptance as a deviation', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openAcceptDialog(
+      wrapper.vm.rows.find((row) => row.name === 'Vue'),
+      'p-beta'
+    )
+    wrapper.vm.acceptFrom = 'p-alpha'
+    wrapper.vm.confirmAccept()
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.deltaFilter = 'deviating'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual([])
+    wrapper.vm.deltaFilter = 'silent'
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).toEqual(['Vue'])
+  })
+
+  it('carries the acceptance into the export, saying whether it still applies', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openAcceptDialog(
+      wrapper.vm.rows.find((row) => row.name === 'Vue'),
+      'p-beta'
+    )
+    wrapper.vm.acceptFrom = 'p-alpha'
+    wrapper.vm.acceptComment = 'Alpha owns the frontend'
+    wrapper.vm.confirmAccept()
+    await wrapper.vm.$nextTick()
+
+    const term = wrapper.vm.exportData().terms.find((entry) => entry.name === 'Vue')
+    const beta = term.projects.find((project) => project.projectId === 'p-beta')
+    expect(term.delta).toBe('silent')
+    expect(beta.acceptance).toMatchObject({
+      mode: 'status',
+      acceptedFrom: 'p-alpha',
+      comment: 'Alpha owns the frontend',
+      applies: true,
+      needsReview: false
+    })
+  })
+
+  // F2 — renaming keeps the term's identity, so nothing that points at it is
+  // lost; a row the vocabulary does not resolve has no identity to keep and is
+  // offered the one thing that helps: becoming a term.
+  it('renames a term and keeps the old spelling resolving to it', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const termId = store.createTerm('Vue', 'tool')
+    store.setComparisonOverride(termId, { level: 'accepted' })
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.openRenameDialog(wrapper.vm.rows.find((row) => row.name === 'Vue'))
+    wrapper.vm.renameName = 'Vue.js'
+    expect(wrapper.vm.confirmRename()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.renameDialog).toBe(false)
+    // Same id, same row, same override — the blips say "Vue" and still land here.
+    expect(store.workspace.vocabulary[0]).toMatchObject({ id: termId, name: 'Vue.js' })
+    expect(store.getComparisonOverride(termId)).toBeTruthy()
+    const row = wrapper.vm.rows.find((entry) => entry.key === `term:${termId}`)
+    expect(row.name).toBe('Vue.js')
+    expect(row.cells.get('p-alpha').values).toHaveLength(1)
+  })
+
+  it('refuses a rename onto a name another term already owns, and says so', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    store.createTerm('Vue', 'tool')
+    store.createTerm('Scrum', 'practice')
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.openRenameDialog(wrapper.vm.rows.find((row) => row.name === 'Vue'))
+    wrapper.vm.renameName = 'Scrum'
+
+    expect(wrapper.vm.confirmRename()).toBe(false)
+    expect(wrapper.vm.renameError).toContain('Merge')
+    expect(wrapper.vm.renameDialog).toBe(true)
+    expect(store.workspace.vocabulary.map((term) => term.name).sort()).toEqual(['Scrum', 'Vue'])
+  })
+
+  it('turns an unresolved row into a term instead of pretending to rename it', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+    expect(row.resolved).toBe(false)
+
+    wrapper.vm.openRenameDialog(row)
+    expect(wrapper.vm.renameCreatesTerm).toBe(true)
+    // The row already knows it is a tool, so no kind has to be asked for.
+    expect(wrapper.vm.renameNeedsKind).toBe(false)
+    wrapper.vm.renameName = 'Vue.js'
+    expect(wrapper.vm.confirmRename()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    const term = store.workspace.vocabulary[0]
+    expect(term).toMatchObject({ name: 'Vue.js', kind: 'tool' })
+    // The spelling the projects use has to become an alias, or the row splits.
+    expect(term.aliases).toContain('vue')
+    expect(wrapper.vm.rows.map((entry) => entry.name)).toContain('Vue.js')
+  })
+
+  it('asks for a kind before creating a term from a row that has none', async () => {
+    const workspace = smallWorkspace()
+    delete workspace.questionnaires[0].categories[0].entries[0].answers[0].answerType
+    delete workspace.questionnaires[1].categories[0].entries[0].answers[0].answerType
+    const { wrapper } = mountComparison(workspace)
+
+    wrapper.vm.openRenameDialog(wrapper.vm.rows.find((row) => row.name === 'Vue'))
+    wrapper.vm.renameName = 'Vue.js'
+
+    expect(wrapper.vm.renameNeedsKind).toBe(true)
+    expect(wrapper.vm.canRename).toBe(false)
+    wrapper.vm.renameKind = 'tool'
+    expect(wrapper.vm.canRename).toBe(true)
+  })
+
+  it('refuses an empty name in either mode', () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openRenameDialog(wrapper.vm.rows[0])
+
+    wrapper.vm.renameName = '   '
+    expect(wrapper.vm.canRename).toBe(false)
+    expect(wrapper.vm.confirmRename()).toBe(false)
+  })
+
+  it('carries the decisions along when naming a row turns it into a term', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const row = wrapper.vm.rows.find((entry) => entry.name === 'Vue')
+    store.setComparisonAcceptance(row.key, 'p-gamma', { mode: 'absence' })
+    store.createComparisonBaseline({ name: 'Target', entries: { [row.key]: { name: 'Vue', status: 'Adopt' } } })
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.openRenameDialog(wrapper.vm.rows.find((entry) => entry.name === 'Vue'))
+    wrapper.vm.renameName = 'Vue.js'
+    wrapper.vm.confirmRename()
+    await wrapper.vm.$nextTick()
+
+    const termId = store.workspace.vocabulary[0].id
+    // Same thing, new key — the reference must not keep a target under the old
+    // one, or the row comes back as a phantom gap next to the renamed one.
+    expect(store.workspace.comparisonBaselines[0].entries).toEqual({
+      [`term:${termId}`]: { name: 'Vue', status: 'Adopt' }
+    })
+    expect(store.workspace.comparisonAcceptances[`term:${termId}`]['p-gamma']).toMatchObject({ mode: 'absence' })
+    expect(store.workspace.comparisonAcceptances[row.key]).toBeUndefined()
+  })
+
+  it('lists, searches and corrects the vocabulary’s own terms', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const vueId = store.createTerm('Veu', 'tool')
+    store.addAlias(vueId, 'vue')
+    store.createTerm('Scrum', 'practice')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.matchingTerms.map((term) => term.name)).toEqual(['Scrum', 'Veu'])
+    wrapper.vm.termSearch = 'scr'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.matchingTerms.map((term) => term.name)).toEqual(['Scrum'])
+    // The search reaches the aliases too, not only the canonical name.
+    wrapper.vm.termSearch = 'vue'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.matchingTerms.map((term) => term.name)).toEqual(['Veu'])
+
+    const term = wrapper.vm.matchingTerms[0]
+    expect(wrapper.vm.renameVocabularyTerm(term, 'Vue')).toBe(true)
+    expect(wrapper.vm.setVocabularyTermKind(store.workspace.vocabulary[0], 'practice')).toBe(true)
+    expect(wrapper.vm.setVocabularyTermNote(store.workspace.vocabulary[0], 'the framework')).toBe(true)
+    expect(store.workspace.vocabulary[0]).toMatchObject({ id: vueId, name: 'Vue', kind: 'practice', note: 'the framework' })
+  })
+
+  it('reports a rename in the term list that would collide, without changing anything', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    store.createTerm('Vue', 'tool')
+    store.createTerm('Scrum', 'practice')
+    await wrapper.vm.$nextTick()
+
+    const scrum = wrapper.vm.matchingTerms.find((term) => term.name === 'Scrum')
+    expect(wrapper.vm.renameVocabularyTerm(scrum, 'Vue')).toBe(false)
+    expect(wrapper.vm.vocabularyError).toContain('Merge')
+    expect(store.workspace.vocabulary.map((term) => term.name).sort()).toEqual(['Scrum', 'Vue'])
+  })
+
+  it('removes an alias and deletes a term, leaving the project data alone', async () => {
+    const { wrapper, store } = mountComparison(smallWorkspace())
+    const termId = store.createTerm('Vue', 'tool')
+    store.addAlias(termId, 'vuejs')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.removeVocabularyAlias(store.workspace.vocabulary[0], 'vuejs')).toBe(true)
+    expect(store.workspace.vocabulary[0].aliases).not.toContain('vuejs')
+
+    expect(wrapper.vm.deleteVocabularyTerm(store.workspace.vocabulary[0])).toBe(true)
+    expect(store.workspace.vocabulary).toEqual([])
+    // The blip is untouched — it just stops resolving and shows as ◌ again.
+    expect(store.workspace.projects[0].radar[0].option).toBe('Vue')
+    expect(wrapper.vm.rows.find((row) => row.name === 'Vue').resolved).toBe(false)
+  })
+
+  // F1 — the mark takes the row out of the comparison; the table can still be
+  // asked to show it so the decision can be reversed where it was taken.
+  it('marks a term as not important and takes it out of the table and the figures', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    const total = wrapper.vm.metrics.total
+
+    wrapper.vm.openIgnoreDialog(wrapper.vm.rows.find((row) => row.name === 'Scrum'))
+    wrapper.vm.ignoreReason = 'not our decision'
+    expect(wrapper.vm.confirmIgnore()).toBe(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.ignoreDialog).toBe(false)
+    expect(wrapper.vm.rows.map((row) => row.name)).not.toContain('Scrum')
+    expect(wrapper.vm.visibleRows.map((row) => row.name)).not.toContain('Scrum')
+    expect(wrapper.vm.metrics.total).toBe(total - 1)
+    expect(wrapper.vm.metrics.ignored).toBe(1)
+    expect(wrapper.vm.ignoredRows[0].ignored.reason).toBe('not our decision')
+  })
+
+  it('shows marked terms again on request, still marked, and takes the mark back', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openIgnoreDialog(wrapper.vm.rows.find((row) => row.name === 'Scrum'))
+    wrapper.vm.confirmIgnore()
+    await wrapper.vm.$nextTick()
+
+    wrapper.vm.showIgnored = true
+    await wrapper.vm.$nextTick()
+    const shown = wrapper.vm.visibleRows.find((row) => row.name === 'Scrum')
+    expect(shown.ignored).toBeTruthy()
+    // Showing it must not put it back into the figures.
+    expect(wrapper.vm.metrics.ignored).toBe(1)
+
+    expect(wrapper.vm.includeRow(shown)).toBe(true)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.metrics.ignored).toBe(0)
+    expect(wrapper.vm.rows.map((row) => row.name)).toContain('Scrum')
+  })
+
+  it('carries marked terms into the export instead of dropping them silently', async () => {
+    const { wrapper } = mountComparison(smallWorkspace())
+    wrapper.vm.openIgnoreDialog(wrapper.vm.rows.find((row) => row.name === 'Scrum'))
+    wrapper.vm.ignoreReason = 'out of scope'
+    wrapper.vm.confirmIgnore()
+    await wrapper.vm.$nextTick()
+
+    const data = wrapper.vm.exportData()
+    expect(data.terms.map((term) => term.name)).not.toContain('Scrum')
+    expect(data.ignored).toEqual([expect.objectContaining({ name: 'Scrum', reason: 'out of scope' })])
   })
 
   it('searches terms, aliases and entry provenance', () => {
