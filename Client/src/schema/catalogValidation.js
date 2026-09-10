@@ -1,9 +1,9 @@
 // Runtime validator for the Catalog structure described in
-// docs/spec-fragenkataloge.md §3.2 / catalog.schema.json. Hand-written rather
+// catalog.schema.json. Hand-written rather
 // than a generic JSON-Schema interpreter, since the rule set is small and
 // fixed and the project has no schema-validation dependency yet.
 //
-// Errors are structural problems that must block saving (§4.5): missing
+// Errors are structural problems that must block saving: missing
 // required fields, duplicate/malformed ids, wrong metadata-category count.
 // Warnings are advisory (e.g. appliesTo referencing an unknown metadata
 // field/value) and never block saving.
@@ -137,7 +137,7 @@ function collectKnownMetadataFields(metadataCategory) {
 }
 
 /**
- * Validates a Catalog against the rules in docs/spec-fragenkataloge.md §3.2.
+ * Validates a Catalog against the rules in catalog.schema.json.
  * @returns {{ errors: Array<{path: string, message: string}>, warnings: Array<{path: string, message: string}> }}
  */
 export function validateCatalog(catalog) {

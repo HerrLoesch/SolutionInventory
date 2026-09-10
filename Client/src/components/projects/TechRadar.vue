@@ -368,6 +368,50 @@
               </template>
             </v-tooltip>
           </div>
+          <!-- Kind key: a visibility filter over tool / practice / unassigned,
+               the same pattern as the ring key above (design §4.2). -->
+          <div class="ring-key d-flex flex-wrap justify-center mt-2" style="gap: 16px">
+            <div
+              v-for="kind in ['tool', 'practice', 'unassigned']"
+              :key="kind"
+              class="ring-key-item d-flex align-center"
+              :class="{ 'ring-key-item--inactive': !isKindVisible(kind) }"
+              style="gap: 6px; cursor: pointer; user-select: none"
+              @click="toggleKindVisibility(kind)"
+            >
+              <v-icon size="12">
+                {{
+                  kind === 'tool'
+                    ? 'mdi-puzzle'
+                    : kind === 'practice'
+                      ? 'mdi-lightbulb-outline'
+                      : 'mdi-help-circle-outline'
+                }}
+              </v-icon>
+              <span class="text-caption">{{ kind }}</span>
+            </div>
+          </div>
+
+          <!-- Blips the diagram cannot place. Listed rather than parked on the
+               Hold ring, which used to assert a judgement nobody made. -->
+          <div v-if="blipsWithoutStatus.length" class="without-status mt-3">
+            <div class="text-caption font-weight-medium mb-1">
+              <v-icon size="12" class="mr-1">mdi-circle-off-outline</v-icon>
+              Without status ({{ blipsWithoutStatus.length }})
+            </div>
+            <div class="d-flex flex-wrap" style="gap: 6px">
+              <v-chip
+                v-for="blip in blipsWithoutStatus"
+                :key="blip.key"
+                size="x-small"
+                variant="outlined"
+                @click="openDetail(blip)"
+              >
+                {{ blip.name }}
+              </v-chip>
+            </div>
+          </div>
+
           <div v-if="!positionedBlips.length" class="text-caption text-medium-emphasis text-center mt-2 px-4">
             <span v-if="answerTypeFilter === 'all'">No blips added yet.</span>
             <span v-else
@@ -515,6 +559,19 @@
                 <div class="detail-label">Questionnaire</div>
                 <div class="text-body-2">{{ detailBlip.questionnaireName || '—' }}</div>
               </div>
+              <!-- Vocabulary: what this blip is called across all projects -->
+              <div class="detail-field">
+                <div class="detail-label">Vocabulary</div>
+                <div v-if="detailTerm" class="text-body-2 d-flex align-center" style="gap: 4px">
+                  <v-icon size="12">mdi-check-circle-outline</v-icon>
+                  {{ detailTerm.name }}
+                  <span class="text-caption text-medium-emphasis">({{ detailTerm.kind }})</span>
+                </div>
+                <div v-else class="text-body-2 text-medium-emphasis d-flex align-center" style="gap: 4px">
+                  <v-icon size="12">mdi-circle-outline</v-icon>
+                  Not in the vocabulary
+                </div>
+              </div>
               <div v-if="detailBlip.infoUrl" class="detail-field">
                 <div class="detail-label">Further information</div>
                 <a :href="detailBlip.infoUrl" target="_blank" rel="noopener noreferrer" class="detail-link">
@@ -548,6 +605,54 @@
             >
               No comments available.
             </div>
+
+            <!-- Assigning the blip to a vocabulary term. Suggestions are only
+                 ever offered — a match becomes real when a person confirms it. -->
+            <template v-if="!detailTerm">
+              <v-divider class="my-3" />
+              <div class="detail-label mb-2">Assign to a vocabulary term</div>
+
+              <div v-if="detailTermSuggestions.length" class="mb-3">
+                <div class="text-caption text-medium-emphasis mb-1">Similar terms</div>
+                <div class="d-flex flex-wrap" style="gap: 6px">
+                  <v-chip
+                    v-for="suggestion in detailTermSuggestions"
+                    :key="suggestion.term.id"
+                    size="small"
+                    variant="outlined"
+                    prepend-icon="mdi-link-variant"
+                    @click="assignDetailBlipToTerm(suggestion.term.id)"
+                  >
+                    {{ suggestion.term.name }}
+                  </v-chip>
+                </div>
+              </div>
+
+              <div class="d-flex align-center flex-wrap" style="gap: 8px">
+                <v-select
+                  v-if="!detailBlip.answerType"
+                  v-model="pendingTermKind"
+                  :items="['tool', 'practice']"
+                  label="Kind"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                  style="max-width: 160px"
+                />
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  prepend-icon="mdi-plus"
+                  :disabled="!canCreateTermFromDetail"
+                  @click="createTermFromDetailBlip"
+                >
+                  Create as its own term
+                </v-btn>
+                <span v-if="!canCreateTermFromDetail" class="text-caption text-medium-emphasis">
+                  Choose a kind first — it cannot be guessed.
+                </span>
+              </div>
+            </template>
           </v-card-text>
 
           <v-divider />
@@ -793,6 +898,8 @@
 import { computed, ref, watch } from 'vue'
 import { toPng } from 'html-to-image'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { buildEntryLookup, deriveBlipJoin, deriveKind } from '../../services/blipJoin'
+import { buildAliasIndex, resolve, findSimilarTerms, TERM_KINDS } from '../../services/vocabulary'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { exportRadarHtml as _exportRadarHtml } from '../../utils/techRadarExport'
 import CustomHtmlExportDialog from './CustomHtmlExportDialog.vue'
@@ -892,6 +999,16 @@ function getSlots(qIdx, rIdx, rings) {
 }
 
 // ── Status / type mapping helpers ────────────────────────────────────────────
+//
+// A blip with no effectiveStatus at all — neither curated on the blip nor
+// inherited from its answer — has no ring. It used to fall back to Hold, which
+// silently asserted a judgement nobody made; such blips are now listed below the
+// diagram instead (design §5.4). -1 marks that state.
+//
+// This is only about the *ring*. The inheritance `entry.status || answer.status`
+// is untouched: a blip that inherits Hold still lands on the Hold ring.
+const RING_NONE = -1
+
 function statusToRing(status) {
   const s = String(status || '')
     .trim()
@@ -901,7 +1018,9 @@ function statusToRing(status) {
   if (s === 'assess') return 2
   if (s === 'hold') return 3
   if (s === 'retire') return 4
-  return 3
+  // An unrecognized status is still a judgement, just not one on this scale —
+  // it keeps the old Hold fallback. Only an *empty* status has no ring.
+  return s === '' ? RING_NONE : 3
 }
 
 function statusLabel(status) {
@@ -971,6 +1090,9 @@ export default {
     ]
     const draggedCategory = ref(null)
     const visibleStatuses = ref(new Set(['adopt', 'trial', 'assess', 'hold', 'retire']))
+    // Kind filter, same shape as the status filter above: a visibility filter,
+    // not a separate view. All three on to begin with.
+    const visibleKinds = ref(new Set(['tool', 'practice', 'unassigned']))
 
     // Markdown editor toolbar – minimal set for comment editing
     const mdToolbars = [
@@ -1177,57 +1299,12 @@ export default {
     const project = computed(() => (store.workspace.projects || []).find((p) => p.id === props.projectId) || null)
 
     // Lookup table: entryId -> { categoryTitle, entryTitle, candidates }
-    // Only rebuilds when questionnaires change (not on every radar ref update)
+    // Only rebuilds when questionnaires change (not on every radar ref update).
+    // The join itself lives in services/blipJoin.js so the comparison engine can
+    // reuse it instead of deriving answerType and effectiveStatus a second time.
     const entryLookup = computed(() => {
       if (!project.value) return new Map()
-      const questionnaires = store.getProjectQuestionnaires(project.value)
-      const lookup = new Map()
-
-      for (const q of questionnaires) {
-        const cats = q?.categories
-        if (!Array.isArray(cats)) continue
-
-        for (const cat of cats) {
-          if (cat?.isMetadata) continue
-
-          const catTitle = String(cat?.title || '').trim()
-          const entries = cat?.entries
-          if (!Array.isArray(entries)) continue
-
-          for (const entry of entries) {
-            const entryId = String(entry?.id || '').trim()
-            if (!entryId) continue
-
-            const entryTitle = String(entry?.aspect || entry?.title || entryId).trim()
-
-            if (!lookup.has(entryId)) {
-              lookup.set(entryId, {
-                categoryTitle: catTitle,
-                entryTitle,
-                candidates: []
-              })
-            }
-
-            const entryData = lookup.get(entryId)
-            const answers = entry?.answers
-            if (!Array.isArray(answers)) continue
-
-            for (const a of answers) {
-              const tech = String(a?.technology || '').trim()
-              if (!tech) continue
-
-              entryData.candidates.push({
-                tech,
-                answer: a,
-                questionnaireName: q.name || q.id,
-                questionnaireId: q.id
-              })
-            }
-          }
-        }
-      }
-
-      return lookup
+      return buildEntryLookup(store.getProjectQuestionnaires(project.value))
     })
 
     // All radar-referenced blips (unfiltered), includes categoryTitle
@@ -1237,61 +1314,49 @@ export default {
       if (!entries.length) return []
 
       const lookup = entryLookup.value
-      const result = []
+      const vocabulary = store.workspace.vocabulary || []
+      const { index } = buildAliasIndex(vocabulary)
 
-      for (const entry of entries) {
-        const norm = String(entry.option || '')
-          .trim()
-          .toLowerCase()
-        const entryData = lookup.get(entry.entryId)
-        const candidates = entryData?.candidates || []
+      return entries.map((entry) => {
+        const joined = deriveBlipJoin(entry, lookup)
+        const option = String(entry.option || '').trim()
+        const term = resolve(option, index)
 
-        // Find matching answer for type and questionnaire info
-        let match = null
-        for (const c of candidates) {
-          if (c.tech.toLowerCase() === norm) {
-            match = c
-            break
-          }
-        }
-
-        const answer = match?.answer
-        const questionnaireStatus = String(answer?.status || '').trim()
-        const questionnaireCategory = entryData?.categoryTitle || ''
-        const radarStatus = (entry.status || '').trim()
-        const radarCategory = (entry.category || '').trim()
-
-        const effectiveStatus = radarStatus || questionnaireStatus
-        const effectiveCategory = radarCategory || questionnaireCategory
-
-        // Flags for "has user override" indicator (pencil icon)
-        const overrideStatus = radarStatus && radarStatus !== questionnaireStatus ? radarStatus : ''
-        const overrideCategoryTitle = radarCategory && radarCategory !== questionnaireCategory ? radarCategory : ''
-
-        result.push({
+        return {
           key: `${entry.entryId}||${entry.option}`,
           entryId: entry.entryId,
-          option: String(entry.option || '').trim(),
-          name: String(entry.option || '').trim(),
-          status: effectiveStatus,
-          answerType: String(answer?.answerType || '').trim(),
-          comment: String(answer?.comments || '').trim(),
+          option,
+          name: option,
+          status: joined.effectiveStatus,
+          answerType: joined.answerType,
+          comment: String(joined.answer?.comments || '').trim(),
           radarComment: String(entry.description || '').trim(),
           shortComment: String(entry.shortComment || '').trim(),
           infoUrl: String(entry.link || '').trim(),
           mandatory: entry.mandatory === true,
-          overrideStatus,
-          overrideCategoryTitle,
-          naturalCategoryTitle: questionnaireCategory,
-          questionnaireName: match?.questionnaireName || '',
-          categoryTitle: effectiveCategory,
-          entryTitle: entryData?.entryTitle || '',
-          ring: statusToRing(effectiveStatus)
-        })
-      }
-
-      return result
+          overrideStatus: joined.overrideStatus,
+          overrideCategoryTitle: joined.overrideCategoryTitle,
+          naturalCategoryTitle: joined.naturalCategoryTitle,
+          questionnaireName: joined.questionnaireName,
+          categoryTitle: joined.effectiveCategory,
+          entryTitle: joined.entryTitle,
+          // Vocabulary view of the blip. `termId` is empty for a name the
+          // vocabulary does not know (marked ◌ in the comparison); `kind` follows
+          // the DE-11 precedence and is never guessed from the name itself.
+          termId: term?.id || '',
+          termName: term?.name || '',
+          kind: deriveKind(option, joined.answerType, index),
+          ring: statusToRing(joined.effectiveStatus)
+        }
+      })
     })
+
+    // Blips the diagram cannot place: no curated status and no inherited one.
+    // Shown as a list under the radar so they are visible and reachable rather
+    // than quietly parked on the Hold ring.
+    const blipsWithoutStatus = computed(() =>
+      allBlips.value.filter((blip) => blip.ring === RING_NONE && visibleKinds.value.has(blip.kind))
+    )
 
     // All unique categories that have at least one radar blip
     const availableCategories = computed(() => {
@@ -1492,11 +1557,18 @@ export default {
       const mapping = categoryToQuadrant.value
       blips = blips.filter((b) => mapping.has(b.categoryTitle))
 
+      // Blips without any status have no ring and are not plotted; they are
+      // listed under the diagram instead (design §5.4).
+      blips = blips.filter((b) => b.ring !== RING_NONE)
+
       // Filter by visible statuses
       blips = blips.filter((b) => {
         const statusName = RING_META[b.ring]?.label.toLowerCase()
         return visibleStatuses.value.has(statusName)
       })
+
+      // Filter by visible kinds (design §4.2)
+      blips = blips.filter((b) => visibleKinds.value.has(b.kind))
       return blips
     })
 
@@ -1684,7 +1756,55 @@ export default {
 
     function openDetail(blip) {
       detailBlip.value = blip
+      // A fresh dialog never carries the previous blip's pending kind choice.
+      pendingTermKind.value = ''
       detailDialog.value = true
+    }
+
+    // ── Vocabulary assignment for the blip in the detail dialog ───────────────
+    //
+    // A blip's name is free text; the vocabulary decides whether two projects
+    // are talking about the same thing. This is where that link is made, at the
+    // point where the user is already looking at the blip.
+
+    // Kind chosen by hand for a blip whose answer carries no answerType. Kind is
+    // mandatory on a term (design §5.1) and must not be guessed, so "create as
+    // its own term" stays disabled until this is filled in.
+    const pendingTermKind = ref('')
+
+    const detailTerm = computed(() => (detailBlip.value ? store.resolveTerm(detailBlip.value.name) : null))
+
+    const detailTermSuggestions = computed(() => {
+      if (!detailBlip.value || detailTerm.value) return []
+      return findSimilarTerms(detailBlip.value.name, store.workspace.vocabulary || [])
+    })
+
+    // Pre-filled from answerType when there is one; otherwise the user's choice.
+    const detailTermKind = computed(() => {
+      if (!detailBlip.value) return ''
+      const fromAnswer = String(detailBlip.value.answerType || '')
+        .trim()
+        .toLowerCase()
+      if (fromAnswer === 'tool' || fromAnswer === 'practice') return fromAnswer
+      return pendingTermKind.value
+    })
+
+    // Disabled rather than guessing: an unassigned kind would silently pick a
+    // side of the tool/practice filter for every project that reuses the term.
+    const canCreateTermFromDetail = computed(
+      () => Boolean(detailBlip.value) && !detailTerm.value && TERM_KINDS.includes(detailTermKind.value)
+    )
+
+    function assignDetailBlipToTerm(termId) {
+      if (!detailBlip.value || !termId) return false
+      return store.addAlias(termId, detailBlip.value.name)
+    }
+
+    function createTermFromDetailBlip() {
+      if (!canCreateTermFromDetail.value) return ''
+      const termId = store.createTerm(detailBlip.value.name, detailTermKind.value)
+      if (termId) pendingTermKind.value = ''
+      return termId
     }
 
     // Drag-and-drop handlers for category<->quadrant assignment
@@ -1772,6 +1892,20 @@ export default {
 
     function isStatusVisible(statusLabel) {
       return visibleStatuses.value.has(statusLabel.toLowerCase())
+    }
+
+    // Toggle kind visibility. Unlike the status filter this one may be emptied:
+    // hiding every kind is a legitimate "show me nothing but the layout" state,
+    // and the ring geometry does not depend on it.
+    function toggleKindVisibility(kind) {
+      const next = new Set(visibleKinds.value)
+      if (next.has(kind)) next.delete(kind)
+      else next.add(kind)
+      visibleKinds.value = next
+    }
+
+    function isKindVisible(kind) {
+      return visibleKinds.value.has(kind)
     }
 
     // Flatten a CSS rgba() colour against a white background so the exported
@@ -1948,6 +2082,13 @@ export default {
       detailDialog,
       detailBlip,
       openDetail,
+      pendingTermKind,
+      detailTerm,
+      detailTermSuggestions,
+      detailTermKind,
+      canCreateTermFromDetail,
+      assignDetailBlipToTerm,
+      createTermFromDetailBlip,
       quadrantConfigDialog,
       handleCategoryDragStart,
       handleCategoryDragEnd,
@@ -1959,6 +2100,10 @@ export default {
       handleUnassignedDrop,
       toggleStatusVisibility,
       isStatusVisible,
+      blipsWithoutStatus,
+      visibleKinds,
+      toggleKindVisibility,
+      isKindVisible,
       radarLayoutRef,
       isDownloading,
       downloadRadar,

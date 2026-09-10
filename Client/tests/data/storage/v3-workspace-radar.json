@@ -1,0 +1,179 @@
+{
+  "version": 3,
+  "appVersion": "2.1.0",
+  "timestamp": "2026-08-20T09:15:00.000Z",
+  "workspace": {
+    "id": "workspace-v3radar",
+    "projects": [
+      {
+        "id": "project-alpha",
+        "name": "Alpha Service",
+        "expanded": true,
+        "questionnaireIds": ["questionnaire-alpha"],
+        "defaultCatalogId": "catalog-house",
+        "radar": [
+          {
+            "entryId": "arch-hlp",
+            "option": "Clean Arch",
+            "category": "Architecture",
+            "status": "Adopt",
+            "shortComment": "Applied throughout",
+            "description": "Consistently applied across all modules.",
+            "link": "https://example.com/clean-arch"
+          },
+          {
+            "entryId": "stack-runtime",
+            "option": ".NET Core",
+            "category": "",
+            "status": "",
+            "shortComment": "",
+            "description": "",
+            "link": ""
+          },
+          {
+            "entryId": "stack-cache",
+            "option": "Redis",
+            "category": "",
+            "status": "",
+            "shortComment": "",
+            "description": "",
+            "link": ""
+          }
+        ],
+        "radarCategoryOrder": ["Architecture", "Stack"],
+        "radarCategoryQuadrants": { "Architecture": 0, "Stack": 1 },
+        "radarQuadrantLabels": { "0": "Techniques", "1": "Platforms" }
+      },
+      {
+        "id": "project-beta",
+        "name": "Beta Portal",
+        "expanded": false,
+        "questionnaireIds": ["questionnaire-beta"],
+        "defaultCatalogId": "catalog-house",
+        "radar": [
+          {
+            "entryId": "arch-hlp",
+            "option": "Clean Arch",
+            "category": "Architecture",
+            "status": "Trial",
+            "shortComment": "",
+            "description": "",
+            "link": ""
+          },
+          {
+            "entryId": "stack-runtime",
+            "option": "dotnet core",
+            "category": "Stack",
+            "status": "Adopt",
+            "shortComment": "",
+            "description": "",
+            "link": ""
+          }
+        ],
+        "radarCategoryOrder": [],
+        "radarCategoryQuadrants": {},
+        "radarQuadrantLabels": {}
+      }
+    ],
+    "questionnaires": [
+      {
+        "id": "questionnaire-alpha",
+        "name": "Alpha Assessment",
+        "catalogId": "catalog-house",
+        "categories": [
+          {
+            "id": "architecture",
+            "title": "Architecture",
+            "entries": [
+              {
+                "id": "arch-hlp",
+                "aspect": "High-Level Pattern",
+                "applicability": "applicable",
+                "answers": [{ "technology": "Clean Arch", "status": "Adopt", "comments": "", "answerType": "Practice" }]
+              }
+            ]
+          },
+          {
+            "id": "stack",
+            "title": "Stack",
+            "entries": [
+              {
+                "id": "stack-runtime",
+                "aspect": "Runtime",
+                "applicability": "applicable",
+                "answers": [{ "technology": ".NET Core", "status": "Trial", "comments": "", "answerType": "Tool" }]
+              },
+              {
+                "id": "stack-cache",
+                "aspect": "Caching",
+                "applicability": "applicable",
+                "answers": [{ "technology": "Redis", "status": "", "comments": "", "answerType": "Tool" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "questionnaire-beta",
+        "name": "Beta Assessment",
+        "catalogId": "catalog-house",
+        "categories": [
+          {
+            "id": "architecture",
+            "title": "Architecture",
+            "entries": [
+              {
+                "id": "arch-hlp",
+                "aspect": "High-Level Pattern",
+                "applicability": "applicable",
+                "answers": [{ "technology": "Clean Arch", "status": "Trial", "comments": "", "answerType": "Practice" }]
+              }
+            ]
+          },
+          {
+            "id": "stack",
+            "title": "Stack",
+            "entries": [
+              {
+                "id": "stack-runtime",
+                "aspect": "Runtime",
+                "applicability": "applicable",
+                "answers": [{ "technology": "dotnet core", "status": "Adopt", "comments": "", "answerType": "Tool" }]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "catalogs": [
+      {
+        "id": "catalog-house",
+        "name": "House Catalog",
+        "version": 4,
+        "description": "A workspace-owned catalog, so no built-in refresh applies to it.",
+        "statusOptions": ["Adopt", "Trial", "Assess", "Hold", "Retire"],
+        "applicabilityOptions": ["applicable", "not applicable"],
+        "categories": [
+          {
+            "id": "architecture",
+            "title": "Architecture",
+            "entries": [{ "id": "arch-hlp", "aspect": "High-Level Pattern", "examples": [] }]
+          },
+          {
+            "id": "stack",
+            "title": "Stack",
+            "entries": [
+              { "id": "stack-runtime", "aspect": "Runtime", "examples": [] },
+              { "id": "stack-cache", "aspect": "Caching", "examples": [] }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "activeQuestionnaireId": "questionnaire-alpha",
+  "openQuestionnaireIds": ["questionnaire-alpha", "questionnaire-beta"],
+  "activeWorkspaceTabId": "questionnaire-alpha",
+  "openProjectSummaryIds": ["project-alpha"],
+  "questionnaireHiddenEntries": {}
+}

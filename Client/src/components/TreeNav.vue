@@ -3,11 +3,15 @@
     <div class="tree-header">
       <div class="tree-title">Question Catalogs</div>
       <div class="tree-actions">
+        <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
+          <v-icon>mdi-plus</v-icon>
+          <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>
+        </v-btn>
         <v-menu location="bottom end">
           <template #activator="{ props: menuProps }">
-            <v-btn icon size="x-small" variant="text" aria-label="AI schema" v-bind="menuProps">
-              <v-icon>mdi-robot-outline</v-icon>
-              <v-tooltip activator="parent" location="bottom">AI schema for catalog authoring</v-tooltip>
+            <v-btn icon size="x-small" variant="text" aria-label="Schema" v-bind="menuProps">
+              <v-icon>mdi-file-code-outline</v-icon>
+              <v-tooltip activator="parent" location="bottom">Schema for catalog authoring</v-tooltip>
             </v-btn>
           </template>
           <v-list density="compact">
@@ -25,10 +29,6 @@
             </v-list-item>
           </v-list>
         </v-menu>
-        <v-btn icon size="x-small" variant="text" aria-label="New catalog" @click="openCatalogDialog">
-          <v-icon>mdi-plus</v-icon>
-          <v-tooltip activator="parent" location="bottom">New catalog</v-tooltip>
-        </v-btn>
       </div>
     </div>
 
@@ -87,7 +87,30 @@
     <v-divider class="nav-divider"></v-divider>
 
     <div class="tree-header">
-      <div class="tree-title">Projects</div>
+      <!-- The workspace node replaces the plain "Projects" heading: comparing
+           projects is a property of the workspace, not of any one project.
+           Disabled below two projects — there is nothing to compare then. -->
+      <div
+        class="tree-title workspace-node"
+        :class="{ 'workspace-node--disabled': !canCompareProjects, 'workspace-node--active': comparisonTabActive }"
+        role="button"
+        :tabindex="canCompareProjects ? 0 : -1"
+        :aria-disabled="!canCompareProjects"
+        @click="openComparison"
+        @keydown.enter="openComparison"
+        @keydown.space.prevent="openComparison"
+      >
+        <v-icon size="14" class="mr-1">mdi-briefcase-outline</v-icon>
+        Workspace
+        <!-- The project count is the node's own information: it is what decides
+             whether comparing is possible at all (design §4.1). The workspace
+             itself carries no name in the data model, so the label stays
+             generic. -->
+        <v-chip size="x-small" variant="tonal" class="ml-2">{{ projects.length }} proj.</v-chip>
+        <v-tooltip activator="parent" location="bottom">
+          {{ canCompareProjects ? 'Compare projects' : 'At least two projects are needed to compare' }}
+        </v-tooltip>
+      </div>
       <div class="tree-actions">
         <v-btn icon size="x-small" variant="text" aria-label="New project" @click="openProjectDialog">
           <v-icon>mdi-plus</v-icon>
@@ -573,6 +596,16 @@ export default {
     const { canLeaveActiveTab } = useWorkspaceTabGuard()
     const projects = computed(() => store.workspace.projects || [])
     const catalogs = computed(() => store.workspace.catalogs || [])
+
+    // Comparing needs at least two projects; the node stays visible but inert
+    // below that, so the feature is discoverable before it is usable.
+    const canCompareProjects = computed(() => projects.value.length >= 2)
+    const comparisonTabActive = computed(() => store.activeWorkspaceTabId === store.COMPARISON_TAB_ID)
+
+    function openComparison() {
+      if (!canCompareProjects.value) return
+      store.openWorkspaceComparison()
+    }
 
     const treeItems = computed(() => {
       return projects.value.map((project) => ({
@@ -1281,6 +1314,9 @@ export default {
       confirmRenameCatalog,
       deleteCatalogAction,
       deleteCatalogBlockedDialogOpen,
+      canCompareProjects,
+      comparisonTabActive,
+      openComparison,
       deleteCatalogBlockedProjects,
       closeDeleteCatalogBlockedDialog,
       treeItems,
@@ -1376,6 +1412,31 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.workspace-node {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.workspace-node:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.workspace-node--active {
+  color: rgb(var(--v-theme-primary));
+}
+
+.workspace-node--disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.workspace-node--disabled:hover {
+  background: none;
 }
 
 .tree-title {

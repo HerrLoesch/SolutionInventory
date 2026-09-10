@@ -1015,3 +1015,936 @@ describe('importCatalogToProject', () => {
     expect(reference.id).toBe(result.catalogId)
   })
 })
+
+// ── Vocabulary mutations (design §3.1) ───────────────────────────────────────
+//
+// These are the only write paths into workspace.vocabulary. Each one must keep
+// the "an alias belongs to at most one term" invariant, and a rejected mutation
+// must leave the workspace exactly as it was — no half-applied change.
+describe('vocabulary mutations', () => {
+  describe('createTerm', () => {
+    it('creates a term with a readable id, the canonical name and an empty alias list', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(id).toBe('term-net-core')
+      expect(store.workspace.vocabulary).toHaveLength(1)
+      const term = store.workspace.vocabulary[0]
+      expect(term.name).toBe('.NET Core')
+      expect(term.kind).toBe('tool')
+      expect(term.aliases).toEqual([])
+      expect(term.createdAt).toBeTruthy()
+    })
+
+    it('trims the name but keeps its canonical casing', () => {
+      const store = useWorkspaceStore()
+      store.createTerm('  Azure DevOps  ', 'practice')
+
+      expect(store.workspace.vocabulary[0].name).toBe('Azure DevOps')
+    })
+
+    it('refuses an empty name', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.createTerm('', 'tool')).toBe('')
+      expect(store.createTerm('   ', 'tool')).toBe('')
+      expect(store.workspace.vocabulary).toEqual([])
+    })
+
+    it('refuses a missing or unknown kind — kind is mandatory and never guessed', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.createTerm('Redis', '')).toBe('')
+      expect(store.createTerm('Redis', 'Tool')).toBe('')
+      expect(store.createTerm('Redis', 'framework')).toBe('')
+      expect(store.workspace.vocabulary).toEqual([])
+    })
+
+    it('refuses a name that already resolves — by canonical name or by alias', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'dotnet core')
+
+      expect(store.createTerm('.net  CORE', 'tool')).toBe('')
+      expect(store.createTerm('Dotnet Core', 'practice')).toBe('')
+      expect(store.workspace.vocabulary).toHaveLength(1)
+    })
+
+    it('disambiguates ids when two different names slugify to the same base', () => {
+      const store = useWorkspaceStore()
+      const first = store.createTerm('.NET Core', 'tool')
+      const second = store.createTerm('#NET Core', 'tool')
+
+      expect(first).toBe('term-net-core')
+      expect(second).toBe('term-net-core-2')
+    })
+  })
+
+  describe('addAlias / removeAlias', () => {
+    it('stores an alias normalized', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.addAlias(id, '  Dotnet   CORE ')).toBe(true)
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['dotnet core'])
+      expect(store.resolveTerm('DOTNET core').id).toBe(id)
+    })
+
+    it('does not store the canonical name a second time — it is an implicit alias', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.addAlias(id, '.net core')).toBe(false)
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+    })
+
+    it('does not store the same alias twice', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'netcore')
+
+      expect(store.addAlias(id, 'NETCORE')).toBe(false)
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['netcore'])
+    })
+
+    it('refuses an empty alias or an unknown term', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.addAlias(id, '   ')).toBe(false)
+      expect(store.addAlias('term-nope', 'x')).toBe(false)
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+    })
+
+    it('throws when the alias already belongs to a different term, leaving both untouched', () => {
+      const store = useWorkspaceStore()
+      const core = store.createTerm('.NET Core', 'tool')
+      const framework = store.createTerm('.NET Framework', 'tool')
+      store.addAlias(framework, 'netfx')
+
+      expect(() => store.addAlias(core, 'netfx')).toThrow(/alias collision/)
+      expect(store.workspace.vocabulary.find((term) => term.id === core).aliases).toEqual([])
+      expect(store.workspace.vocabulary.find((term) => term.id === framework).aliases).toEqual(['netfx'])
+    })
+
+    it('throws when the alias is another term’s canonical name', () => {
+      const store = useWorkspaceStore()
+      const core = store.createTerm('.NET Core', 'tool')
+      store.createTerm('Redis', 'tool')
+
+      expect(() => store.addAlias(core, 'redis')).toThrow(/alias collision/)
+      expect(store.resolveTerm('Redis').name).toBe('Redis')
+    })
+
+    it('removes an alias regardless of how it is spelled at the call site', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'netcore')
+
+      expect(store.removeAlias(id, ' NetCore ')).toBe(true)
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+      expect(store.resolveTerm('netcore')).toBeNull()
+    })
+
+    it('returns false when removing an alias the term does not have', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.removeAlias(id, 'nope')).toBe(false)
+    })
+  })
+
+  describe('renameTerm', () => {
+    it('keeps the id stable and turns the old name into an alias', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.renameTerm(id, '.NET')).toBe(true)
+      const term = store.workspace.vocabulary[0]
+      expect(term.id).toBe(id)
+      expect(term.name).toBe('.NET')
+      // Data written under the old name must keep resolving.
+      expect(store.resolveTerm('.NET Core').id).toBe(id)
+      expect(store.resolveTerm('.NET').id).toBe(id)
+    })
+
+    it('changes only the display form when the normalized name stays the same', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('dotnet core', 'tool')
+
+      expect(store.renameTerm(id, 'Dotnet Core')).toBe(true)
+      expect(store.workspace.vocabulary[0].name).toBe('Dotnet Core')
+      expect(store.workspace.vocabulary[0].aliases).toEqual([])
+    })
+
+    it('does not keep the new canonical name as an explicit alias as well', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'dotnet')
+
+      store.renameTerm(id, 'Dotnet')
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['.net core'])
+    })
+
+    it('refuses an empty name, an unknown term, and a name owned by another term', () => {
+      const store = useWorkspaceStore()
+      const core = store.createTerm('.NET Core', 'tool')
+      store.createTerm('Redis', 'tool')
+
+      expect(store.renameTerm(core, '  ')).toBe(false)
+      expect(store.renameTerm('term-nope', 'X')).toBe(false)
+      expect(store.renameTerm(core, 'redis')).toBe(false)
+      expect(store.workspace.vocabulary.find((term) => term.id === core).name).toBe('.NET Core')
+    })
+  })
+
+  describe('setTermKind / setTermNote', () => {
+    it('changes the kind', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Trunk Based Development', 'tool')
+
+      expect(store.setTermKind(id, 'practice')).toBe(true)
+      expect(store.workspace.vocabulary[0].kind).toBe('practice')
+    })
+
+    it('refuses an unknown kind or an unknown term', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.setTermKind(id, 'Practice')).toBe(false)
+      expect(store.setTermKind('term-nope', 'practice')).toBe(false)
+      expect(store.workspace.vocabulary[0].kind).toBe('tool')
+    })
+
+    it('stores a note', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+
+      expect(store.setTermNote(id, 'Ab Version 5 als .NET geführt.')).toBe(true)
+      expect(store.workspace.vocabulary[0].note).toBe('Ab Version 5 als .NET geführt.')
+    })
+  })
+
+  describe('mergeTerms', () => {
+    it('moves the source name and all its aliases onto the target and deletes the source', () => {
+      const store = useWorkspaceStore()
+      const target = store.createTerm('.NET Core', 'tool')
+      const source = store.createTerm('Dotnet Core', 'tool')
+      store.addAlias(source, 'netcore')
+
+      expect(store.mergeTerms(source, target)).toBe(true)
+      expect(store.workspace.vocabulary).toHaveLength(1)
+      const merged = store.workspace.vocabulary[0]
+      expect(merged.id).toBe(target)
+      expect(merged.name).toBe('.NET Core')
+      expect(merged.aliases.sort()).toEqual(['dotnet core', 'netcore'])
+    })
+
+    it('makes every former spelling resolve to the target', () => {
+      const store = useWorkspaceStore()
+      const target = store.createTerm('.NET Core', 'tool')
+      const source = store.createTerm('Dotnet Core', 'tool')
+
+      store.mergeTerms(source, target)
+      expect(store.resolveTerm('dotnet core').id).toBe(target)
+      expect(store.resolveTerm('.NET Core').id).toBe(target)
+    })
+
+    it('keeps the target’s own kind — merging is not adopting the other identity', () => {
+      const store = useWorkspaceStore()
+      const target = store.createTerm('Pair Programming', 'practice')
+      const source = store.createTerm('Pairing', 'tool')
+
+      store.mergeTerms(source, target)
+      expect(store.workspace.vocabulary[0].kind).toBe('practice')
+    })
+
+    it('does not leave the target’s own name in its alias list', () => {
+      const store = useWorkspaceStore()
+      // A redundant self-alias is not a collision (termKeys deduplicates), so it
+      // can legitimately arrive from imported or hand-edited data.
+      store.workspace.vocabulary = [
+        { id: 'term-redis', name: 'Redis', kind: 'tool', aliases: ['redis'] },
+        { id: 'term-redis-cache', name: 'Redis Cache', kind: 'tool', aliases: [] }
+      ]
+
+      expect(store.mergeTerms('term-redis-cache', 'term-redis')).toBe(true)
+      expect(store.workspace.vocabulary[0].aliases).toEqual(['redis cache'])
+    })
+
+    it('aborts and changes nothing when the result would collide with a third term', () => {
+      const store = useWorkspaceStore()
+      // Reachable only from stored data that already carries a collision — the
+      // store's own write paths refuse to create one. commitVocabulary validates
+      // regardless, so a merge cannot make such a workspace worse.
+      store.workspace.vocabulary = [
+        { id: 'term-a', name: 'A', kind: 'tool', aliases: [] },
+        { id: 'term-b', name: 'B', kind: 'tool', aliases: ['shared'] },
+        { id: 'term-c', name: 'C', kind: 'tool', aliases: ['shared'] }
+      ]
+      const before = JSON.parse(JSON.stringify(store.workspace.vocabulary))
+
+      expect(() => store.mergeTerms('term-b', 'term-a')).toThrow(/alias collision/)
+      expect(store.workspace.vocabulary).toEqual(before)
+    })
+
+    it('refuses an unknown term and a merge of a term into itself', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('Redis', 'tool')
+
+      expect(store.mergeTerms(id, id)).toBe(false)
+      expect(store.mergeTerms('term-nope', id)).toBe(false)
+      expect(store.mergeTerms(id, 'term-nope')).toBe(false)
+      expect(store.workspace.vocabulary).toHaveLength(1)
+    })
+  })
+
+  describe('deleteTerm', () => {
+    it('removes the term and stops resolving its names', () => {
+      const store = useWorkspaceStore()
+      const id = store.createTerm('.NET Core', 'tool')
+      store.addAlias(id, 'netcore')
+
+      expect(store.deleteTerm(id)).toBe(true)
+      expect(store.workspace.vocabulary).toEqual([])
+      expect(store.resolveTerm('netcore')).toBeNull()
+    })
+
+    it('returns false for an unknown term', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.deleteTerm('term-nope')).toBe(false)
+    })
+  })
+
+  describe('resolveTerm and vocabularyCollisions', () => {
+    it('resolves nothing on a fresh workspace and reports no collisions', () => {
+      const store = useWorkspaceStore()
+
+      expect(store.workspace.vocabulary).toEqual([])
+      expect(store.resolveTerm('Redis')).toBeNull()
+      expect(store.vocabularyCollisions()).toEqual([])
+    })
+
+    it('reports a collision that came in with stored data, without refusing to load it', () => {
+      const store = useWorkspaceStore()
+      store.workspace.vocabulary = [
+        { id: 'term-a', name: 'A', kind: 'tool', aliases: ['x'] },
+        { id: 'term-b', name: 'B', kind: 'tool', aliases: ['x'] }
+      ]
+
+      expect(store.vocabularyCollisions()).toEqual([{ key: 'x', termId: 'term-a', conflictingTermId: 'term-b' }])
+      // First claimant wins on the read path, so the workspace stays usable.
+      expect(store.resolveTerm('x').id).toBe('term-a')
+    })
+  })
+
+  it('persists the vocabulary through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    const id = store.createTerm('.NET Core', 'tool')
+    store.addAlias(id, 'dotnet core')
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.resolveTerm('DOTNET CORE').id).toBe(id)
+    expect(reloaded.workspace.vocabulary[0].name).toBe('.NET Core')
+  })
+})
+
+// ── Comparison overrides (Todo 3.8) ──────────────────────────────────────────
+//
+// Keyed by term.id and stored inside `workspace`, so the passthrough argument
+// from design §7.1 applies and no STORAGE_VERSION bump is needed. Not to be
+// confused with setRadarOverride, which curates a single blip in one project.
+describe('comparison overrides', () => {
+  it('stores a decision with its comment and the context it was taken in', () => {
+    const store = useWorkspaceStore()
+    const termId = store.createTerm('Azure DevOps', 'tool')
+
+    expect(
+      store.setComparisonOverride(termId, {
+        level: 'accepted',
+        comment: 'Legacy service, migration is commissioned',
+        contextProjects: ['p1', 'p2'],
+        contextStatuses: { p1: 'Trial', p2: 'Hold' }
+      })
+    ).toBe(true)
+
+    const stored = store.getComparisonOverride(termId)
+    expect(stored).toMatchObject({
+      level: 'accepted',
+      comment: 'Legacy service, migration is commissioned',
+      contextProjects: ['p1', 'p2'],
+      contextStatuses: { p1: 'Trial', p2: 'Hold' }
+    })
+    expect(stored.setAt).toBeTruthy()
+  })
+
+  it('refuses an unknown level and an empty term id', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonOverride('term-x', { level: 'maybe' })).toBe(false)
+    expect(store.setComparisonOverride('', { level: 'accepted' })).toBe(false)
+    expect(store.workspace.comparisonOverrides).toEqual({})
+  })
+
+  it('returns null for a term without an override', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.getComparisonOverride('term-nope')).toBeNull()
+  })
+
+  it('clears an override, and reports when there was none', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonOverride('term-x', { level: 'critical' })
+
+    expect(store.clearComparisonOverride('term-x')).toBe(true)
+    expect(store.getComparisonOverride('term-x')).toBeNull()
+    expect(store.clearComparisonOverride('term-x')).toBe(false)
+  })
+
+  it('survives renaming the term, because it is keyed by id (DE-5)', () => {
+    const store = useWorkspaceStore()
+    const termId = store.createTerm('Azure DevOps', 'tool')
+    store.setComparisonOverride(termId, { level: 'accepted' })
+
+    store.renameTerm(termId, 'Azure Pipelines')
+    expect(store.getComparisonOverride(termId).level).toBe('accepted')
+  })
+
+  it('survives merging another spelling into the term', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('Azure DevOps', 'tool')
+    const source = store.createTerm('AzureDevops Server', 'tool')
+    store.setComparisonOverride(target, { level: 'accepted' })
+
+    store.mergeTerms(source, target)
+    expect(store.getComparisonOverride(target).level).toBe('accepted')
+  })
+
+  it('is kept when the term is deleted — an accidental delete must not lose the reasoning', () => {
+    const store = useWorkspaceStore()
+    const termId = store.createTerm('Azure DevOps', 'tool')
+    store.setComparisonOverride(termId, { level: 'accepted', comment: 'why' })
+
+    store.deleteTerm(termId)
+    expect(store.getComparisonOverride(termId).comment).toBe('why')
+  })
+
+  it('is not the same thing as setRadarOverride', () => {
+    const store = useWorkspaceStore()
+    const { projectId, questionnaireId } = seedProjectWithQuestionnaire(store)
+    store.toggleProjectRadarRef(projectId, 'arch-hlp', 'Vue', questionnaireId)
+    store.setRadarOverride(projectId, 'arch-hlp', 'Vue', { status: 'Retire', comment: '' })
+    store.setComparisonOverride('term-vue', { level: 'accepted' })
+
+    expect(store.getRadarOverride(projectId, 'arch-hlp', 'Vue').status).toBe('Retire')
+    expect(store.getComparisonOverride('term-vue').level).toBe('accepted')
+    expect(store.workspace.comparisonOverrides).toEqual({ 'term-vue': expect.objectContaining({ level: 'accepted' }) })
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonOverride('term-x', { level: 'critical', comment: 'must be resolved' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.getComparisonOverride('term-x')).toMatchObject({ level: 'critical', comment: 'must be resolved' })
+  })
+})
+
+// ── Terms marked "not important" (F1) ────────────────────────────────────────
+//
+// Keyed by comparison *row* key rather than term.id, because the mark has to
+// work on a row the vocabulary does not resolve yet.
+describe('terms marked not important', () => {
+  it('stores the mark with its reason and a timestamp', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonIgnored('term-vue', { reason: 'not our call' })).toBe(true)
+    expect(store.workspace.comparisonIgnored['term-vue']).toMatchObject({ reason: 'not our call' })
+    expect(store.workspace.comparisonIgnored['term-vue'].setAt).toEqual(expect.any(String))
+  })
+
+  it('works on an unresolved row key just as well as on a term', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonIgnored('raw:postgres')).toBe(true)
+    expect(store.workspace.comparisonIgnored['raw:postgres']).toMatchObject({ reason: '' })
+  })
+
+  it('refuses a mark without a key', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonIgnored('')).toBe(false)
+    expect(store.workspace.comparisonIgnored).toEqual({})
+  })
+
+  it('takes a mark back, and reports when there was none', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('term-vue')
+
+    expect(store.clearComparisonIgnored('term-vue')).toBe(true)
+    expect(store.clearComparisonIgnored('term-vue')).toBe(false)
+    expect(store.workspace.comparisonIgnored).toEqual({})
+  })
+
+  it('carries the mark to another row key, which is what a merge needs', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('raw:postgres', { reason: 'duplicate' })
+
+    expect(store.moveComparisonIgnored('raw:postgres', 'term-pg')).toBe(true)
+    expect(store.workspace.comparisonIgnored).toEqual({
+      'term-pg': expect.objectContaining({ reason: 'duplicate' })
+    })
+  })
+
+  it('keeps the target’s own reason when both rows were marked', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('raw:postgres', { reason: 'source' })
+    store.setComparisonIgnored('term-pg', { reason: 'target' })
+
+    store.moveComparisonIgnored('raw:postgres', 'term-pg')
+
+    expect(store.workspace.comparisonIgnored['term-pg'].reason).toBe('target')
+    expect('raw:postgres' in store.workspace.comparisonIgnored).toBe(false)
+  })
+
+  it('does nothing for a missing source, a missing target or a move onto itself', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('term-pg')
+
+    expect(store.moveComparisonIgnored('raw:nope', 'term-pg')).toBe(false)
+    expect(store.moveComparisonIgnored('term-pg', '')).toBe(false)
+    expect(store.moveComparisonIgnored('term-pg', 'term-pg')).toBe(false)
+    expect(Object.keys(store.workspace.comparisonIgnored)).toEqual(['term-pg'])
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonIgnored('term-x', { reason: 'out of scope' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonIgnored['term-x']).toMatchObject({ reason: 'out of scope' })
+  })
+})
+
+// ── Silent acceptances (F3) ──────────────────────────────────────────────────
+describe('silent acceptances', () => {
+  it('stores an accepted absence with its context', () => {
+    const store = useWorkspaceStore()
+
+    expect(
+      store.setComparisonAcceptance('term:vue', 'p-beta', {
+        mode: 'absence',
+        comment: 'no opinion',
+        contextProjects: ['p-alpha'],
+        contextStatuses: { 'p-alpha': 'Adopt' }
+      })
+    ).toBe(true)
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
+      mode: 'absence',
+      acceptedFrom: '',
+      comment: 'no opinion',
+      contextProjects: ['p-alpha'],
+      contextStatuses: { 'p-alpha': 'Adopt' }
+    })
+  })
+
+  it('stores an accepted status together with the project it came from', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status', acceptedFrom: 'p-alpha' })
+
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
+      mode: 'status',
+      acceptedFrom: 'p-alpha'
+    })
+  })
+
+  it('refuses an unknown mode, a missing key and accepting one’s own status', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'maybe' })).toBe(false)
+    expect(store.setComparisonAcceptance('', 'p-beta', { mode: 'absence' })).toBe(false)
+    expect(store.setComparisonAcceptance('term:vue', '', { mode: 'absence' })).toBe(false)
+    expect(store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status' })).toBe(false)
+    expect(store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status', acceptedFrom: 'p-beta' })).toBe(false)
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+  })
+
+  it('takes one project’s acceptance back and leaves the others alone', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'absence' })
+    store.setComparisonAcceptance('term:vue', 'p-gamma', { mode: 'absence' })
+
+    expect(store.clearComparisonAcceptance('term:vue', 'p-beta')).toBe(true)
+    expect(Object.keys(store.workspace.comparisonAcceptances['term:vue'])).toEqual(['p-gamma'])
+    expect(store.clearComparisonAcceptance('term:vue', 'p-beta')).toBe(false)
+  })
+
+  it('drops the row entry once its last acceptance is gone', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'absence' })
+
+    store.clearComparisonAcceptance('term:vue', 'p-beta')
+
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+  })
+
+  it('carries every acceptance of a row to another key, keeping the target’s own', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('raw:vue', 'p-beta', { mode: 'absence', comment: 'source' })
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'absence', comment: 'target' })
+    store.setComparisonAcceptance('raw:vue', 'p-gamma', { mode: 'absence', comment: 'only here' })
+
+    expect(store.moveComparisonAcceptances('raw:vue', 'term:vue')).toBe(true)
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-beta'].comment).toBe('target')
+    expect(store.workspace.comparisonAcceptances['term:vue']['p-gamma'].comment).toBe('only here')
+    expect('raw:vue' in store.workspace.comparisonAcceptances).toBe(false)
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonAcceptance('term:vue', 'p-beta', { mode: 'status', acceptedFrom: 'p-alpha' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
+      mode: 'status',
+      acceptedFrom: 'p-alpha'
+    })
+  })
+})
+
+// ── Reference baselines (F7) ─────────────────────────────────────────────────
+describe('reference baselines', () => {
+  const entries = { 'term:vue': { name: 'Vue', status: 'Adopt' } }
+
+  it('stores a named copy of the target statuses', () => {
+    const store = useWorkspaceStore()
+
+    const id = store.createComparisonBaseline({
+      name: 'Target Q3',
+      origin: { kind: 'project', projectId: 'p-alpha', dataSource: 'radar' },
+      entries
+    })
+
+    expect(id).toEqual(expect.any(String))
+    expect(store.workspace.comparisonBaselines).toEqual([
+      expect.objectContaining({ id, name: 'Target Q3', entries, origin: expect.objectContaining({ kind: 'project' }) })
+    ])
+  })
+
+  it('copies the entries instead of holding on to the caller’s object', () => {
+    const store = useWorkspaceStore()
+    const source = { 'term:vue': { name: 'Vue', status: 'Adopt' } }
+    const id = store.createComparisonBaseline({ name: 'Target', entries: source })
+
+    delete source['term:vue']
+
+    expect(store.workspace.comparisonBaselines.find((baseline) => baseline.id === id).entries).toHaveProperty(
+      'term:vue'
+    )
+  })
+
+  it('refuses a baseline without a name', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.createComparisonBaseline({ name: '  ', entries })).toBe('')
+    expect(store.workspace.comparisonBaselines).toEqual([])
+  })
+
+  it('renames, re-takes and deletes one', () => {
+    const store = useWorkspaceStore()
+    const id = store.createComparisonBaseline({ name: 'Target', entries })
+
+    expect(store.renameComparisonBaseline(id, 'Target Q4')).toBe(true)
+    expect(store.renameComparisonBaseline(id, ' ')).toBe(false)
+    expect(store.renameComparisonBaseline('nope', 'x')).toBe(false)
+
+    const next = { 'term:scrum': { name: 'Scrum', status: 'Trial' } }
+    expect(store.updateComparisonBaseline(id, next, { kind: 'consensus', projectId: '' })).toBe(true)
+    const baseline = store.workspace.comparisonBaselines[0]
+    expect(baseline).toMatchObject({ name: 'Target Q4', entries: next, origin: { kind: 'consensus' } })
+    expect(baseline.updatedAt).toEqual(expect.any(String))
+
+    expect(store.deleteComparisonBaseline(id)).toBe(true)
+    expect(store.deleteComparisonBaseline(id)).toBe(false)
+    expect(store.workspace.comparisonBaselines).toEqual([])
+  })
+
+  it('keeps several side by side', () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({ name: 'Where we were', entries })
+    store.createComparisonBaseline({ name: 'Where we want to be', entries })
+
+    expect(store.workspace.comparisonBaselines.map((baseline) => baseline.name)).toEqual([
+      'Where we were',
+      'Where we want to be'
+    ])
+  })
+
+  it('re-keys its entries when a row changes identity but not meaning', () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({ name: 'A', entries: { 'raw:vue': { name: 'Vue', status: 'Adopt' } } })
+    store.createComparisonBaseline({ name: 'B', entries: { 'raw:vue': { name: 'Vue', status: 'Trial' } } })
+
+    expect(store.moveComparisonBaselineEntries('raw:vue', 'term:vue')).toBe(true)
+
+    // Every reference is re-keyed — a target left under a key nothing produces
+    // would come back as a phantom gap.
+    store.workspace.comparisonBaselines.forEach((baseline) => {
+      expect('raw:vue' in baseline.entries).toBe(false)
+      expect(baseline.entries['term:vue']).toBeTruthy()
+    })
+  })
+
+  it('keeps a target the destination already had, and reports when there was nothing to move', () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({
+      name: 'A',
+      entries: { 'raw:vue': { name: 'Vue', status: 'Adopt' }, 'term:vue': { name: 'Vue', status: 'Hold' } }
+    })
+
+    store.moveComparisonBaselineEntries('raw:vue', 'term:vue')
+
+    expect(store.workspace.comparisonBaselines[0].entries['term:vue'].status).toBe('Hold')
+    expect(store.moveComparisonBaselineEntries('raw:nope', 'term:vue')).toBe(false)
+    expect(store.moveComparisonBaselineEntries('term:vue', 'term:vue')).toBe(false)
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.createComparisonBaseline({ name: 'Target', entries })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonBaselines[0]).toMatchObject({ name: 'Target', entries })
+  })
+})
+
+// ── Workspace comparison tab (Todo 4.2) ──────────────────────────────────────
+describe('workspace comparison tab', () => {
+  function twoProjects(store) {
+    store.addProject('Alpha')
+    store.addProject('Beta')
+  }
+
+  it('is closed on a fresh workspace', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.comparisonTabOpen).toBe(false)
+    expect(store.workspaceTabs.some((tab) => tab.type === 'workspace-comparison')).toBe(false)
+  })
+
+  it('refuses to open below two projects', () => {
+    const store = useWorkspaceStore()
+    store.addProject('Only one')
+
+    expect(store.openWorkspaceComparison()).toBe(false)
+    expect(store.comparisonTabOpen).toBe(false)
+  })
+
+  it('opens as the first tab and becomes active', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+
+    expect(store.openWorkspaceComparison()).toBe(true)
+    expect(store.workspaceTabs[0]).toMatchObject({ type: 'workspace-comparison', label: 'Comparison' })
+    expect(store.activeWorkspaceTabId).toBe(store.COMPARISON_TAB_ID)
+  })
+
+  it('opens only once however often it is triggered', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    store.openWorkspaceComparison()
+
+    expect(store.workspaceTabs.filter((tab) => tab.type === 'workspace-comparison')).toHaveLength(1)
+  })
+
+  it('closes and hands the active tab on to whatever is left', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    const projectId = store.workspace.projects[0].id
+    store.openProjectSummary(projectId)
+    store.openWorkspaceComparison()
+
+    store.closeWorkspaceTab(store.COMPARISON_TAB_ID)
+    expect(store.comparisonTabOpen).toBe(false)
+    expect(store.activeWorkspaceTabId).not.toBe(store.COMPARISON_TAB_ID)
+    expect(store.workspaceTabs.some((tab) => tab.type === 'project-summary')).toBe(true)
+  })
+
+  it('cannot be activated while it is closed', () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.setActiveWorkspaceTab(store.COMPARISON_TAB_ID)
+
+    expect(store.activeWorkspaceTabId).not.toBe(store.COMPARISON_TAB_ID)
+  })
+
+  it('persists its open state at save-data level, outside the workspace object', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    await store.persist()
+
+    const stored = JSON.parse(localStorage.getItem('solution-inventory-data'))
+    expect(stored.comparisonTabOpen).toBe(true)
+    // Deliberately *not* inside `workspace`: applyStoredData passes the
+    // workspace through whole, and an older build should not carry along the
+    // open state of a tab it cannot render (design §7.1).
+    expect('comparisonTabOpen' in stored.workspace).toBe(false)
+    expect(stored.version).toBe(3)
+  })
+
+  it('restores its open state on load', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.comparisonTabOpen).toBe(true)
+  })
+
+  it('stays closed when loading a file written before the tab existed', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    await store.persist()
+    const stored = JSON.parse(localStorage.getItem('solution-inventory-data'))
+    delete stored.comparisonTabOpen
+    localStorage.setItem('solution-inventory-data', JSON.stringify(stored))
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.comparisonTabOpen).toBe(false)
+  })
+
+  it('stays closed when the stored workspace has dropped below two projects', async () => {
+    const store = useWorkspaceStore()
+    twoProjects(store)
+    store.openWorkspaceComparison()
+    await store.persist()
+    const stored = JSON.parse(localStorage.getItem('solution-inventory-data'))
+    stored.workspace.projects = stored.workspace.projects.slice(0, 1)
+    localStorage.setItem('solution-inventory-data', JSON.stringify(stored))
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.comparisonTabOpen).toBe(false)
+  })
+})
+
+// ── Dismissed similarity suggestions (Todo 4.4) ──────────────────────────────
+describe('dismissed suggestions', () => {
+  it('records a pair and reports it as dismissed in either order', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.dismissSuggestion('dotnet core', '.NET Core')).toBe(true)
+    expect(store.isSuggestionDismissed('dotnet core', '.NET Core')).toBe(true)
+    expect(store.isSuggestionDismissed('.NET Core', 'dotnet core')).toBe(true)
+  })
+
+  it('normalizes before comparing, so spelling of the call site does not matter', () => {
+    const store = useWorkspaceStore()
+    store.dismissSuggestion('  DOTNET   core ', '.net core')
+
+    expect(store.isSuggestionDismissed('dotnet core', '.NET Core')).toBe(true)
+  })
+
+  it('records a pair only once', () => {
+    const store = useWorkspaceStore()
+    store.dismissSuggestion('a', 'b')
+
+    expect(store.dismissSuggestion('b', 'a')).toBe(false)
+    expect(store.workspace.dismissedSuggestions).toHaveLength(1)
+  })
+
+  it('refuses a pair of empty names', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.dismissSuggestion('', '   ')).toBe(false)
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('persists across a save/load round trip — not just for the session', async () => {
+    const store = useWorkspaceStore()
+    store.dismissSuggestion('dotnet core', '.NET Core')
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.isSuggestionDismissed('.NET Core', 'dotnet core')).toBe(true)
+  })
+})
+
+describe('mergeTerms and comparison overrides', () => {
+  it('moves the source override to the target when the target has none', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('.NET Core', 'tool')
+    const source = store.createTerm('Dotnet Core', 'tool')
+    store.setComparisonOverride(source, { level: 'accepted', comment: 'from source' })
+
+    store.mergeTerms(source, target)
+    expect(store.getComparisonOverride(target)).toMatchObject({ level: 'accepted', comment: 'from source' })
+    expect(store.getComparisonOverride(source)).toBeNull()
+  })
+
+  it('keeps the target’s decision and appends the source’s comment rather than dropping it', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('.NET Core', 'tool')
+    const source = store.createTerm('Dotnet Core', 'tool')
+    store.setComparisonOverride(target, {
+      level: 'accepted',
+      comment: 'target reason',
+      contextProjects: ['p1'],
+      contextStatuses: { p1: 'Adopt' }
+    })
+    store.setComparisonOverride(source, { level: 'critical', comment: 'source reason' })
+
+    store.mergeTerms(source, target)
+    const merged = store.getComparisonOverride(target)
+    expect(merged.level).toBe('accepted')
+    expect(merged.comment).toBe('target reason — source reason')
+    // The recorded context is cleared: no judgement was ever taken about the
+    // combined term, so it must show up as needing review (DE-5).
+    expect(merged.contextProjects).toEqual([])
+  })
+
+  it('leaves the target override untouched when the source has none', () => {
+    const store = useWorkspaceStore()
+    const target = store.createTerm('.NET Core', 'tool')
+    const source = store.createTerm('Dotnet Core', 'tool')
+    store.setComparisonOverride(target, { level: 'critical', comment: 'keep me', contextProjects: ['p1'] })
+
+    store.mergeTerms(source, target)
+    expect(store.getComparisonOverride(target)).toMatchObject({ comment: 'keep me', contextProjects: ['p1'] })
+  })
+})

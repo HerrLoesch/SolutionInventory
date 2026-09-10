@@ -416,3 +416,50 @@ describe('menu action dispatch', () => {
     expect(store.getQuestionnaireById(project.questionnaireIds[0]).name).toBe('Q from menu')
   })
 })
+
+// ── Workspace node (Todo 4.1) ────────────────────────────────────────────────
+//
+// Replaces the plain "Projects" heading. Visible from the start so the feature
+// is discoverable, but inert below two projects — there is nothing to compare.
+describe('workspace comparison node', () => {
+  it('is disabled with no projects and with one project', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+
+    expect(wrapper.vm.canCompareProjects).toBe(false)
+
+    store.addProject('Only one')
+    expect(wrapper.vm.canCompareProjects).toBe(false)
+  })
+
+  it('becomes available from the second project on', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    store.addProject('Alpha')
+    store.addProject('Beta')
+
+    expect(wrapper.vm.canCompareProjects).toBe(true)
+  })
+
+  it('does nothing when clicked while disabled', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    store.addProject('Only one')
+
+    wrapper.vm.openComparison()
+    expect(store.comparisonTabOpen).toBe(false)
+    expect(store.workspaceTabs.some((tab) => tab.type === 'workspace-comparison')).toBe(false)
+  })
+
+  it('opens and activates the comparison tab when clicked', () => {
+    const { wrapper } = mountWithStore(TreeNav)
+    const store = useWorkspaceStore()
+    store.addProject('Alpha')
+    store.addProject('Beta')
+
+    wrapper.vm.openComparison()
+    expect(store.comparisonTabOpen).toBe(true)
+    expect(store.activeWorkspaceTabId).toBe(store.COMPARISON_TAB_ID)
+    expect(wrapper.vm.comparisonTabActive).toBe(true)
+  })
+})

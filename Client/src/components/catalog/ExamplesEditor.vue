@@ -114,7 +114,7 @@ function move(index, direction) {
 
 // Enter in the last row's Description field appends a new row of the same
 // type and focuses its Label field — a fast "type, Enter, type, Enter…"
-// authoring flow (docs/spec-fragenkataloge.md §5.5 Phase 5, Tastatur-Flows).
+// authoring flow.
 function onDescriptionEnter(index) {
   if (index !== items.value.length - 1) return
   addExample(items.value[index]?.type || 'practice')

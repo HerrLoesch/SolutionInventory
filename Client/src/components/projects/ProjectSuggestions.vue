@@ -1,5 +1,8 @@
 <template>
-  <div>
+  <!-- The class is a stable hook for the end-to-end tests: ProjectSummary keeps
+       all three tab panes in the DOM, so a test has to scope its lookups to the
+       pane that is actually on screen. -->
+  <div class="project-suggestions">
     <!-- Toolbar -->
     <div class="d-flex align-center mb-3" style="gap: 8px">
       <v-btn-toggle

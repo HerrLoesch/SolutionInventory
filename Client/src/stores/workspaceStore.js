@@ -10,11 +10,21 @@ import {
   migrateCategoriesExamplesToTyped
 } from '../services/catalogService'
 import { validateCatalog } from '../schema/catalogValidation'
+import {
+  normalize,
+  termKeys,
+  buildAliasIndex,
+  resolve,
+  assertNoAliasCollisions,
+  TERM_KINDS
+} from '../services/vocabulary'
+import { ACCEPTANCE_MODES } from '../services/comparison'
 import { prepareImportedCatalog } from '../services/catalogImport'
-import { createWorkspace, createProject, createQuestionnaire } from './workspaceFactories'
+import { createId, createWorkspace, createProject, createQuestionnaire, generateSlugId } from './workspaceFactories'
 import { normalizeCategories } from './normalizeCategories'
 import {
   migrateProjectRadar,
+  normalizeWorkspaceVocabularyFields,
   buildWorkspaceFromLegacyCategoriesFormat,
   migrateWorkspaceToV2,
   migrateWorkspaceToV3
@@ -37,6 +47,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const openQuestionnaireIds = ref([])
   const activeWorkspaceTabId = ref('')
   const openProjectSummaryIds = ref([])
+  // The workspace comparison tab is a singleton — there is only one workspace,
+  // so an open flag says everything an id list would.
+  const comparisonTabOpen = ref(false)
   const openCatalogEditorIds = ref([])
   // Draft state for open catalog editors, keyed by catalog id — session-only
   // (not persisted): { [catalogId]: { draft: Catalog, dirty: boolean } }.
@@ -82,7 +95,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }))
   })
 
+  const COMPARISON_TAB_ID = 'workspace:comparison'
+
   const workspaceTabs = computed(() => {
+    // The workspace comparison tab. First in the list because it is about the
+    // workspace as a whole, not about one of the things below it.
+    const comparisonTabs = comparisonTabOpen.value
+      ? [{ id: COMPARISON_TAB_ID, type: 'workspace-comparison', label: 'Comparison' }]
+      : []
+
     const projectTabs = openProjectSummaryIds.value
       .map((projectId) => workspace.value.projects.find((project) => project.id === projectId))
       .filter(Boolean)
@@ -114,7 +135,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         categories: questionnaire.categories
       }))
 
-    return [...projectTabs, ...catalogEditorTabs, ...questionnaireTabs]
+    return [...comparisonTabs, ...projectTabs, ...catalogEditorTabs, ...questionnaireTabs]
   })
 
   // Versions this app can load. Tolerant loading (§3.3.1): any of these are
@@ -179,6 +200,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       workspace.value = data.workspace
       // Migrate any projects still using the legacy two-array radar format
       ;(workspace.value.projects || []).forEach(migrateProjectRadar)
+      // Add the vocabulary/comparison fields if this file predates them. Sits
+      // here rather than in runWorkspaceMigrations on purpose — it is version-
+      // independent, like migrateProjectRadar above (see the function's comment).
+      normalizeWorkspaceVocabularyFields(workspace.value)
       runWorkspaceMigrations(data.version)
       refreshBuiltInCatalogs()
       // Restore open tabs and active state, filtering out IDs that no longer exist
@@ -190,6 +215,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         : restoredOpen[0] || ''
       const existingProjectIds = new Set(data.workspace.projects?.map((p) => p.id) || [])
       openProjectSummaryIds.value = (data.openProjectSummaryIds || []).filter((id) => existingProjectIds.has(id))
+      // Absent in files written by builds that predate the comparison tab, and
+      // pointless below two projects — either way the tab starts closed.
+      comparisonTabOpen.value = data.comparisonTabOpen === true && existingProjectIds.size >= 2
       activeWorkspaceTabId.value = data.activeWorkspaceTabId || activeQuestionnaireId.value
       questionnaireHiddenEntries.value = data.questionnaireHiddenEntries || {}
       hydrateLastSaved(data.timestamp)
@@ -197,6 +225,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
     if (SUPPORTED_STORAGE_VERSIONS.includes(data.version) && data.categories) {
       workspace.value = buildWorkspaceFromLegacyCategoriesFormat(data.categories)
+      normalizeWorkspaceVocabularyFields(workspace.value)
       // Oldest bare-categories format predates the catalog concept entirely,
       // so it needs the full v1→current chain.
       runWorkspaceMigrations(1)
@@ -205,6 +234,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds.value = []
       activeWorkspaceTabId.value = ''
       openProjectSummaryIds.value = []
+      comparisonTabOpen.value = false
       questionnaireHiddenEntries.value = {}
       hydrateLastSaved(data.timestamp)
       return true
@@ -285,7 +315,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
    * Explicit, user-triggered recovery from a workspaceLoadError: discards the
    * unreadable data in memory and starts a fresh seeded workspace. Never
    * called automatically — the caller must have shown the error to the user
-   * first, since this is the point of no silent data loss (see docs/spec-fragenkataloge.md §3.3.1).
+   * first, since this is the point of no silent data loss (see the "B1 fix"
+   * block in tests/unit/storageCompat.spec.js).
    */
   function resolveWorkspaceLoadErrorWithFreshWorkspace() {
     if (!workspaceLoadError.value) return
@@ -335,6 +366,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds.value = []
     activeWorkspaceTabId.value = ''
     openProjectSummaryIds.value = []
+    comparisonTabOpen.value = false
   }
 
   let persistDebounceTimer = null
@@ -374,6 +406,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
       openProjectSummaryIds: openProjectSummaryIds.value,
+      comparisonTabOpen: comparisonTabOpen.value,
       questionnaireHiddenEntries: questionnaireHiddenEntries.value
     })
 
@@ -418,6 +451,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds.value = []
     activeWorkspaceTabId.value = ''
     openProjectSummaryIds.value = []
+    comparisonTabOpen.value = false
     questionnaireHiddenEntries.value = {}
     lastSaved.value = ''
   }
@@ -443,6 +477,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       openQuestionnaireIds: openQuestionnaireIds.value,
       activeWorkspaceTabId: activeWorkspaceTabId.value,
       openProjectSummaryIds: openProjectSummaryIds.value,
+      comparisonTabOpen: comparisonTabOpen.value,
       questionnaireHiddenEntries: questionnaireHiddenEntries.value
     })
     try {
@@ -496,6 +531,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  /**
+   * Opens the workspace comparison tab. Refused below two projects — comparing
+   * a workspace against itself has no meaning, and the TreeNav entry is disabled
+   * for the same reason.
+   */
+  function openWorkspaceComparison() {
+    if ((workspace.value.projects || []).length < 2) return false
+    comparisonTabOpen.value = true
+    activeWorkspaceTabId.value = COMPARISON_TAB_ID
+    return true
+  }
+
   function openProjectSummary(projectId) {
     const project = workspace.value.projects.find((item) => item.id === projectId)
     if (!project) return
@@ -507,6 +554,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function setActiveWorkspaceTab(tabId) {
     if (!tabId) return
+    if (tabId === COMPARISON_TAB_ID) {
+      if (!comparisonTabOpen.value) return
+      activeWorkspaceTabId.value = tabId
+      return
+    }
     if (isProjectTabId(tabId)) {
       const projectId = fromProjectTabId(tabId)
       if (!openProjectSummaryIds.value.includes(projectId)) return
@@ -532,6 +584,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // Workspace.vue).
   function closeWorkspaceTab(tabId) {
     if (!tabId) return
+
+    if (tabId === COMPARISON_TAB_ID) {
+      comparisonTabOpen.value = false
+      if (activeWorkspaceTabId.value !== tabId) return
+      activeWorkspaceTabId.value = workspaceTabs.value[0]?.id || ''
+      return
+    }
 
     if (isProjectTabId(tabId)) {
       const projectId = fromProjectTabId(tabId)
@@ -1099,6 +1158,485 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return project.radar.find((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm) || null
   }
 
+  // ── Comparison overrides ───────────────────────────────────────────────────
+  //
+  // Manual re-classification of a divergence, keyed by term.id and valid
+  // workspace-wide. Because the id survives renaming and merging, so does the
+  // override (DE-5).
+  //
+  // Deliberately NOT setRadarOverride — that one curates a single blip inside
+  // one project's radar. This one records a judgement about a term across
+  // projects and lives in workspace.comparisonOverrides.
+
+  function comparisonOverrides() {
+    if (!workspace.value.comparisonOverrides || typeof workspace.value.comparisonOverrides !== 'object') {
+      workspace.value.comparisonOverrides = {}
+    }
+    return workspace.value.comparisonOverrides
+  }
+
+  function getComparisonOverride(termId) {
+    return comparisonOverrides()[termId] || null
+  }
+
+  /**
+   * Records a decision about a term. `context` is the situation it was taken in
+   * (which projects, which statuses) so a later divergence cannot hide behind an
+   * accepted one — the engine compares it back and flags a changed context.
+   *
+   * Whether the row is even *allowed* an override is the view's call via
+   * canOverride(): the store does not have the comparison in front of it.
+   */
+  function setComparisonOverride(termId, { level, comment = '', contextProjects = [], contextStatuses = {} }) {
+    if (!termId || !['accepted', 'critical'].includes(level)) return false
+    comparisonOverrides()[termId] = {
+      level,
+      comment: String(comment || ''),
+      setAt: new Date().toISOString(),
+      contextProjects: [...contextProjects],
+      contextStatuses: { ...contextStatuses }
+    }
+    return true
+  }
+
+  function clearComparisonOverride(termId) {
+    const overrides = comparisonOverrides()
+    if (!(termId in overrides)) return false
+    delete overrides[termId]
+    return true
+  }
+
+  // ── Terms marked "not important" (F1) ──────────────────────────────────────
+  //
+  // Keyed by the comparison *row* key, not by term.id: the mark has to work on
+  // a row the vocabulary does not resolve yet, and those have no term to key by.
+  // A row key is `term:<id>` or `raw:<normalized name>`, both stable for as long
+  // as the row exists.
+  //
+  // The mark takes the row out of the comparison entirely, including out of the
+  // metrics — it is a decision, not a filter. Nothing is deleted, so it can be
+  // taken back.
+
+  function comparisonIgnored() {
+    if (!workspace.value.comparisonIgnored || typeof workspace.value.comparisonIgnored !== 'object') {
+      workspace.value.comparisonIgnored = {}
+    }
+    return workspace.value.comparisonIgnored
+  }
+
+  function setComparisonIgnored(rowKey, { reason = '' } = {}) {
+    if (!rowKey) return false
+    comparisonIgnored()[rowKey] = { reason: String(reason || ''), setAt: new Date().toISOString() }
+    return true
+  }
+
+  function clearComparisonIgnored(rowKey) {
+    const ignored = comparisonIgnored()
+    if (!(rowKey in ignored)) return false
+    delete ignored[rowKey]
+    return true
+  }
+
+  /**
+   * Carries the mark from one row key to another — what a merge needs, because
+   * the row that was folded away takes its key with it. Keeps an existing mark
+   * on the target rather than overwriting it: both rows were held to be
+   * unimportant, and the target's own reason is the one that was written about
+   * the row that survives.
+   */
+  function moveComparisonIgnored(fromKey, toKey) {
+    const ignored = comparisonIgnored()
+    if (!fromKey || !toKey || fromKey === toKey || !(fromKey in ignored)) return false
+    if (!(toKey in ignored)) ignored[toKey] = ignored[fromKey]
+    delete ignored[fromKey]
+    return true
+  }
+
+  // ── Silent acceptances (F3) ────────────────────────────────────────────────
+  //
+  // "This project goes along with what the others say about this term" — either
+  // because it has no opinion of its own (mode 'absence') or because it takes
+  // another project's status over its own (mode 'status').
+  //
+  // Keyed by comparison row key *and* project id, for the same reason the
+  // "not important" mark is: the decision has to be possible on a row the
+  // vocabulary does not resolve yet. The context is stored alongside so the
+  // engine can tell when the situation the decision was taken in has moved on.
+
+  function comparisonAcceptances() {
+    if (!workspace.value.comparisonAcceptances || typeof workspace.value.comparisonAcceptances !== 'object') {
+      workspace.value.comparisonAcceptances = {}
+    }
+    return workspace.value.comparisonAcceptances
+  }
+
+  function setComparisonAcceptance(
+    rowKey,
+    projectId,
+    { mode, acceptedFrom = '', comment = '', contextProjects = [], contextStatuses = {} }
+  ) {
+    if (!rowKey || !projectId || !ACCEPTANCE_MODES.includes(mode)) return false
+    // Accepting a status is accepting *somebody's* status, and not one's own.
+    if (mode === 'status' && (!acceptedFrom || acceptedFrom === projectId)) return false
+
+    const all = comparisonAcceptances()
+    if (!all[rowKey]) all[rowKey] = {}
+    all[rowKey][projectId] = {
+      mode,
+      acceptedFrom: mode === 'status' ? acceptedFrom : '',
+      comment: String(comment || ''),
+      setAt: new Date().toISOString(),
+      contextProjects: [...contextProjects],
+      contextStatuses: { ...contextStatuses }
+    }
+    return true
+  }
+
+  function clearComparisonAcceptance(rowKey, projectId) {
+    const all = comparisonAcceptances()
+    if (!all[rowKey] || !(projectId in all[rowKey])) return false
+    delete all[rowKey][projectId]
+    // An empty row entry is noise in the stored file and in every diff of it.
+    if (!Object.keys(all[rowKey]).length) delete all[rowKey]
+    return true
+  }
+
+  /** Carries every acceptance on one row to another row key — what a merge needs. */
+  function moveComparisonAcceptances(fromKey, toKey) {
+    const all = comparisonAcceptances()
+    if (!fromKey || !toKey || fromKey === toKey || !all[fromKey]) return false
+    all[toKey] = { ...all[fromKey], ...(all[toKey] || {}) }
+    delete all[fromKey]
+    return true
+  }
+
+  // ── Reference baselines (F7) ───────────────────────────────────────────────
+  //
+  // A target state pulled out of the matrix and held still, so every project can
+  // be measured against it one at a time. Stored as a *copy* of the statuses on
+  // purpose: a reference that moved with the projects would be a mirror, not a
+  // reference. Kept as a list so several can exist side by side — "where we were
+  // in Q2" and "where we want to be" are both useful and neither replaces the
+  // other.
+
+  function comparisonBaselines() {
+    if (!Array.isArray(workspace.value.comparisonBaselines)) workspace.value.comparisonBaselines = []
+    return workspace.value.comparisonBaselines
+  }
+
+  function createComparisonBaseline({ name, origin = {}, entries = {} }) {
+    const canonical = String(name || '').trim()
+    if (!canonical) return ''
+    const baseline = {
+      id: createId('baseline'),
+      name: canonical,
+      createdAt: new Date().toISOString(),
+      origin: { ...origin },
+      entries: { ...entries }
+    }
+    comparisonBaselines().push(baseline)
+    return baseline.id
+  }
+
+  function renameComparisonBaseline(baselineId, name) {
+    const baseline = comparisonBaselines().find((entry) => entry.id === baselineId)
+    const canonical = String(name || '').trim()
+    if (!baseline || !canonical) return false
+    baseline.name = canonical
+    return true
+  }
+
+  /** Replaces the held statuses — "take the reference again as things stand now". */
+  function updateComparisonBaseline(baselineId, entries, origin = null) {
+    const baseline = comparisonBaselines().find((entry) => entry.id === baselineId)
+    if (!baseline) return false
+    baseline.entries = { ...entries }
+    if (origin) baseline.origin = { ...origin }
+    baseline.updatedAt = new Date().toISOString()
+    return true
+  }
+
+  /**
+   * Re-keys every reference entry from one row key to another. Needed whenever a
+   * row changes identity without changing meaning — a spelling becoming a term,
+   * two rows merging. Without it the reference would go on holding a target for
+   * a key nothing produces any more, and the row would come back as a phantom
+   * gap under its old name.
+   */
+  function moveComparisonBaselineEntries(fromKey, toKey) {
+    if (!fromKey || !toKey || fromKey === toKey) return false
+    let moved = false
+    for (const baseline of comparisonBaselines()) {
+      const entries = baseline.entries || {}
+      if (!(fromKey in entries)) continue
+      if (!(toKey in entries)) entries[toKey] = entries[fromKey]
+      delete entries[fromKey]
+      moved = true
+    }
+    return moved
+  }
+
+  function deleteComparisonBaseline(baselineId) {
+    const baselines = comparisonBaselines()
+    const index = baselines.findIndex((entry) => entry.id === baselineId)
+    if (index === -1) return false
+    baselines.splice(index, 1)
+    return true
+  }
+
+  // ── Vocabulary ─────────────────────────────────────────────────────────────
+  //
+  // The workspace vocabulary is a resolution layer over the free-text answers
+  // and radar blips (see src/services/vocabulary.js). These are its only write
+  // paths; every one of them keeps the "an alias belongs to at most one term"
+  // invariant by validating a *candidate* vocabulary first and only assigning it
+  // once it holds. A rejected mutation leaves the workspace exactly as it was.
+
+  function vocabularyList() {
+    if (!Array.isArray(workspace.value.vocabulary)) workspace.value.vocabulary = []
+    return workspace.value.vocabulary
+  }
+
+  // Applies `mutate` to a deep copy and adopts the result only if it is still
+  // collision-free. Cheaper to reason about than undoing a partial mutation, and
+  // the vocabulary is far too small for the copy to matter.
+  function commitVocabulary(mutate) {
+    const candidate = JSON.parse(JSON.stringify(vocabularyList()))
+    const result = mutate(candidate)
+    assertNoAliasCollisions(candidate)
+    workspace.value.vocabulary = candidate
+    return result
+  }
+
+  function findTerm(termId) {
+    return vocabularyList().find((term) => term.id === termId) || null
+  }
+
+  /**
+   * Resolves a raw name (a blip's `option`, an answer's `technology`) against the
+   * current vocabulary. Returns the term or null.
+   */
+  function resolveTerm(rawName) {
+    return resolve(rawName, vocabularyList())
+  }
+
+  /**
+   * Creates a term. `kind` is mandatory and never guessed — design §5.1 makes
+   * this the one thing the UI must ask for when answerType cannot supply it.
+   * Returns the new term's id, or '' when the name is empty or already taken.
+   */
+  function createTerm(name, kind) {
+    const canonical = String(name || '').trim()
+    if (!canonical) return ''
+    if (!TERM_KINDS.includes(kind)) return ''
+    if (resolveTerm(canonical)) return ''
+
+    const existingIds = vocabularyList().map((term) => term.id)
+    const id = `term-${generateSlugId(
+      canonical,
+      existingIds.map((termId) => termId.replace(/^term-/, ''))
+    )}`
+    return commitVocabulary((candidate) => {
+      candidate.push({
+        id,
+        name: canonical,
+        kind,
+        aliases: [],
+        note: '',
+        createdAt: new Date().toISOString()
+      })
+      return id
+    })
+  }
+
+  /**
+   * Adds a raw name as an alias of `termId`. No-op when the name already resolves
+   * to that same term (the canonical name counts as an implicit alias, so it is
+   * never stored twice). Throws AliasCollisionError when the name belongs to a
+   * different term — the user has to resolve that, it is not ours to overwrite.
+   */
+  function addAlias(termId, rawName) {
+    const term = findTerm(termId)
+    const key = normalize(rawName)
+    if (!term || key === '') return false
+    if (termKeys(term).includes(key)) return false
+
+    return commitVocabulary((candidate) => {
+      const target = candidate.find((entry) => entry.id === termId)
+      if (!Array.isArray(target.aliases)) target.aliases = []
+      target.aliases.push(key)
+      return true
+    })
+  }
+
+  function removeAlias(termId, rawName) {
+    const key = normalize(rawName)
+    if (!findTerm(termId) || key === '') return false
+    return commitVocabulary((candidate) => {
+      const target = candidate.find((entry) => entry.id === termId)
+      const aliases = Array.isArray(target.aliases) ? target.aliases : []
+      const index = aliases.indexOf(key)
+      if (index === -1) return false
+      aliases.splice(index, 1)
+      target.aliases = aliases
+      return true
+    })
+  }
+
+  /**
+   * Renames a term. `id` stays put on purpose (design DE-5): blips resolve
+   * through the alias index and overrides are keyed by id, so both survive.
+   * The *old* name is kept as an alias — data written under it must keep
+   * resolving, which is the whole point of the vocabulary.
+   */
+  function renameTerm(termId, name) {
+    const term = findTerm(termId)
+    const canonical = String(name || '').trim()
+    if (!term || !canonical) return false
+    if (normalize(term.name) === normalize(canonical)) {
+      // Same term, only spelling/casing of the display form changes.
+      return commitVocabulary((candidate) => {
+        candidate.find((entry) => entry.id === termId).name = canonical
+        return true
+      })
+    }
+    const owner = resolveTerm(canonical)
+    if (owner && owner.id !== termId) return false
+
+    return commitVocabulary((candidate) => {
+      const target = candidate.find((entry) => entry.id === termId)
+      const previousKey = normalize(target.name)
+      if (!Array.isArray(target.aliases)) target.aliases = []
+      if (previousKey && !target.aliases.includes(previousKey)) target.aliases.push(previousKey)
+      target.name = canonical
+      // The new canonical name is an implicit alias; drop any explicit copy.
+      target.aliases = target.aliases.filter((alias) => alias !== normalize(canonical))
+      return true
+    })
+  }
+
+  function setTermKind(termId, kind) {
+    if (!findTerm(termId) || !TERM_KINDS.includes(kind)) return false
+    return commitVocabulary((candidate) => {
+      candidate.find((entry) => entry.id === termId).kind = kind
+      return true
+    })
+  }
+
+  function setTermNote(termId, note) {
+    if (!findTerm(termId)) return false
+    return commitVocabulary((candidate) => {
+      candidate.find((entry) => entry.id === termId).note = String(note || '')
+      return true
+    })
+  }
+
+  /**
+   * Merges `sourceId` into `targetId`: the source's canonical name and all its
+   * aliases become aliases of the target, then the source is deleted. The target
+   * keeps its own name and kind — merging is "these spellings mean the same
+   * thing", not "adopt the other term's identity".
+   *
+   * Aborts (returning false) if either term is missing or if source and target
+   * are the same. A collision with a *third* term cannot arise from this
+   * operation alone, but commitVocabulary still validates, so a workspace that
+   * already carried one is not made worse by the merge.
+   */
+  function mergeTerms(sourceId, targetId) {
+    const source = findTerm(sourceId)
+    const target = findTerm(targetId)
+    if (!source || !target || sourceId === targetId) return false
+
+    const merged = commitVocabulary((candidate) => {
+      const mergedInto = candidate.find((entry) => entry.id === targetId)
+      const keys = new Set(Array.isArray(mergedInto.aliases) ? mergedInto.aliases : [])
+      termKeys(source).forEach((key) => keys.add(key))
+      keys.delete(normalize(mergedInto.name))
+      mergedInto.aliases = [...keys]
+      candidate.splice(
+        candidate.findIndex((entry) => entry.id === sourceId),
+        1
+      )
+      return true
+    })
+    if (merged) mergeComparisonOverrides(sourceId, targetId)
+    return merged
+  }
+
+  /**
+   * Folds the source term's override into the target's. The target's decision
+   * wins; the source's comment is appended rather than thrown away, and the
+   * result is marked as needing review by clearing the recorded context — a
+   * merged judgement was never taken about this combined term (DE-5, §5.1).
+   */
+  function mergeComparisonOverrides(sourceId, targetId) {
+    const overrides = comparisonOverrides()
+    const source = overrides[sourceId]
+    if (!source) return
+    const target = overrides[targetId]
+    if (!target) {
+      overrides[targetId] = { ...source }
+    } else if (source.comment) {
+      overrides[targetId] = {
+        ...target,
+        comment: [target.comment, source.comment].filter(Boolean).join(' — '),
+        contextProjects: [],
+        contextStatuses: {}
+      }
+    }
+    delete overrides[sourceId]
+  }
+
+  /**
+   * Deletes a term. Deliberately does not touch comparisonOverrides: an override
+   * keyed by a now-missing term is inert, and keeping it means an accidental
+   * delete followed by re-creating the same term does not silently lose the
+   * user's reasoning.
+   */
+  function deleteTerm(termId) {
+    if (!findTerm(termId)) return false
+    return commitVocabulary((candidate) => {
+      candidate.splice(
+        candidate.findIndex((entry) => entry.id === termId),
+        1
+      )
+      return true
+    })
+  }
+
+  /**
+   * Every collision currently present in the workspace vocabulary. Read-only —
+   * the UI uses it to tell the user what to clean up; the write paths above
+   * refuse to create one in the first place.
+   */
+  // ── Dismissed similarity suggestions ───────────────────────────────────────
+  //
+  // Stored as pairs of normalized names on workspace level, not in the session:
+  // a suggestion someone deliberately rejected must not be back on top the next
+  // time the comparison tab opens (design §5.1).
+
+  function dismissedSuggestions() {
+    if (!Array.isArray(workspace.value.dismissedSuggestions)) workspace.value.dismissedSuggestions = []
+    return workspace.value.dismissedSuggestions
+  }
+
+  function dismissSuggestion(rawName, termName) {
+    const key = [normalize(rawName), normalize(termName)].sort().join('||')
+    if (key === '||') return false
+    const list = dismissedSuggestions()
+    if (list.includes(key)) return false
+    list.push(key)
+    return true
+  }
+
+  function isSuggestionDismissed(rawName, termName) {
+    return dismissedSuggestions().includes([normalize(rawName), normalize(termName)].sort().join('||'))
+  }
+
+  function vocabularyCollisions() {
+    return buildAliasIndex(vocabularyList()).collisions
+  }
+
   function setRadarOverride(
     projectId,
     entryId,
@@ -1330,6 +1868,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     openQuestionnaireIds,
     activeWorkspaceTabId,
     openProjectSummaryIds,
+    comparisonTabOpen,
+    COMPARISON_TAB_ID,
+    openWorkspaceComparison,
     lastSaved,
     workspaceDirNeeded,
     workspaceLoadError,
@@ -1361,6 +1902,32 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isProjectRadarRef,
     getRadarOverride,
     setRadarOverride,
+    getComparisonOverride,
+    setComparisonOverride,
+    clearComparisonOverride,
+    setComparisonIgnored,
+    clearComparisonIgnored,
+    moveComparisonIgnored,
+    setComparisonAcceptance,
+    clearComparisonAcceptance,
+    moveComparisonAcceptances,
+    createComparisonBaseline,
+    renameComparisonBaseline,
+    updateComparisonBaseline,
+    moveComparisonBaselineEntries,
+    deleteComparisonBaseline,
+    dismissSuggestion,
+    isSuggestionDismissed,
+    resolveTerm,
+    createTerm,
+    addAlias,
+    removeAlias,
+    renameTerm,
+    setTermKind,
+    setTermNote,
+    mergeTerms,
+    deleteTerm,
+    vocabularyCollisions,
     setProjectRadarCategoryOrder,
     getProjectRadarCategoryOrder,
     setProjectRadarCategoryQuadrants,

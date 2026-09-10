@@ -1,6 +1,6 @@
 // Seed data for the "Software System Interview" catalog: an additional,
 // built-in catalog shipped alongside the exhaustive Standard Catalog
-// (categoriesService.js). See docs/spec-fragenkataloge.md Phase 6.
+// (categoriesService.js). Built by buildInterviewCatalog in catalogService.js.
 //
 // Design intent (differs from the Standard Catalog on purpose):
 //   - It structures an *interview* about a software system, so it is curated

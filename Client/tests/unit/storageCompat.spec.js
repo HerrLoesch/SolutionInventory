@@ -1,4 +1,4 @@
-// Golden-Master compatibility tests, see docs/spec-fragenkataloge.md §6.2.
+// Golden-Master compatibility tests.
 //
 // The fixtures under tests/data/storage/ are frozen contracts: real shapes of
 // data written to disk/localStorage by earlier app versions. They must never be
@@ -16,6 +16,7 @@ import { buildInterviewCatalog } from '../../src/services/catalogService'
 import v1WorkspaceFull from '../data/storage/v1-workspace-full.json'
 import v1WorkspaceLegacyRadar from '../data/storage/v1-workspace-legacy-radar.json'
 import v1CategoriesOnly from '../data/storage/v1-categories-only.json'
+import v3WorkspaceRadar from '../data/storage/v3-workspace-radar.json'
 import pkg from '../../package.json'
 
 // Builds a v3 payload whose stored interview catalog is an intentionally stale,
@@ -194,7 +195,7 @@ describe('storage compatibility (Golden Master)', () => {
     })
   })
 
-  describe('catalog migration (docs/spec-fragenkataloge.md §3.3.2 / Phase 6)', () => {
+  describe('catalog migration (see the STORAGE_VERSION history in src/stores/migrations.js)', () => {
     it('loading a v1 payload adds both built-in catalogs and stamps defaultCatalogId on projects, without touching existing data', () => {
       const store = useWorkspaceStore()
       const ok = store.loadFromData(clone(v1WorkspaceFull))
@@ -296,7 +297,7 @@ describe('storage compatibility (Golden Master)', () => {
 
       const persistedRaw = JSON.parse(localStorage.getItem(STORAGE_KEY))
       expect(persistedRaw.version).toBe(3)
-      // Records which app release wrote this file (see docs/spec-fragenkataloge.md §3.3.3).
+      // Records which app release wrote this file (see buildSnapshot in src/stores/persistence.js).
       expect(persistedRaw.appVersion).toBe(pkg.version)
 
       setActivePinia(createPinia())
@@ -360,7 +361,7 @@ describe('storage compatibility (Golden Master)', () => {
     })
   })
 
-  describe('B1 fix — unreadable/unrecognized workspace data is preserved, not silently discarded (docs/refactoring.md §2.0)', () => {
+  describe('B1 fix — unreadable/unrecognized workspace data is preserved, not silently discarded', () => {
     it('web: a payload with an unrecognized version sets workspaceLoadError instead of seeding', async () => {
       const payloadWithNewerVersion = { ...clone(v1WorkspaceFull), version: 999 }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadWithNewerVersion))
@@ -461,5 +462,197 @@ describe('storage compatibility (Golden Master)', () => {
       expect(store.workspaceLoadError).toEqual(expect.objectContaining({ reason: 'unsupported-version' }))
       expect(store.workspace.projects).toHaveLength(0)
     })
+  })
+})
+
+describe('v3 workspace with radar data loads byte-identically', () => {
+  // A workspace already stored at the current STORAGE_VERSION, carrying curated
+  // radar data and a workspace-owned catalog (so no built-in refresh applies).
+  // No migration step targets v3, so the only thing the load path may do to this
+  // file is *add* the vocabulary/comparison fields — never change one that is
+  // already there. Every new field of that family belongs in this list, and
+  // nowhere else: a field that changes an existing one would fail the test
+  // below rather than be listed here.
+  const ADDED_ON_LOAD = [
+    'vocabulary',
+    'comparisonOverrides',
+    'comparisonIgnored',
+    'comparisonAcceptances',
+    'comparisonBaselines',
+    'dismissedSuggestions'
+  ]
+
+  it('leaves every stored workspace field untouched', () => {
+    const store = useWorkspaceStore()
+    const ok = store.loadFromData(clone(v3WorkspaceRadar))
+
+    expect(ok).toBe(true)
+    const loaded = { ...store.workspace }
+    ADDED_ON_LOAD.forEach((field) => delete loaded[field])
+    expect(loaded).toEqual(v3WorkspaceRadar.workspace)
+  })
+
+  it('adds exactly the vocabulary/comparison fields and nothing else', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    const added = Object.keys(store.workspace).filter((key) => !(key in v3WorkspaceRadar.workspace))
+    expect(added.sort()).toEqual([...ADDED_ON_LOAD].sort())
+    expect(store.workspace.vocabulary).toEqual([])
+    expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.comparisonIgnored).toEqual({})
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual([])
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('keeps the stored version at 3 when the workspace is written back', async () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+    await store.persist()
+
+    // The three fields are additive, so STORAGE_VERSION stays where it is —
+    // bumping it would make older builds reject the file outright.
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(3)
+  })
+
+  it('does not overwrite vocabulary data that is already stored', () => {
+    const stored = clone(v3WorkspaceRadar)
+    stored.workspace.vocabulary = [{ id: 'term-x', name: 'X', kind: 'tool', aliases: ['x'] }]
+    stored.workspace.comparisonOverrides = { 'term-x': { decision: 'accepted' } }
+    stored.workspace.dismissedSuggestions = [['a', 'b']]
+
+    const store = useWorkspaceStore()
+    store.loadFromData(stored)
+
+    expect(store.workspace.vocabulary).toEqual([{ id: 'term-x', name: 'X', kind: 'tool', aliases: ['x'] }])
+    expect(store.workspace.comparisonOverrides).toEqual({ 'term-x': { decision: 'accepted' } })
+    expect(store.workspace.dismissedSuggestions).toEqual([['a', 'b']])
+  })
+
+  it('replaces a field of the wrong type rather than trusting it', () => {
+    const stored = clone(v3WorkspaceRadar)
+    stored.workspace.vocabulary = 'not an array'
+    stored.workspace.comparisonOverrides = null
+    stored.workspace.dismissedSuggestions = 7
+
+    const store = useWorkspaceStore()
+    store.loadFromData(stored)
+
+    expect(store.workspace.vocabulary).toEqual([])
+    expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.comparisonIgnored).toEqual({})
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual([])
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('restores the tab state from the stored payload', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    expect(store.activeQuestionnaireId).toBe('questionnaire-alpha')
+    expect(store.openQuestionnaireIds).toEqual(['questionnaire-alpha', 'questionnaire-beta'])
+    expect(store.openProjectSummaryIds).toEqual(['project-alpha'])
+  })
+
+  it('adds no built-in catalog to a v3 workspace that owns its catalogs', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    expect(store.workspace.catalogs.map((catalog) => catalog.id)).toEqual(['catalog-house'])
+  })
+
+  it('keeps radar entries with an empty status as stored — they are not filled in on load', () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+
+    const alpha = store.workspace.projects.find((project) => project.id === 'project-alpha')
+    expect(alpha.radar.find((blip) => blip.option === '.NET Core').status).toBe('')
+    expect(alpha.radar.find((blip) => blip.option === 'Redis').status).toBe('')
+  })
+})
+
+// ── Phase 7 hardening ────────────────────────────────────────────────────────
+//
+// 7.1 re-checks every fixture after the whole feature is in place; 7.2 proves
+// the round trip that the "no STORAGE_VERSION bump" decision rests on.
+describe('acceptance — after the comparison feature', () => {
+  const FIXTURES = [
+    ['v1-workspace-full', v1WorkspaceFull],
+    ['v1-workspace-legacy-radar', v1WorkspaceLegacyRadar],
+    ['v1-categories-only', v1CategoriesOnly],
+    ['v3-workspace-radar', v3WorkspaceRadar]
+  ]
+
+  it.each(FIXTURES)('%s still loads', (_name, fixture) => {
+    const store = useWorkspaceStore()
+
+    expect(store.loadFromData(clone(fixture))).toBe(true)
+    expect(store.workspaceLoadError).toBeNull()
+  })
+
+  it.each(FIXTURES)('%s gets the three additive fields and nothing more', (_name, fixture) => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(fixture))
+
+    expect(store.workspace.vocabulary).toEqual([])
+    expect(store.workspace.comparisonOverrides).toEqual({})
+    expect(store.workspace.comparisonIgnored).toEqual({})
+    expect(store.workspace.comparisonAcceptances).toEqual({})
+    expect(store.workspace.comparisonBaselines).toEqual([])
+    expect(store.workspace.dismissedSuggestions).toEqual([])
+  })
+
+  it('still writes STORAGE_VERSION 3 — no bump anywhere in the feature', async () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+    store.createTerm('Clean Arch', 'practice')
+    store.setComparisonOverride('term-clean-arch', { level: 'accepted' })
+    await store.persist()
+
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(3)
+  })
+
+  // 7.2: a build without the feature passes the workspace through whole, because
+  // applyStoredData assigns `data.workspace` as a unit. Simulated by stripping
+  // the fields the older build knows nothing about from the *store*, then saving
+  // — the file it writes must still carry them.
+  it('a build that does not know the vocabulary keeps it through save, load, save', async () => {
+    const store = useWorkspaceStore()
+    store.loadFromData(clone(v3WorkspaceRadar))
+    const termId = store.createTerm('.NET Core', 'tool')
+    store.addAlias(termId, 'dotnet core')
+    store.setComparisonOverride(termId, { level: 'accepted', comment: 'agreed' })
+    store.dismissSuggestion('postgres', 'PostgreSQL')
+    await store.persist()
+    const written = localStorage.getItem(STORAGE_KEY)
+
+    // The older build: loads the file, never touches the three fields, saves.
+    setActivePinia(createPinia())
+    const olderBuild = useWorkspaceStore()
+    const payload = JSON.parse(written)
+    expect(olderBuild.loadFromData(payload)).toBe(true)
+    olderBuild.addProject('Added by the older build')
+    await olderBuild.persist()
+
+    setActivePinia(createPinia())
+    const current = useWorkspaceStore()
+    await current.initFromStorage()
+
+    expect(current.resolveTerm('DOTNET CORE').id).toBe(termId)
+    expect(current.getComparisonOverride(termId)).toMatchObject({ level: 'accepted', comment: 'agreed' })
+    expect(current.isSuggestionDismissed('PostgreSQL', 'postgres')).toBe(true)
+    expect(current.workspace.projects.some((project) => project.name === 'Added by the older build')).toBe(true)
+  })
+
+  it('an older build reading the file is not tripped up by the new save-data field', () => {
+    const store = useWorkspaceStore()
+    const payload = { ...clone(v3WorkspaceRadar), comparisonTabOpen: true }
+
+    // comparisonTabOpen lives outside `workspace`, so a build that ignores it
+    // simply loses the open state of a tab it cannot render.
+    expect(store.loadFromData(payload)).toBe(true)
+    expect('comparisonTabOpen' in store.workspace).toBe(false)
   })
 })

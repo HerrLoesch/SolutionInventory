@@ -361,3 +361,360 @@ describe('exportRadarJson (ThoughtWorks BYOR format)', () => {
     vi.restoreAllMocks()
   })
 })
+
+// Reads the persisted radar entry straight from the store — the component does
+// not expose `project` on its instance, and these tests need to distinguish an
+// *uncurated* entry from an assessed one.
+function radarEntryOf(store, projectId, index = 0) {
+  return store.workspace.projects.find((p) => p.id === projectId).radar[index]
+}
+
+// Sets an answer's status *after* the blip was added. toggleProjectRadarRef
+// snapshots the answer status into entry.status at add time, so this is the
+// realistic way an entry ends up with an empty status while its answer carries
+// one — the only situation in which the inheritance below is observable.
+function setAnswerStatusAfterAdd(store, entryId, technology, status) {
+  for (const questionnaire of store.workspace.questionnaires) {
+    for (const category of questionnaire.categories || []) {
+      const entry = (category.entries || []).find((e) => e.id === entryId)
+      const answer = entry && (entry.answers || []).find((a) => a.technology === technology)
+      if (answer) {
+        answer.status = status
+        return
+      }
+    }
+  }
+  throw new Error(`no answer ${technology} on entry ${entryId}`)
+}
+
+// ── Characterization: status inheritance vs. Hold fallback ───────────────────
+//
+// Two behaviors that today produce the same visible result for a blip without
+// a curated status, but have different causes — and only ONE of them is meant
+// to change later (the ring fallback). Pinned separately so that changing the
+// fallback cannot silently take the inheritance with it.
+//
+//   1. effectiveStatus = entry.status || answer.status
+//      A blip without a curated radar status inherits the answer's status.
+//      This behavior STAYS. If a change to the ring fallback turns this red,
+//      the change went too far.
+//
+//   2. statusToRing and the empty status
+//      This behavior WAS DELIBERATELY REPLACED in Todo 5.2: a blip with no
+//      status at all no longer lands on the Hold ring but is listed below the
+//      diagram. The block below was rewritten there, and only that block —
+//      behavior 1 stayed green throughout, which is what the split was for.
+describe('status inheritance (behavior 1 — stays)', () => {
+  it('inherits the answer status when the radar entry carries none', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    setAnswerStatusAfterAdd(store, 'e1', 'Vue', 'Trial')
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    // The radar entry itself has no curated status …
+    expect(radarEntryOf(store, projectId).status).toBe('')
+    // … so the answer's status is the effective one — an *assessed* blip,
+    // not an unset one, and it lands on the ring of the inherited status.
+    expect(blip.status).toBe('Trial')
+    expect(blip.ring).toBe(1)
+    expect(blip.overrideStatus).toBe('')
+  })
+
+  it('still inherits when only the answer is assessed and the ring fallback would also yield Hold', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    setAnswerStatusAfterAdd(store, 'e1', 'Vue', 'Hold')
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    expect(radarEntryOf(store, projectId).status).toBe('')
+    // Ring 3 here is the *inherited* Hold, not the fallback. The status string
+    // is what tells the two apart, which is why it is asserted explicitly.
+    expect(blip.status).toBe('Hold')
+    expect(blip.ring).toBe(3)
+  })
+})
+
+describe('blips without any status (behavior 2 — changed in Todo 5.2)', () => {
+  it('gives a blip with no status on either side no ring, and does not plot it', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    expect(radarEntryOf(store, projectId).status).toBe('')
+    expect(blip.status).toBe('')
+    // Was ring 3 (Hold) before Todo 5.2 — a judgement nobody had made.
+    expect(blip.ring).toBe(-1)
+    expect(wrapper.vm.positionedBlips).toEqual([])
+  })
+
+  it('lists such a blip below the diagram instead', () => {
+    const { pinia, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [
+          { technology: 'Vue', status: '', comments: '', answerType: 'Tool' },
+          { technology: 'Scrum', status: 'Adopt', comments: '', answerType: 'Practice' }
+        ]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    expect(wrapper.vm.blipsWithoutStatus.map((blip) => blip.name)).toEqual(['Vue'])
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name)).toEqual(['Scrum'])
+  })
+
+  it('follows the kind filter, so the list does not contradict the diagram', () => {
+    const { pinia, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId }, pinia)
+    wrapper.vm.toggleKindVisibility('tool')
+
+    expect(wrapper.vm.blipsWithoutStatus).toEqual([])
+  })
+
+  it('still places a blip with an unrecognized status on the Hold ring', () => {
+    const { pinia, store, projectId } = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [{ technology: 'Vue', status: '', comments: '', answerType: 'Tool' }]
+      }
+    ])
+    store.setRadarOverride(projectId, 'e1', 'Vue', { status: 'Evaluate', comment: '', categoryOverride: '' })
+    const { wrapper } = mountRadar({ projectId }, pinia)
+
+    const blip = wrapper.vm.allBlips[0]
+    // An unrecognized status is still a judgement, just not one on this scale —
+    // it keeps the old fallback. Only an *empty* status has no ring.
+    expect(blip.status).toBe('Evaluate')
+    expect(blip.ring).toBe(3)
+    expect(wrapper.vm.blipsWithoutStatus).toEqual([])
+  })
+})
+
+// ── Vocabulary assignment in the blip detail dialog (Todo 2.2) ───────────────
+//
+// Tested through wrapper.vm, not markup — Vuetify is deliberately not installed
+// in these tests, so only the exposed logic is meaningful.
+describe('blip detail — vocabulary assignment', () => {
+  function seedBlip({ status = 'Adopt', answerType = 'Tool', technology = 'Dotnet Core' } = {}) {
+    const seeded = seedProjectWithRadarRefs([
+      {
+        title: 'Stack',
+        entryId: 'e1',
+        answers: [{ technology, status, comments: '', answerType }]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId: seeded.projectId }, seeded.pinia)
+    return { ...seeded, wrapper }
+  }
+
+  it('reports a blip whose name is not in the vocabulary as unresolved', () => {
+    const { wrapper } = seedBlip()
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTerm).toBeNull()
+    expect(wrapper.vm.allBlips[0].termId).toBe('')
+  })
+
+  it('resolves a blip through the vocabulary, by name and by alias', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    store.addAlias(termId, 'dotnet core')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTerm.id).toBe(termId)
+    expect(wrapper.vm.allBlips[0].termId).toBe(termId)
+    expect(wrapper.vm.allBlips[0].termName).toBe('.NET Core')
+  })
+
+  it('offers a similar term as a suggestion, without assigning anything', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermSuggestions.map((suggestion) => suggestion.term.id)).toEqual([termId])
+    // Still unresolved — a suggestion is not an assignment.
+    expect(wrapper.vm.detailTerm).toBeNull()
+  })
+
+  it('offers no suggestion once the name resolves', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    store.addAlias(termId, 'dotnet core')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermSuggestions).toEqual([])
+  })
+
+  it('assigns the blip to a term, after which it resolves', () => {
+    const { wrapper, store } = seedBlip()
+    const termId = store.createTerm('.NET Core', 'tool')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.assignDetailBlipToTerm(termId)).toBe(true)
+    expect(wrapper.vm.detailTerm.id).toBe(termId)
+    expect(store.workspace.vocabulary[0].aliases).toEqual(['dotnet core'])
+  })
+
+  it('pre-fills the kind from answerType and creates the term straight away', () => {
+    const { wrapper, store } = seedBlip({ answerType: 'Practice' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermKind).toBe('practice')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(true)
+
+    const termId = wrapper.vm.createTermFromDetailBlip()
+    expect(store.workspace.vocabulary).toHaveLength(1)
+    expect(store.workspace.vocabulary[0]).toMatchObject({ id: termId, name: 'Dotnet Core', kind: 'practice' })
+  })
+
+  it('stays disabled without an answerType until a kind is chosen — kind is never guessed', () => {
+    const { wrapper, store } = seedBlip({ answerType: '' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermKind).toBe('')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+    expect(wrapper.vm.createTermFromDetailBlip()).toBe('')
+    expect(store.workspace.vocabulary).toEqual([])
+
+    wrapper.vm.pendingTermKind = 'tool'
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(true)
+    wrapper.vm.createTermFromDetailBlip()
+    expect(store.workspace.vocabulary[0].kind).toBe('tool')
+  })
+
+  it('ignores an answerType that is neither Tool nor Practice', () => {
+    const { wrapper } = seedBlip({ answerType: 'Framework' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    expect(wrapper.vm.detailTermKind).toBe('')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+  })
+
+  it('does not carry a pending kind over to the next blip opened', () => {
+    const { wrapper } = seedBlip({ answerType: '' })
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+    wrapper.vm.pendingTermKind = 'tool'
+
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+    expect(wrapper.vm.pendingTermKind).toBe('')
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+  })
+
+  it('refuses to create a term whose name already resolves', () => {
+    const { wrapper, store } = seedBlip()
+    store.createTerm('Dotnet Core', 'tool')
+    wrapper.vm.openDetail(wrapper.vm.allBlips[0])
+
+    // detailTerm resolves, so the create path is closed off entirely.
+    expect(wrapper.vm.detailTerm).not.toBeNull()
+    expect(wrapper.vm.canCreateTermFromDetail).toBe(false)
+    expect(store.workspace.vocabulary).toHaveLength(1)
+  })
+
+  it('exposes the blip kind following the DE-11 precedence', () => {
+    const { wrapper, store } = seedBlip({ answerType: 'Tool' })
+    expect(wrapper.vm.allBlips[0].kind).toBe('tool')
+
+    const termId = store.createTerm('Dotnet Core', 'practice')
+    expect(termId).toBeTruthy()
+    // The resolved term wins over answerType.
+    expect(wrapper.vm.allBlips[0].kind).toBe('practice')
+  })
+})
+
+// ── Kind filter (Todo 5.1) ───────────────────────────────────────────────────
+//
+// Same pattern as the existing status filter: a visibility filter over the
+// blips, not a separate view.
+describe('kind visibility toggling', () => {
+  function seedKinds() {
+    const seeded = seedProjectWithRadarRefs([
+      {
+        title: 'Architecture',
+        entryId: 'e1',
+        answers: [
+          { technology: 'Vue', status: 'Adopt', comments: '', answerType: 'Tool' },
+          { technology: 'Scrum', status: 'Adopt', comments: '', answerType: 'Practice' },
+          { technology: 'Kafka', status: 'Adopt', comments: '', answerType: '' }
+        ]
+      }
+    ])
+    const { wrapper } = mountRadar({ projectId: seeded.projectId }, seeded.pinia)
+    return { ...seeded, wrapper }
+  }
+
+  it('starts with all three kinds visible', () => {
+    const { wrapper } = seedKinds()
+
+    expect(['tool', 'practice', 'unassigned'].every((kind) => wrapper.vm.isKindVisible(kind))).toBe(true)
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka', 'Scrum', 'Vue'])
+  })
+
+  it('hides the blips of a kind that is toggled off', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('practice')
+
+    expect(wrapper.vm.isKindVisible('practice')).toBe(false)
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka', 'Vue'])
+  })
+
+  it('hides blips whose kind is unassigned without touching the others', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('unassigned')
+
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Scrum', 'Vue'])
+  })
+
+  it('brings a kind back when toggled again', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('tool')
+    wrapper.vm.toggleKindVisibility('tool')
+
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka', 'Scrum', 'Vue'])
+  })
+
+  it('follows the vocabulary, not answerType, once a term resolves', () => {
+    const { wrapper, store } = seedKinds()
+    // The answer says Tool, the vocabulary says practice — the term wins (DE-11).
+    store.createTerm('Vue', 'practice')
+    wrapper.vm.toggleKindVisibility('practice')
+
+    expect(wrapper.vm.positionedBlips.map((blip) => blip.name).sort()).toEqual(['Kafka'])
+  })
+
+  it('may be emptied — the ring geometry does not depend on it', () => {
+    const { wrapper } = seedKinds()
+    wrapper.vm.toggleKindVisibility('tool')
+    wrapper.vm.toggleKindVisibility('practice')
+    wrapper.vm.toggleKindVisibility('unassigned')
+
+    expect(wrapper.vm.positionedBlips).toEqual([])
+    expect(wrapper.vm.computedRings.length).toBeGreaterThan(0)
+  })
+})

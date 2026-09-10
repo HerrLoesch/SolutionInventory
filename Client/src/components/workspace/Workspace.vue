@@ -10,7 +10,8 @@
         class="workspace-tab"
         :class="{ 'tab-active': tab.id === activeTab }"
       >
-        <v-icon v-if="tab.type === 'project-summary'" size="16" class="mr-2">mdi-folder</v-icon>
+        <v-icon v-if="tab.type === 'workspace-comparison'" size="16" class="mr-2">mdi-compare-horizontal</v-icon>
+        <v-icon v-else-if="tab.type === 'project-summary'" size="16" class="mr-2">mdi-folder</v-icon>
         <v-icon v-else-if="tab.type === 'catalog-editor'" size="16" class="mr-2">mdi-file-tree-outline</v-icon>
         <v-icon v-else size="16" class="mr-2">mdi-file-document-outline</v-icon>
         <span class="tab-title">{{ tab.label }}</span>
@@ -27,7 +28,8 @@
 
     <v-window v-else v-model="activeTab">
       <v-window-item v-for="tab in workspaceTabs" :key="tab.id" :value="tab.id">
-        <ProjectSummary v-if="tab.type === 'project-summary'" :project-id="tab.projectId" />
+        <ProjectComparison v-if="tab.type === 'workspace-comparison'" />
+        <ProjectSummary v-else-if="tab.type === 'project-summary'" :project-id="tab.projectId" />
         <CatalogEditor v-else-if="tab.type === 'catalog-editor'" :catalog-id="tab.catalogId" />
         <Questionnaire
           v-else
@@ -45,12 +47,13 @@ import { computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Questionnaire from '../questionaire/Questionnaire.vue'
 import ProjectSummary from '../projects/ProjectSummary.vue'
+import ProjectComparison from './ProjectComparison.vue'
 import CatalogEditor from '../catalog/CatalogEditor.vue'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useWorkspaceTabGuard } from '../../composables/useWorkspaceTabGuard'
 
 export default {
-  components: { Questionnaire, ProjectSummary, CatalogEditor },
+  components: { Questionnaire, ProjectSummary, ProjectComparison, CatalogEditor },
   setup() {
     const store = useWorkspaceStore()
     const { workspaceTabs, activeWorkspaceTabId } = storeToRefs(store)
