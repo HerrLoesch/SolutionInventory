@@ -264,15 +264,7 @@ function overlaySection(overlay) {
 
 /** A standalone HTML report of the same content. */
 export function buildComparisonHtml(exportData) {
-  const {
-    selection,
-    metrics,
-    terms,
-    overlay,
-    ignored = [],
-    baseline = null,
-    pairwiseDivergence = []
-  } = exportData
+  const { selection, metrics, terms, overlay, ignored = [], baseline = null, pairwiseDivergence = [] } = exportData
   const projectNames = selection.projects.map((project) => project.name)
 
   const header = [

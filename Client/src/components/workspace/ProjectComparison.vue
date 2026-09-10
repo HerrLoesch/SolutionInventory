@@ -330,9 +330,7 @@
                   </div>
                   <div v-if="metrics.ignored">
                     ⃠ Not important <strong>{{ metrics.ignored }}</strong>
-                    <span class="text-medium-emphasis">
-                      not counted in any figure here
-                    </span>
+                    <span class="text-medium-emphasis"> not counted in any figure here </span>
                   </div>
                   <div>
                     ◉ In all projects <strong>{{ metrics.all }}</strong> ({{ metrics.allPercent }} %)
@@ -438,13 +436,7 @@
 
               <div v-if="inBaselineMode" class="mt-4">
                 <div class="summary-heading">How closely each project follows ◎ {{ activeBaseline.name }}</div>
-                <div
-                  v-for="bar in baselineBars"
-                  :key="bar.key"
-                  class="bar-row"
-                  role="img"
-                  :aria-label="bar.ariaLabel"
-                >
+                <div v-for="bar in baselineBars" :key="bar.key" class="bar-row" role="img" :aria-label="bar.ariaLabel">
                   <span class="bar-label">{{ bar.label }}</span>
                   <span class="coverage-track bar-track">
                     <span class="bar-fill" :class="`bar-fill--${bar.level}`" :style="{ width: bar.percent + '%' }" />
@@ -634,10 +626,7 @@
                       >
                         <template v-if="cellFor(row, project.id)">
                           <div v-for="(value, index) in cellFor(row, project.id).values" :key="index">
-                            <span
-                              class="status-chip"
-                              :class="statusClass(value.status)"
-                            >
+                            <span class="status-chip" :class="statusClass(value.status)">
                               {{ statusLabel(value.status) }}
                             </span>
                             <span
@@ -655,11 +644,7 @@
                              decision that no longer fits the data says so
                              instead of quietly disappearing. -->
                         <div v-if="acceptanceFor(row, project.id)" class="cell-acceptance">
-                          <span
-                            class="acceptance-marker"
-                            :title="acceptanceTitle(row, project.id)"
-                            >≈</span
-                          >
+                          <span class="acceptance-marker" :title="acceptanceTitle(row, project.id)">≈</span>
                           <span class="text-caption text-medium-emphasis">
                             {{ acceptanceLabel(row, project.id) }}
                           </span>
@@ -1044,7 +1029,7 @@
               v-if="acceptanceFor(acceptRow, acceptProjectId)"
               size="small"
               variant="text"
-              @click="clearAcceptance(acceptRow, acceptProjectId), (acceptDialog = false)"
+              @click="(clearAcceptance(acceptRow, acceptProjectId), (acceptDialog = false))"
             >
               Remove
             </v-btn>
@@ -1067,13 +1052,13 @@
           <v-card-text>
             <p class="text-caption text-medium-emphasis">
               <template v-if="renameCreatesTerm">
-                "{{ renameRow.name }}" is not in the vocabulary yet. It becomes a term under the name you give here,
-                and every spelling in this row becomes one of its aliases.
+                "{{ renameRow.name }}" is not in the vocabulary yet. It becomes a term under the name you give here, and
+                every spelling in this row becomes one of its aliases.
               </template>
               <template v-else>
-                The term keeps its identity: every blip written under the old name keeps resolving to it, and any
-                manual classification stays in force. This changes the workspace vocabulary, so it applies to every
-                project — not just the ones compared here.
+                The term keeps its identity: every blip written under the old name keeps resolving to it, and any manual
+                classification stays in force. This changes the workspace vocabulary, so it applies to every project —
+                not just the ones compared here.
               </template>
             </p>
             <v-text-field
@@ -1096,9 +1081,7 @@
                 class="mt-3"
                 style="max-width: 200px"
               />
-              <p class="text-caption text-medium-emphasis mt-1">
-                A term needs a kind, and it is never guessed.
-              </p>
+              <p class="text-caption text-medium-emphasis mt-1">A term needs a kind, and it is never guessed.</p>
             </template>
             <v-alert v-if="renameError" type="warning" density="compact" variant="tonal" class="mt-3">
               {{ renameError }}
@@ -1122,8 +1105,8 @@
           <v-card-title class="text-subtitle-2">Mark "{{ ignoreRow.name }}" as not important</v-card-title>
           <v-card-text>
             <p class="text-caption text-medium-emphasis">
-              The term drops out of the matrix and out of every number in the summary — it is not hidden, it is left
-              out of the question. Nothing is deleted; you can take it back at any time.
+              The term drops out of the matrix and out of every number in the summary — it is not hidden, it is left out
+              of the question. Nothing is deleted; you can take it back at any time.
             </p>
             <v-textarea
               v-model="ignoreReason"
@@ -1613,9 +1596,7 @@ export default {
     // of the mark is that the row is out of the comparison, not that it is gone.
     const showIgnored = ref(false)
 
-    const matrixRows = computed(() =>
-      showIgnored.value ? [...rows.value, ...ignoredRows.value] : rows.value
-    )
+    const matrixRows = computed(() => (showIgnored.value ? [...rows.value, ...ignoredRows.value] : rows.value))
 
     const visibleRows = computed(() => {
       const term = search.value.trim().toLowerCase()
@@ -1890,9 +1871,7 @@ export default {
      */
     function canOfferAcceptance(row, projectId) {
       if (!row || row.ignored) return false
-      const others = selectedProjects.value.filter(
-        (project) => project.id !== projectId && cellFor(row, project.id)
-      )
+      const others = selectedProjects.value.filter((project) => project.id !== projectId && cellFor(row, project.id))
       if (!others.length) return false
       const own = cellFor(row, projectId)
       if (!own) return true

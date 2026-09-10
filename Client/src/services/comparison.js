@@ -536,8 +536,7 @@ export function deltaOf(
   // that can pull a `◑ unique` row into the comparison — and it still needs
   // somebody to be accepting *something*.
   const acceptedAbsences = [...applied.values()].filter((entry) => entry.mode === 'absence').length
-  const notCompared =
-    participating.length === 0 || (effectiveCoverage === COVERAGE.UNIQUE && acceptedAbsences === 0)
+  const notCompared = participating.length === 0 || (effectiveCoverage === COVERAGE.UNIQUE && acceptedAbsences === 0)
   if (notCompared) return { delta: DELTA.NONE, distance: null, reasons }
   if (inconsistent) return { delta: DELTA.INCONSISTENT, distance: null, reasons }
   if (unset) return { delta: DELTA.UNSET, distance: null, reasons }

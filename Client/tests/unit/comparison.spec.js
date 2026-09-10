@@ -1312,7 +1312,12 @@ describe('staleAcceptanceProjectIds', () => {
   it('reports nothing while the decision still fits the data', () => {
     const row = rowOf({ a: 'Adopt', b: 'Retire' })
     const acceptances = {
-      b: { mode: 'status', acceptedFrom: 'a', contextProjects: ['a', 'b'], contextStatuses: { a: 'Adopt', b: 'Retire' } }
+      b: {
+        mode: 'status',
+        acceptedFrom: 'a',
+        contextProjects: ['a', 'b'],
+        contextStatuses: { a: 'Adopt', b: 'Retire' }
+      }
     }
 
     expect(staleAcceptanceProjectIds(row, TWO, acceptances)).toEqual([])
@@ -1327,7 +1332,12 @@ describe('staleAcceptanceProjectIds', () => {
   it('flags a decision whose context has changed, without dropping it', () => {
     const row = rowOf({ a: 'Trial', b: 'Retire' })
     const acceptances = {
-      b: { mode: 'status', acceptedFrom: 'a', contextProjects: ['a', 'b'], contextStatuses: { a: 'Adopt', b: 'Retire' } }
+      b: {
+        mode: 'status',
+        acceptedFrom: 'a',
+        contextProjects: ['a', 'b'],
+        contextStatuses: { a: 'Adopt', b: 'Retire' }
+      }
     }
 
     // Still in force — but a says something else now than when this was decided.
@@ -1662,9 +1672,9 @@ describe('reference baselines', () => {
     it('keeps the data findings and the explicit override ahead of the measurement', () => {
       expect(deltaOf(rowOf('term:x', { a: ['Adopt', 'Trial'] }), THREE, { baseline }).delta).toBe(DELTA.INCONSISTENT)
       expect(deltaOf(rowOf('term:x', { a: '' }), THREE, { baseline }).delta).toBe(DELTA.UNSET)
-      expect(deltaOf(rowOf('term:x', { a: 'Retire' }), THREE, { baseline, override: { level: 'accepted' } }).delta).toBe(
-        DELTA.ACCEPTED
-      )
+      expect(
+        deltaOf(rowOf('term:x', { a: 'Retire' }), THREE, { baseline, override: { level: 'accepted' } }).delta
+      ).toBe(DELTA.ACCEPTED)
       expect(deltaOf(rowOf('term:x', { a: 'Adopt' }), THREE, { baseline, override: { level: 'critical' } }).delta).toBe(
         DELTA.CRITICAL
       )
@@ -1847,14 +1857,12 @@ describe('sortRows / compareRows', () => {
   it('sorts by term name, and turns it around on demand', () => {
     const rows = [row('Vue'), row('Angular'), row('React')]
 
-    expect(sortRows(rows, { column: SORT_COLUMN.TERM }).map((entry) => entry.name)).toEqual([
-      'Angular',
+    expect(sortRows(rows, { column: SORT_COLUMN.TERM }).map((entry) => entry.name)).toEqual(['Angular', 'React', 'Vue'])
+    expect(sortRows(rows, { column: SORT_COLUMN.TERM, direction: 'desc' }).map((entry) => entry.name)).toEqual([
+      'Vue',
       'React',
-      'Vue'
+      'Angular'
     ])
-    expect(
-      sortRows(rows, { column: SORT_COLUMN.TERM, direction: 'desc' }).map((entry) => entry.name)
-    ).toEqual(['Vue', 'React', 'Angular'])
   })
 
   it('does not mutate the rows it was given', () => {
@@ -1895,9 +1903,11 @@ describe('sortRows / compareRows', () => {
       row('Trialled', { statuses: { 'p-a': 'Trial' } })
     ]
 
-    expect(
-      sortRows(rows, { column: projectSortColumn('p-a') }).map((entry) => entry.name)
-    ).toEqual(['Adopted', 'Trialled', 'Retired'])
+    expect(sortRows(rows, { column: projectSortColumn('p-a') }).map((entry) => entry.name)).toEqual([
+      'Adopted',
+      'Trialled',
+      'Retired'
+    ])
   })
 
   it('ranks a cell with several takes by its worst one', () => {
@@ -1926,9 +1936,11 @@ describe('sortRows / compareRows', () => {
       'Retired',
       'Missing'
     ])
-    expect(
-      sortRows(rows, { column: projectSortColumn('p-a'), direction: 'desc' }).map((entry) => entry.name)
-    ).toEqual(['Retired', 'Adopted', 'Missing'])
+    expect(sortRows(rows, { column: projectSortColumn('p-a'), direction: 'desc' }).map((entry) => entry.name)).toEqual([
+      'Retired',
+      'Adopted',
+      'Missing'
+    ])
   })
 
   it('sorts a value off the scale between the ranked ones and the empty ones', () => {
@@ -1948,13 +1960,11 @@ describe('sortRows / compareRows', () => {
   it('breaks every tie by name, so the same rows sort the same way twice', () => {
     const rows = [row('Vue', { coverage: COVERAGE.ALL }), row('Angular', { coverage: COVERAGE.ALL })]
 
-    expect(sortRows(rows, { column: SORT_COLUMN.COVERAGE }).map((entry) => entry.name)).toEqual([
+    expect(sortRows(rows, { column: SORT_COLUMN.COVERAGE }).map((entry) => entry.name)).toEqual(['Angular', 'Vue'])
+    expect(sortRows(rows, { column: SORT_COLUMN.COVERAGE, direction: 'desc' }).map((entry) => entry.name)).toEqual([
       'Angular',
       'Vue'
     ])
-    expect(
-      sortRows(rows, { column: SORT_COLUMN.COVERAGE, direction: 'desc' }).map((entry) => entry.name)
-    ).toEqual(['Angular', 'Vue'])
   })
 
   it('reads a project id back out of a column id, and only out of one', () => {

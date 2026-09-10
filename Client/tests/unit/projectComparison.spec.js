@@ -875,7 +875,12 @@ describe('comparison matrix', () => {
     wrapper.vm.acceptFrom = 'p-alpha'
     wrapper.vm.confirmAccept()
     await wrapper.vm.$nextTick()
-    expect(wrapper.vm.isAcceptanceStale(wrapper.vm.rows.find((row) => row.name === 'Vue'), 'p-beta')).toBe(false)
+    expect(
+      wrapper.vm.isAcceptanceStale(
+        wrapper.vm.rows.find((row) => row.name === 'Vue'),
+        'p-beta'
+      )
+    ).toBe(false)
 
     store.workspace.projects[0].radar[0].status = 'Trial'
     await wrapper.vm.$nextTick()
@@ -912,7 +917,12 @@ describe('comparison matrix', () => {
     wrapper.vm.confirmAccept()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.vm.clearAcceptance(wrapper.vm.rows.find((row) => row.name === 'Vue'), 'p-beta')).toBe(true)
+    expect(
+      wrapper.vm.clearAcceptance(
+        wrapper.vm.rows.find((row) => row.name === 'Vue'),
+        'p-beta'
+      )
+    ).toBe(true)
     await wrapper.vm.$nextTick()
     expect(wrapper.vm.rows.find((row) => row.name === 'Vue').delta).toBe('critical')
     expect(wrapper.vm.metrics.silent).toBe(0)
@@ -1081,7 +1091,12 @@ describe('comparison matrix', () => {
     expect(wrapper.vm.renameVocabularyTerm(term, 'Vue')).toBe(true)
     expect(wrapper.vm.setVocabularyTermKind(store.workspace.vocabulary[0], 'practice')).toBe(true)
     expect(wrapper.vm.setVocabularyTermNote(store.workspace.vocabulary[0], 'the framework')).toBe(true)
-    expect(store.workspace.vocabulary[0]).toMatchObject({ id: vueId, name: 'Vue', kind: 'practice', note: 'the framework' })
+    expect(store.workspace.vocabulary[0]).toMatchObject({
+      id: vueId,
+      name: 'Vue',
+      kind: 'practice',
+      note: 'the framework'
+    })
   })
 
   it('reports a rename in the term list that would collide, without changing anything', async () => {
