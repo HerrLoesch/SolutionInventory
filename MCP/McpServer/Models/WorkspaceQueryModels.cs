@@ -1,5 +1,12 @@
 namespace McpServer.Models;
 
+/// <summary>Summary of a single project within the workspace, used for project selection.</summary>
+public record ProjectInfo(
+    string Id,
+    string Name,
+    IReadOnlyList<string> QuestionnaireIds
+);
+
 public record CategoryDefinition(
     string Id,
     string Title,

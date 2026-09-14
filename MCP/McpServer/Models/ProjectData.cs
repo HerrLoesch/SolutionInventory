@@ -22,4 +22,8 @@ public record ProjectData
 
     [JsonPropertyName("radarCategoryOrder")]
     public List<string> RadarCategoryOrder { get; init; } = [];
+
+    /// <summary>IDs of the questionnaires that belong to this project (used to scope multi-project workspaces).</summary>
+    [JsonPropertyName("questionnaireIds")]
+    public List<string> QuestionnaireIds { get; init; } = [];
 }

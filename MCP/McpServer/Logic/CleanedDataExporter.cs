@@ -157,8 +157,12 @@ public sealed class CleanedDataExporter
                     foreach (var answer in entry.Answers ?? [])
                         Add(answer.Technology);
 
-        foreach (var radar in workspace.Project?.Radar ?? [])
-            Add(radar.Option);
+        var projects = workspace.Projects.Count > 0
+            ? workspace.Projects
+            : workspace.Project is not null ? [workspace.Project] : new List<ProjectData>();
+        foreach (var project in projects)
+            foreach (var radar in project.Radar)
+                Add(radar.Option);
 
         return counts.ToDictionary(
             kv => kv.Key,

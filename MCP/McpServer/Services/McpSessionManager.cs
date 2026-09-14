@@ -275,12 +275,30 @@ public sealed class McpSessionManager
             {
                 new JsonObject
                 {
+                    ["name"]        = "list_projects",
+                    ["description"] = "Returns all projects available in the loaded workspace (project ID, name and the IDs of the questionnaires that belong to it). Use this to discover project IDs before scoping other tool calls with 'projectId'.",
+                    ["inputSchema"] = new JsonObject
+                    {
+                        ["type"]       = "object",
+                        ["properties"] = new JsonObject(),
+                        ["required"]   = new JsonArray()
+                    }
+                },
+                new JsonObject
+                {
                     ["name"]        = "list_categories",
                     ["description"] = "Returns all distinct categories (and their subcategory entries with IDs) that exist across the loaded workspace. Use this to discover which category IDs and entry IDs are available before making other calls.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
-                        ["properties"] = new JsonObject(),
+                        ["properties"] = new JsonObject
+                        {
+                            ["projectId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Limit results to a single project by ID or name (see 'list_projects'). Omit to include all projects in the workspace."
+                            }
+                        },
                         ["required"]   = new JsonArray()
                     }
                 },
@@ -291,14 +309,21 @@ public sealed class McpSessionManager
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
-                        ["properties"] = new JsonObject(),
+                        ["properties"] = new JsonObject
+                        {
+                            ["projectId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Limit results to the questionnaires of a single project by ID or name (see 'list_projects'). Omit to include all projects in the workspace."
+                            }
+                        },
                         ["required"]   = new JsonArray()
                     }
                 },
                 new JsonObject
                 {
                     ["name"]        = "get_answers_for_category",
-                    ["description"] = "Returns all answers given for a specific category across all questionnaires. Optionally filter by a specific subcategory entry (entryId) or a specific questionnaire (questionnaireId).",
+                    ["description"] = "Returns all answers given for a specific category across all questionnaires. Optionally filter by a specific subcategory entry (entryId), a specific questionnaire (questionnaireId), or a specific project (projectId).",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
@@ -318,6 +343,11 @@ public sealed class McpSessionManager
                             {
                                 ["type"]        = "string",
                                 ["description"] = "Optional. Limit results to a single questionnaire by ID or name."
+                            },
+                            ["projectId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Limit results to the questionnaires of a single project by ID or name (see 'list_projects'). Omit to include all projects in the workspace."
                             }
                         },
                         ["required"] = new JsonArray { "categoryId" }
@@ -326,11 +356,18 @@ public sealed class McpSessionManager
                 new JsonObject
                 {
                     ["name"]        = "get_tech_radar",
-                    ["description"] = "Returns the project-level tech radar: all radar entries (with option, category, status, shortComment and description), grouped by status ring, and the radar category order.",
+                    ["description"] = "Returns the tech radar: all radar entries (with option, category, status, shortComment and description), grouped by status ring, and the radar category order. Optionally scope to a single project by ID or name; when omitted, radars from all projects in the workspace are merged.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
-                        ["properties"] = new JsonObject(),
+                        ["properties"] = new JsonObject
+                        {
+                            ["projectId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Limit the radar to a single project by ID or name (see 'list_projects'). Omit to merge radars from all projects in the workspace."
+                            }
+                        },
                         ["required"]   = new JsonArray()
                     }
                 },
@@ -374,22 +411,36 @@ public sealed class McpSessionManager
                 new JsonObject
                 {
                     ["name"]        = "detect_naming_inconsistencies",
-                    ["description"] = "Scans the entire loaded workspace for naming inconsistencies and returns a list of findings, each with a suggested correction. Detects: case/whitespace variations of the same value (e.g. 'PostgreSQL' vs 'postgresql'), near-duplicate terminology likely caused by typos or spelling variants (e.g. 'Kubernetes' vs 'Kubernets'), and category/entry identifiers that are not part of the canonical vocabulary. Covers technology names in answers, tech-radar option names, and category/entry IDs. Takes no arguments.",
+                    ["description"] = "Scans the loaded workspace for naming inconsistencies and returns a list of findings, each with a suggested correction. Detects: case/whitespace variations of the same value (e.g. 'PostgreSQL' vs 'postgresql'), near-duplicate terminology likely caused by typos or spelling variants (e.g. 'Kubernetes' vs 'Kubernets'), and category/entry identifiers that are not part of the canonical vocabulary. Covers technology names in answers, tech-radar option names, and category/entry IDs.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
-                        ["properties"] = new JsonObject(),
+                        ["properties"] = new JsonObject
+                        {
+                            ["projectId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Limit the scan to a single project by ID or name (see 'list_projects'). Omit to scan all projects in the workspace."
+                            }
+                        },
                         ["required"]   = new JsonArray()
                     }
                 },
                 new JsonObject
                 {
                     ["name"]        = "validate_tech_radar_status",
-                    ["description"] = "Validates every status value in the workspace (tech-radar entries and questionnaire answers) against the canonical status whitelist [\"Adopt\",\"Trial\",\"Assess\",\"Hold\",\"Retire\"]. Returns the canonical list, the number of status values checked, and a list of violations. Each violation reports its location, the raw non-canonical value, a suggested canonical correction (when a confident match exists, e.g. 'adopt' → 'Adopt', 'Retired' → 'Retire'), and whether it can be auto-corrected. Takes no arguments.",
+                    ["description"] = "Validates every status value in the workspace (tech-radar entries and questionnaire answers) against the canonical status whitelist [\"Adopt\",\"Trial\",\"Assess\",\"Hold\",\"Retire\"]. Returns the canonical list, the number of status values checked, and a list of violations. Each violation reports its location, the raw non-canonical value, a suggested canonical correction (when a confident match exists, e.g. 'adopt' → 'Adopt', 'Retired' → 'Retire'), and whether it can be auto-corrected.",
                     ["inputSchema"] = new JsonObject
                     {
                         ["type"]       = "object",
-                        ["properties"] = new JsonObject(),
+                        ["properties"] = new JsonObject
+                        {
+                            ["projectId"] = new JsonObject
+                            {
+                                ["type"]        = "string",
+                                ["description"] = "Optional. Limit validation to a single project by ID or name (see 'list_projects'). Omit to validate all projects in the workspace."
+                            }
+                        },
                         ["required"]   = new JsonArray()
                     }
                 },
@@ -430,17 +481,36 @@ public sealed class McpSessionManager
 
         return toolName switch
         {
-            "list_categories"          => BuildListCategoriesResponse(id, excludedIds),
-            "list_questionnaires"      => BuildListQuestionnairesResponse(id, excludedIds, referenceId),
+            "list_projects"            => BuildListProjectsResponse(id),
+            "list_categories"          => BuildListCategoriesResponse(id, args, excludedIds),
+            "list_questionnaires"      => BuildListQuestionnairesResponse(id, args, excludedIds, referenceId),
             "get_answers_for_category" => BuildAnswersForCategoryResponse(id, args, excludedIds),
-            "get_tech_radar"           => BuildTechRadarResponse(id),
+            "get_tech_radar"           => BuildTechRadarResponse(id, args),
             "evaluate_responses"       => BuildEvaluateResponsesResponse(id, args),
             "get_json_schema"          => BuildGetJsonSchemaResponse(id, args),
-            "detect_naming_inconsistencies" => BuildDetectInconsistenciesResponse(id, excludedIds),
-            "validate_tech_radar_status"    => BuildValidateStatusResponse(id, excludedIds),
+            "detect_naming_inconsistencies" => BuildDetectInconsistenciesResponse(id, args, excludedIds),
+            "validate_tech_radar_status"    => BuildValidateStatusResponse(id, args, excludedIds),
             "export_cleaned_data"           => BuildExportCleanedDataResponse(id, args),
             _                          => BuildError(id, -32602, $"Unknown tool: {toolName}")
         };
+    }
+
+    /// <summary>
+    /// Validates an optional projectId argument against the loaded workspace.
+    /// Returns an error/not-found message when the project id is set but unknown, otherwise null.
+    /// </summary>
+    private string? ValidateProjectId(string? projectId)
+    {
+        if (string.IsNullOrWhiteSpace(projectId)) return null;
+
+        var projects = _repo.GetProjects();
+        if (projects is null) return NotLoadedMessage;
+
+        var exists = projects.Any(p =>
+            p.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase) ||
+            p.Name.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+
+        return exists ? null : $"No project found with ID or name '{projectId}'. Use 'list_projects' to see available projects.";
     }
 
     private static string BuildTextToolResponse(JsonNode id, string text) =>
@@ -452,9 +522,35 @@ public sealed class McpSessionManager
             }
         });
 
-    private string BuildListCategoriesResponse(JsonNode id, IReadOnlyList<string> excludedIds)
+    private string BuildListProjectsResponse(JsonNode id)
     {
-        var categories = _repo.GetCategories(excludedIds);
+        var projects = _repo.GetProjects();
+        if (projects is null)
+            return BuildTextToolResponse(id, NotLoadedMessage);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Projects ({projects.Count})");
+        sb.AppendLine();
+
+        foreach (var p in projects)
+        {
+            sb.AppendLine($"## {p.Name}  `{p.Id}`  ({p.QuestionnaireIds.Count} questionnaire(s))");
+            foreach (var qId in p.QuestionnaireIds)
+                sb.AppendLine($"  - `{qId}`");
+            sb.AppendLine();
+        }
+
+        return BuildTextToolResponse(id, sb.ToString());
+    }
+
+    private string BuildListCategoriesResponse(JsonNode id, JsonNode? args, IReadOnlyList<string> excludedIds)
+    {
+        var projectId = args?["projectId"]?.GetValue<string>();
+        var projectError = ValidateProjectId(projectId);
+        if (projectError is not null)
+            return BuildTextToolResponse(id, projectError);
+
+        var categories = _repo.GetCategories(excludedIds, projectId);
         if (categories is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
@@ -473,9 +569,14 @@ public sealed class McpSessionManager
         return BuildTextToolResponse(id, sb.ToString());
     }
 
-    private string BuildListQuestionnairesResponse(JsonNode id, IReadOnlyList<string> excludedIds, string? referenceId)
+    private string BuildListQuestionnairesResponse(JsonNode id, JsonNode? args, IReadOnlyList<string> excludedIds, string? referenceId)
     {
-        var structures = _repo.GetQuestionnaireStructures(excludedIds, referenceId);
+        var projectId = args?["projectId"]?.GetValue<string>();
+        var projectError = ValidateProjectId(projectId);
+        if (projectError is not null)
+            return BuildTextToolResponse(id, projectError);
+
+        var structures = _repo.GetQuestionnaireStructures(excludedIds, referenceId, projectId);
         if (structures is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
@@ -514,11 +615,16 @@ public sealed class McpSessionManager
         var categoryId      = args?["categoryId"]?.GetValue<string>();
         var entryId         = args?["entryId"]?.GetValue<string>();
         var questionnaireId = args?["questionnaireId"]?.GetValue<string>();
+        var projectId       = args?["projectId"]?.GetValue<string>();
 
         if (string.IsNullOrWhiteSpace(categoryId))
             return BuildError(id, -32602, "Parameter 'categoryId' is required.");
 
-        var records = _repo.GetAnswersForCategory(categoryId, entryId, questionnaireId, excludedIds);
+        var projectError = ValidateProjectId(projectId);
+        if (projectError is not null)
+            return BuildTextToolResponse(id, projectError);
+
+        var records = _repo.GetAnswersForCategory(categoryId, entryId, questionnaireId, excludedIds, projectId);
         if (records is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
@@ -563,9 +669,14 @@ public sealed class McpSessionManager
         return BuildTextToolResponse(id, sb.ToString());
     }
 
-    private string BuildTechRadarResponse(JsonNode id)
+    private string BuildTechRadarResponse(JsonNode id, JsonNode? args)
     {
-        var radar = _repo.GetTechRadar();
+        var projectId = args?["projectId"]?.GetValue<string>();
+        var projectError = ValidateProjectId(projectId);
+        if (projectError is not null)
+            return BuildTextToolResponse(id, projectError);
+
+        var radar = _repo.GetTechRadar(projectId);
         if (radar is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
         var sb = new StringBuilder();
@@ -635,13 +746,18 @@ public sealed class McpSessionManager
         return BuildTextToolResponse(id, $"```json\n{schema}\n```");
     }
 
-    private string BuildDetectInconsistenciesResponse(JsonNode id, IReadOnlyList<string> excludedIds)
+    private string BuildDetectInconsistenciesResponse(JsonNode id, JsonNode? args, IReadOnlyList<string> excludedIds)
     {
+        var projectId = args?["projectId"]?.GetValue<string>();
+        var projectError = ValidateProjectId(projectId);
+        if (projectError is not null)
+            return BuildTextToolResponse(id, projectError);
+
         var workspace = _repo.Current;
         if (workspace is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
-        var report = _consistencyAnalyzer.Analyze(workspace, excludedIds);
+        var report = _consistencyAnalyzer.Analyze(workspace, excludedIds, projectId);
 
         var findings = new JsonArray();
         foreach (var f in report.Findings)
@@ -670,13 +786,18 @@ public sealed class McpSessionManager
         return BuildTextToolResponse(id, json.ToJsonString());
     }
 
-    private string BuildValidateStatusResponse(JsonNode id, IReadOnlyList<string> excludedIds)
+    private string BuildValidateStatusResponse(JsonNode id, JsonNode? args, IReadOnlyList<string> excludedIds)
     {
+        var projectId = args?["projectId"]?.GetValue<string>();
+        var projectError = ValidateProjectId(projectId);
+        if (projectError is not null)
+            return BuildTextToolResponse(id, projectError);
+
         var workspace = _repo.Current;
         if (workspace is null)
             return BuildTextToolResponse(id, NotLoadedMessage);
 
-        var report = _statusValidator.Validate(workspace, excludedIds);
+        var report = _statusValidator.Validate(workspace, excludedIds, projectId);
 
         var canonical = new JsonArray();
         foreach (var s in report.CanonicalStatuses) canonical.Add(JsonValue.Create(s));

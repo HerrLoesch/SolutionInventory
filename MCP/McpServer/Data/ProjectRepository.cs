@@ -49,7 +49,7 @@ public sealed class ProjectRepository
                 return (false, "Deserialization returned null.");
 
             _workspace = ws;
-            var msg = $"Workspace '{ws.Project?.Name}' loaded: {ws.Questionnaires.Count} questionnaire(s).";
+            var msg = $"Workspace '{ws.Project?.Name}' loaded: {ws.Projects.Count} project(s), {ws.Questionnaires.Count} questionnaire(s).";
             _logger.LogInformation("{Message} (source: {Path})", msg, fullPath);
             return (true, msg);
         }
@@ -78,7 +78,7 @@ public sealed class ProjectRepository
                 return (false, "Deserialization returned null.");
 
             _workspace = ws;
-            var msg = $"Workspace '{ws.Project?.Name}' loaded: {ws.Questionnaires.Count} questionnaire(s).";
+            var msg = $"Workspace '{ws.Project?.Name}' loaded: {ws.Projects.Count} project(s), {ws.Questionnaires.Count} questionnaire(s).";
             _logger.LogInformation("{Message} (uploaded via browser)", msg);
             return (true, msg);
         }
@@ -95,26 +95,71 @@ public sealed class ProjectRepository
 
     // ── Query ─────────────────────────────────────────────────────────────────
 
+    /// <summary>All projects in the workspace, falling back to the single primary project when unset.</summary>
+    private IReadOnlyList<ProjectData> AllProjects =>
+        _workspace is null
+            ? []
+            : _workspace.Projects.Count > 0
+                ? _workspace.Projects
+                : _workspace.Project is not null ? [_workspace.Project] : [];
+
+    /// <summary>
+    /// Resolves a project id/name to the set of questionnaire IDs that belong to it.
+    /// Returns <see langword="null"/> when <paramref name="projectId"/> is empty (no restriction),
+    /// or an empty set when the project id does not match any known project.
+    /// </summary>
+    private HashSet<string>? ResolveProjectQuestionnaireIds(string? projectId)
+    {
+        if (string.IsNullOrWhiteSpace(projectId)) return null;
+
+        var project = AllProjects.FirstOrDefault(p =>
+            p.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase) ||
+            p.Name.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+
+        return project is null
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(project.QuestionnaireIds, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Returns the projects available in the loaded workspace, for project selection.</summary>
+    public IReadOnlyList<ProjectInfo>? GetProjects()
+    {
+        if (_workspace is null) return null;
+        return AllProjects
+            .Select(p => new ProjectInfo(p.Id, p.Name, p.QuestionnaireIds.AsReadOnly()))
+            .ToList()
+            .AsReadOnly();
+    }
+
     private static IEnumerable<Questionnaire> FilterQuestionnaires(
         IEnumerable<Questionnaire> questionnaires,
-        IReadOnlyCollection<string>? excludedIds)
+        IReadOnlyCollection<string>? excludedIds,
+        IReadOnlyCollection<string>? projectQuestionnaireIds = null)
     {
-        if (excludedIds is null || excludedIds.Count == 0) return questionnaires;
-        return questionnaires.Where(q => !excludedIds.Any(id =>
-            id.Equals(q.Id, StringComparison.OrdinalIgnoreCase)));
+        if (excludedIds is not null && excludedIds.Count > 0)
+            questionnaires = questionnaires.Where(q => !excludedIds.Any(id =>
+                id.Equals(q.Id, StringComparison.OrdinalIgnoreCase)));
+
+        if (projectQuestionnaireIds is not null)
+            questionnaires = questionnaires.Where(q => projectQuestionnaireIds.Contains(q.Id));
+
+        return questionnaires;
     }
 
     /// <summary>
-    /// Returns all distinct categories (by id) that exist in the workspace,
+    /// Returns all distinct categories (by id) that exist in the workspace (or a single project),
     /// including their entries (subcategories) with id and aspect label.
     /// </summary>
-    public IReadOnlyList<CategoryDefinition>? GetCategories(IReadOnlyCollection<string>? excludedIds = null)
+    public IReadOnlyList<CategoryDefinition>? GetCategories(
+        IReadOnlyCollection<string>? excludedIds = null,
+        string? projectId = null)
     {
         if (_workspace is null) return null;
 
+        var projectQuestionnaireIds = ResolveProjectQuestionnaireIds(projectId);
         var seen = new Dictionary<string, CategoryDefinition>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var q in FilterQuestionnaires(_workspace.Questionnaires, excludedIds))
+        foreach (var q in FilterQuestionnaires(_workspace.Questionnaires, excludedIds, projectQuestionnaireIds))
         {
             foreach (var cat in q.Categories)
             {
@@ -138,11 +183,14 @@ public sealed class ProjectRepository
     /// </summary>
     public IReadOnlyList<QuestionnaireStructure>? GetQuestionnaireStructures(
         IReadOnlyCollection<string>? excludedIds = null,
-        string? referenceId = null)
+        string? referenceId = null,
+        string? projectId = null)
     {
         if (_workspace is null) return null;
 
-        return FilterQuestionnaires(_workspace.Questionnaires, excludedIds).Select(q =>
+        var projectQuestionnaireIds = ResolveProjectQuestionnaireIds(projectId);
+
+        return FilterQuestionnaires(_workspace.Questionnaires, excludedIds, projectQuestionnaireIds).Select(q =>
         {
             var cats = q.Categories
                 .Where(c => c.IsMetadata != true)
@@ -167,11 +215,13 @@ public sealed class ProjectRepository
         string categoryId,
         string? entryId                      = null,
         string? questionnaireId              = null,
-        IReadOnlyCollection<string>? excludedIds = null)
+        IReadOnlyCollection<string>? excludedIds = null,
+        string? projectId                    = null)
     {
         if (_workspace is null) return null;
 
-        var questionnaires = FilterQuestionnaires(_workspace.Questionnaires, excludedIds);
+        var projectQuestionnaireIds = ResolveProjectQuestionnaireIds(projectId);
+        var questionnaires = FilterQuestionnaires(_workspace.Questionnaires, excludedIds, projectQuestionnaireIds);
         if (!string.IsNullOrWhiteSpace(questionnaireId))
             questionnaires = questionnaires.Where(q =>
                 q.Id.Equals(questionnaireId, StringComparison.OrdinalIgnoreCase) ||
@@ -233,45 +283,41 @@ public sealed class ProjectRepository
         return records.AsReadOnly();
     }
 
-    /// <summary>Returns the tech radar from the loaded project, migrating from legacy format if needed.
+    /// <summary>Returns the tech radar, migrating from legacy format if needed.
+    /// When <paramref name="projectId"/> is omitted, radars from all projects in the workspace
+    /// are merged. Returns <see langword="null"/> when no workspace is loaded or the given
+    /// project id/name does not match any project.
     /// Radar entries with no stored status are enriched from the matching questionnaire answer.
     /// </summary>
-    public TechRadarData? GetTechRadar()
+    public TechRadarData? GetTechRadar(string? projectId = null)
     {
-        if (_workspace?.Project is null) return null;
-        var p = _workspace.Project;
+        if (_workspace is null) return null;
 
-        List<RadarEntry> entries;
-
-        if (p.Radar.Count > 0)
+        List<ProjectData> targetProjects;
+        if (!string.IsNullOrWhiteSpace(projectId))
         {
-            // New unified format: use radar array directly
-            entries = p.Radar.ToList();
+            var match = AllProjects.FirstOrDefault(p =>
+                p.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+            if (match is null) return null;
+            targetProjects = [match];
         }
         else
         {
-            // Legacy format: radarRefs defines the set; radarOverrides carries optional edits.
-            // The client migration (migrateProjectRadar) starts from radarRefs and applies
-            // overrides on top – we must do the same here so refs-without-overrides are included.
-            entries = p.RadarRefs.Select(r =>
-            {
-                var norm     = r.Option.Trim().ToLowerInvariant();
-                var override_ = p.RadarOverrides.FirstOrDefault(o =>
-                    o.EntryId.Equals(r.EntryId, StringComparison.OrdinalIgnoreCase) &&
-                    o.Option.Trim().ToLowerInvariant() == norm);
+            targetProjects = AllProjects.ToList();
+        }
 
-                return new RadarEntry
-                {
-                    EntryId      = r.EntryId,
-                    Option       = r.Option.Trim(),
-                    Category     = string.IsNullOrWhiteSpace(override_?.CategoryOverride)
-                                       ? string.Empty
-                                       : override_!.CategoryOverride,
-                    Status       = override_?.Status       ?? string.Empty,
-                    ShortComment = override_?.ShortComment ?? string.Empty,
-                    Description  = override_?.Comment      ?? string.Empty
-                };
-            }).ToList();
+        if (targetProjects.Count == 0) return null;
+
+        var entries       = new List<RadarEntry>();
+        var categoryOrder = new List<string>();
+
+        foreach (var p in targetProjects)
+        {
+            entries.AddRange(BuildRadarEntries(p));
+            foreach (var c in p.RadarCategoryOrder)
+                if (!categoryOrder.Contains(c, StringComparer.OrdinalIgnoreCase))
+                    categoryOrder.Add(c);
         }
 
         // Enrich entries that have no stored status or category by looking up
@@ -298,7 +344,40 @@ public sealed class ProjectRepository
             }).ToList();
         }
 
-        return new TechRadarData(entries.AsReadOnly(), p.RadarCategoryOrder.AsReadOnly());
+        return new TechRadarData(entries.AsReadOnly(), categoryOrder.AsReadOnly());
+    }
+
+    /// <summary>Builds the radar entries for a single project, migrating the legacy refs/overrides format if needed.</summary>
+    private static List<RadarEntry> BuildRadarEntries(ProjectData p)
+    {
+        if (p.Radar.Count > 0)
+        {
+            // New unified format: use radar array directly
+            return p.Radar.ToList();
+        }
+
+        // Legacy format: radarRefs defines the set; radarOverrides carries optional edits.
+        // The client migration (migrateProjectRadar) starts from radarRefs and applies
+        // overrides on top – we must do the same here so refs-without-overrides are included.
+        return p.RadarRefs.Select(r =>
+        {
+            var norm      = r.Option.Trim().ToLowerInvariant();
+            var override_ = p.RadarOverrides.FirstOrDefault(o =>
+                o.EntryId.Equals(r.EntryId, StringComparison.OrdinalIgnoreCase) &&
+                o.Option.Trim().ToLowerInvariant() == norm);
+
+            return new RadarEntry
+            {
+                EntryId      = r.EntryId,
+                Option       = r.Option.Trim(),
+                Category     = string.IsNullOrWhiteSpace(override_?.CategoryOverride)
+                                   ? string.Empty
+                                   : override_!.CategoryOverride,
+                Status       = override_?.Status       ?? string.Empty,
+                ShortComment = override_?.ShortComment ?? string.Empty,
+                Description  = override_?.Comment      ?? string.Empty
+            };
+        }).ToList();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -309,14 +388,21 @@ public sealed class ProjectRepository
     ///   <item>Standard project export: <c>{ project, questionnaires }</c></item>
     ///   <item>Full Electron autosave: <c>{ version, timestamp, workspace: { projects, questionnaires } }</c></item>
     /// </list>
-    /// For the full format the first project is used and only its questionnaires are kept.
+    /// All projects and all questionnaires are kept so callers can scope queries to a single
+    /// project, a single questionnaire, or the entire workspace.
     /// </summary>
     private static WorkspaceExport? ParseWorkspaceExport(string json)
     {
         // Quick attempt at the standard project-export format
         var standard = JsonSerializer.Deserialize<WorkspaceExport>(json, s_opts);
         if (standard?.Project is not null)
-            return standard;
+        {
+            // Standard format is implicitly a single project; scope it to all its questionnaires.
+            var project = standard.Project.QuestionnaireIds.Count > 0
+                ? standard.Project
+                : standard.Project with { QuestionnaireIds = standard.Questionnaires.Select(q => q.Id).ToList() };
+            return standard with { Project = project, Projects = [project] };
+        }
 
         // Try the full Electron client format:
         // { "version": 2, "workspace": { "projects": [...], "questionnaires": [...] } }
@@ -329,29 +415,14 @@ public sealed class ProjectRepository
             var projectsNode = workspaceNode["projects"]?.AsArray();
             if (projectsNode is null || projectsNode.Count == 0) return standard;
 
-            // Use the first project in the file
-            var projectNode = projectsNode[0]!;
-
-            // Collect the questionnaire IDs that belong to this project
-            var questionnaireIds = (projectNode["questionnaireIds"]?.AsArray() ?? [])
-                .Select(n => n?.GetValue<string>() ?? string.Empty)
-                .Where(id => !string.IsNullOrEmpty(id))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            // Filter the global questionnaire list to only this project's questionnaires
+            // Keep every project and every questionnaire – scoping happens at query time.
             var allQuestionnaires = workspaceNode["questionnaires"]?.AsArray() ?? [];
-            var filteredQuestionnaires = new JsonArray();
-            foreach (var q in allQuestionnaires)
-            {
-                var qId = q?["id"]?.GetValue<string>() ?? string.Empty;
-                if (questionnaireIds.Count == 0 || questionnaireIds.Contains(qId))
-                    filteredQuestionnaires.Add(q?.DeepClone());
-            }
 
             var normalised = new JsonObject
             {
-                ["project"]        = projectNode.DeepClone(),
-                ["questionnaires"] = filteredQuestionnaires
+                ["project"]        = projectsNode[0]!.DeepClone(),
+                ["projects"]       = projectsNode.DeepClone(),
+                ["questionnaires"] = allQuestionnaires.DeepClone()
             };
 
             return JsonSerializer.Deserialize<WorkspaceExport>(normalised.ToJsonString(), s_opts);

@@ -41,10 +41,29 @@ public sealed class TechRadarStatusValidator
         return new StatusMatch(closest, false);
     }
 
-    public StatusValidationReport Validate(WorkspaceExport workspace, IReadOnlyCollection<string>? excludedIds = null)
+    public StatusValidationReport Validate(
+        WorkspaceExport workspace,
+        IReadOnlyCollection<string>? excludedIds = null,
+        string? projectId = null)
     {
         var violations = new List<StatusViolation>();
         int checkedCount = 0;
+
+        var projects = new List<ProjectData>();
+        if (workspace.Projects.Count > 0) projects.AddRange(workspace.Projects);
+        else if (workspace.Project is not null) projects.Add(workspace.Project);
+
+        ProjectData? targetProject = null;
+        HashSet<string>? allowedQuestionnaireIds = null;
+        if (!string.IsNullOrWhiteSpace(projectId))
+        {
+            targetProject = projects.FirstOrDefault(p =>
+                p.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+            allowedQuestionnaireIds = targetProject is not null
+                ? new HashSet<string>(targetProject.QuestionnaireIds, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
 
         void Check(string? rawStatus, string location)
         {
@@ -62,13 +81,16 @@ public sealed class TechRadarStatusValidator
         }
 
         // Tech-radar entries
-        foreach (var radar in workspace.Project?.Radar ?? [])
-            Check(radar.Status, $"radar entry '{radar.Option}'");
+        var radarSource = targetProject is not null ? (IEnumerable<ProjectData>)[targetProject] : projects;
+        foreach (var proj in radarSource)
+            foreach (var radar in proj.Radar)
+                Check(radar.Status, $"radar entry '{radar.Option}'");
 
         // Questionnaire answers
         foreach (var q in workspace.Questionnaires)
         {
             if (IsExcluded(q, excludedIds)) continue;
+            if (allowedQuestionnaireIds is not null && !allowedQuestionnaireIds.Contains(q.Id)) continue;
             foreach (var cat in q.Categories)
             {
                 if (cat.IsMetadata == true) continue;

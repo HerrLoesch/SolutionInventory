@@ -35,9 +35,31 @@ public sealed class DataConsistencyAnalyzer
                      .First().Key;
     }
 
-    public DataConsistencyReport Analyze(WorkspaceExport workspace, IReadOnlyCollection<string>? excludedIds = null)
+    public DataConsistencyReport Analyze(
+        WorkspaceExport workspace,
+        IReadOnlyCollection<string>? excludedIds = null,
+        string? projectId = null)
     {
-        var questionnaires = workspace.Questionnaires.Where(q => !IsExcluded(q, excludedIds)).ToList();
+        var projects = new List<ProjectData>();
+        if (workspace.Projects.Count > 0) projects.AddRange(workspace.Projects);
+        else if (workspace.Project is not null) projects.Add(workspace.Project);
+
+        ProjectData? targetProject = null;
+        HashSet<string>? allowedQuestionnaireIds = null;
+        if (!string.IsNullOrWhiteSpace(projectId))
+        {
+            targetProject = projects.FirstOrDefault(p =>
+                p.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+            allowedQuestionnaireIds = targetProject is not null
+                ? new HashSet<string>(targetProject.QuestionnaireIds, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var questionnaires = workspace.Questionnaires
+            .Where(q => !IsExcluded(q, excludedIds) &&
+                        (allowedQuestionnaireIds is null || allowedQuestionnaireIds.Contains(q.Id)))
+            .ToList();
 
         // Group raw names by their normalised key so casing/whitespace/near-typo
         // variants of the same concept land together.
@@ -83,8 +105,10 @@ public sealed class DataConsistencyAnalyzer
 
         // Radar option names share the "technology" naming space – a radar option and
         // an answer that mean the same thing should be spelled identically.
-        foreach (var radar in workspace.Project?.Radar ?? [])
-            Record("radar-option", radar.Option);
+        var radarSource = targetProject is not null ? (IEnumerable<ProjectData>)[targetProject] : projects;
+        foreach (var proj in radarSource)
+            foreach (var radar in proj.Radar)
+                Record("radar-option", radar.Option);
 
         int namesScanned = byKey.Values.Sum(s => s.Total);
 
