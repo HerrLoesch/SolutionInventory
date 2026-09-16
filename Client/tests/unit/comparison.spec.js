@@ -1294,6 +1294,140 @@ describe('deltaOf — silent acceptance', () => {
   })
 })
 
+describe('deltaOf — not important for this project', () => {
+  const TWO = ['a', 'b']
+  const THREE = ['a', 'b', 'c']
+
+  function rowOf(byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      if (status === null) continue
+      cells.set(projectId, {
+        projectId,
+        values: [].concat(status).map((entry) => ({ status: entry, origin: { rawName: 'x' } }))
+      })
+    }
+    return { key: 'term:x', name: 'X', term: { id: 'x' }, resolved: true, cells }
+  }
+
+  it('leaves a two-project row with nothing to compare once the only other opinion opts out', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    const result = deltaOf(row, TWO, { notImportant: { b: { reason: 'not our stack' } } })
+    expect(result).toMatchObject({ delta: DELTA.NOT_IMPORTANT, distance: null })
+    expect(result.reasons).toContain(DELTA.NOT_IMPORTANT)
+  })
+
+  it('keeps comparing the remaining projects normally when one opts out', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire', c: 'Assess' })
+
+    // Without b, a and c are two rings apart — significant, not critical.
+    // b's opt-out is still noted in `reasons` (it is "also applies", the same
+    // way an outranked ⚠/⊘ is), even though it did not decide the outcome.
+    const result = deltaOf(row, THREE, { notImportant: { b: {} } })
+    expect(result).toMatchObject({ delta: DELTA.SIGNIFICANT, distance: 2 })
+    expect(result.reasons).toContain(DELTA.NOT_IMPORTANT)
+  })
+
+  it('is not agreement — it never turns into ✓ match or ≈ silent by itself', () => {
+    const row = rowOf({ a: 'Adopt' })
+
+    // A lone real opinion with nothing left to compare against is NONE, same
+    // as if the term had never been selected — not a match.
+    const result = deltaOf(row, TWO, { notImportant: { b: {} } })
+    expect(result.delta).toBe(DELTA.NONE)
+  })
+
+  it('stops a project’s own inconsistency from reaching the row once it opts out', () => {
+    const row = rowOf({ a: ['Adopt', 'Retire'], b: 'Adopt' })
+
+    expect(deltaOf(row, TWO).delta).toBe(DELTA.INCONSISTENT)
+    // b alone is left, with nothing to diverge from — ◇, not a bare —, since
+    // it is a's opt-out that put things there.
+    expect(deltaOf(row, TWO, { notImportant: { a: {} } }).delta).toBe(DELTA.NOT_IMPORTANT)
+  })
+
+  it('takes priority over ⊙ unlisted only when the reference actually has a target', () => {
+    const row = rowOf({ a: 'Adopt' })
+    const baseline = { entries: {} }
+
+    expect(deltaOf(row, TWO, { baseline, notImportant: { a: {} } }).delta).toBe(DELTA.UNLISTED)
+  })
+
+  it('reports ◇ not important against a reference once the only user opts out', () => {
+    const row = rowOf({ a: 'Adopt' })
+    const baseline = { entries: { 'term:x': { name: 'X', status: 'Adopt' } } }
+
+    expect(deltaOf(row, TWO, { baseline, notImportant: { a: {} } }).delta).toBe(DELTA.NOT_IMPORTANT)
+  })
+
+  it('ignores a mark on a project outside the current selection', () => {
+    const row = rowOf({ a: 'Adopt', b: 'Retire' })
+
+    expect(deltaOf(row, TWO, { notImportant: { z: {} } }).delta).toBe(DELTA.CRITICAL)
+  })
+})
+
+describe('computeMetrics — not important for this project', () => {
+  function metricRowOf(key, byProject) {
+    const cells = new Map()
+    for (const [projectId, status] of Object.entries(byProject)) {
+      cells.set(projectId, { projectId, values: [{ status, origin: { rawName: key } }] })
+    }
+    return { key: `term:${key}`, name: key, term: { id: key }, resolved: true, cells }
+  }
+
+  it('counts a fully opted-out row as excluded, inside Comparable, not dropped like ⊙/⊖', () => {
+    const rows = [metricRowOf('a', { p1: 'Adopt' })]
+    const metrics = computeMetrics(rows, ['p1', 'p2'], { notImportant: { 'term:a': { p1: {} } } })
+
+    expect(metrics.notImportant).toBe(1)
+    expect(metrics.compared).toBe(1)
+    expect(metrics.excluded).toBe(1)
+    expect(metrics.comparable).toBe(0)
+  })
+
+  it('folds notImportant into excluded alongside unset, inconsistent and accepted', () => {
+    const rows = [
+      metricRowOf('a', { p1: 'Adopt' }),
+      metricRowOf('b', { p1: 'Adopt', p2: 'Retire' })
+    ]
+    const metrics = computeMetrics(rows, ['p1', 'p2'], { notImportant: { 'term:a': { p1: {} } } })
+
+    // Invariant: matches + minor + significant + critical === comparable (DE-8).
+    expect(metrics.matches + metrics.minor + metrics.significant + metrics.critical).toBe(metrics.comparable)
+    expect(metrics.excluded).toBe(metrics.unset + metrics.inconsistent + metrics.accepted + metrics.notImportant)
+  })
+})
+
+describe('canOverride — not important for this project', () => {
+  it('offers nothing to override once every real opinion has opted out', () => {
+    expect(canOverride({ resolved: true, term: { id: 'x' } }, DELTA.NOT_IMPORTANT)).toBe(false)
+  })
+})
+
+describe('buildComparison — not important for this project', () => {
+  function workspaceOf() {
+    return {
+      projects: [
+        { id: 'p1', name: 'Alpha', radar: [{ entryId: 'e1', option: 'Postgres', status: 'Adopt' }] },
+        { id: 'p2', name: 'Beta', radar: [] }
+      ],
+      vocabulary: [],
+      comparisonNotImportant: { 'raw:postgres': { p1: { reason: 'legacy, not relevant here' } } }
+    }
+  }
+
+  it('carries the mark through to the decorated row and out of Comparable', () => {
+    const result = buildComparison(workspaceOf(), ['p1', 'p2'])
+    const row = result.rows.find((r) => r.name === 'Postgres')
+
+    expect(row.notImportant).toEqual({ p1: { reason: 'legacy, not relevant here' } })
+    expect(row.delta).toBe(DELTA.NOT_IMPORTANT)
+    expect(result.metrics.notImportant).toBe(1)
+  })
+})
+
 describe('staleAcceptanceProjectIds', () => {
   const TWO = ['a', 'b']
 

@@ -478,6 +478,7 @@ describe('v3 workspace with radar data loads byte-identically', () => {
     'comparisonOverrides',
     'comparisonIgnored',
     'comparisonAcceptances',
+    'comparisonNotImportant',
     'comparisonBaselines',
     'dismissedSuggestions'
   ]

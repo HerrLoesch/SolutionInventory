@@ -233,6 +233,7 @@ export const DELTA = {
   INCONSISTENT: 'inconsistent',
   UNSET: 'unset',
   ACCEPTED: 'accepted',
+  NOT_IMPORTANT: 'notImportant', // ◇ : one or more projects opted out, see F-new below
   SILENT: 'silent',
   UNLISTED: 'unlisted', // ⊙ : not in the reference the comparison runs against
   MISSING: 'missing', // ⊖ : in the reference, but no project uses it
@@ -304,6 +305,31 @@ export function classifyDistance(distance) {
 // people agree, which is the one thing it must never do.
 
 export const ACCEPTANCE_MODES = ['absence', 'status']
+
+// ── "Not important for this project" (F-new) ────────────────────────────────
+//
+// A silent acceptance (above) says "we agree" and counts as a match. Sometimes
+// the truth is different: one project simply does not care what this term is
+// rated at — not agreement, not disagreement, just irrelevance to that one
+// project. Folding that into a silent acceptance would misreport it as
+// agreement reached; folding it into the row-level "not important" (F1) would
+// take the term out of the comparison for every project, when only one of them
+// actually finds it irrelevant.
+//
+// So this is its own per (row, project) mark, structurally identical to a
+// silent acceptance but with the opposite effect on the arithmetic: the
+// marked project is removed from `participating` before anything else is
+// computed — its own inconsistency stops mattering, it contributes no rank,
+// and it cannot turn the row `⊘ unset` on its own. The remaining projects are
+// still compared against each other exactly as if the marked one had never
+// been selected. Only when marking removes the *only* real data on the row
+// does the row itself become `◇ notImportant` — there being nothing left that
+// anyone considers worth comparing.
+
+/** The projects marked "not important" on this row that are still selected. */
+function notImportantIdsOf(notImportant, projectIds) {
+  return new Set(Object.keys(notImportant || {}).filter((projectId) => (projectIds || []).includes(projectId)))
+}
 
 /**
  * The acceptances on this row that actually apply right now, by project id.
@@ -479,16 +505,25 @@ function acceptedRankOf(row, projectId, applied) {
 export function deltaOf(
   row,
   projectIds,
-  { coverage = null, override = null, acceptances = null, baseline = null } = {}
+  { coverage = null, override = null, acceptances = null, baseline = null, notImportant = null } = {}
 ) {
   const effectiveCoverage = coverage || coverageOf(row, projectIds)
   const reasons = []
   const applied = effectiveAcceptances(row, projectIds, acceptances)
 
-  const participatingIds = (projectIds || []).filter(
+  // Projects marked "not important" for this row (F-new) are filtered out
+  // before anything else touches `participating`: their own inconsistency or
+  // absence must stop mattering, not just their rank.
+  const notImportantIds = notImportantIdsOf(notImportant, projectIds)
+  const rawParticipatingIds = (projectIds || []).filter(
     (projectId) => (row?.cells?.get?.(projectId)?.values || []).length > 0
   )
+  const participatingIds = rawParticipatingIds.filter((projectId) => !notImportantIds.has(projectId))
   const participating = participatingIds.map((projectId) => row.cells.get(projectId))
+  // Whether marking actually removed a real take from the row — as opposed to
+  // a mark on a project that had no opinion to begin with, which changes
+  // nothing.
+  const excludedSome = notImportantIds.size > 0 && rawParticipatingIds.length > participatingIds.length
 
   const inconsistent = participating.some(isCellInconsistent)
   const unset = participating.some((cell) => cell.values.some((value) => normalize(value.status) === ''))
@@ -498,6 +533,7 @@ export function deltaOf(
   if (inconsistent) reasons.push(DELTA.INCONSISTENT)
   if (unset) reasons.push(DELTA.UNSET)
   if (accepted) reasons.push(DELTA.ACCEPTED)
+  if (excludedSome) reasons.push(DELTA.NOT_IMPORTANT)
   if (silent) reasons.push(DELTA.SILENT)
 
   // Against a reference (F7) the question is a different one: not "do the
@@ -508,6 +544,11 @@ export function deltaOf(
   if (baseline) {
     const target = statusRank(baselineStatusOf(baseline, row?.key))
     if (target === -1) return { delta: DELTA.UNLISTED, distance: null, reasons }
+    // A single remaining opinion is still meaningfully measured against a
+    // fixed target, so only a *full* wipe-out counts as "nothing to compare"
+    // here — unlike peer mode below, where a lone survivor has nothing left to
+    // diverge from.
+    if (excludedSome && !participating.length) return { delta: DELTA.NOT_IMPORTANT, distance: null, reasons }
     if (!participating.length) return { delta: DELTA.MISSING, distance: null, reasons }
     if (inconsistent) return { delta: DELTA.INCONSISTENT, distance: null, reasons }
     if (unset) return { delta: DELTA.UNSET, distance: null, reasons }
@@ -536,7 +577,17 @@ export function deltaOf(
   // that can pull a `◑ unique` row into the comparison — and it still needs
   // somebody to be accepting *something*.
   const acceptedAbsences = [...applied.values()].filter((entry) => entry.mode === 'absence').length
-  const notCompared = participating.length === 0 || (effectiveCoverage === COVERAGE.UNIQUE && acceptedAbsences === 0)
+  // Nothing to compare either the ordinary way — raw coverage was `◑ unique`
+  // to begin with — or because exclusion (F-new) made it so: a lone remaining
+  // opinion has nothing to diverge from, exactly like never having had a
+  // second one.
+  const notCompared =
+    participating.length === 0 ||
+    (acceptedAbsences === 0 && (effectiveCoverage === COVERAGE.UNIQUE || (excludedSome && participatingIds.length <= 1)))
+  // Distinguishes "there was never enough to compare" (→ plain —) from "there
+  // would have been, but someone opted out" (→ ◇), which is worth a look and
+  // plain `—` is not.
+  if (excludedSome && notCompared) return { delta: DELTA.NOT_IMPORTANT, distance: null, reasons }
   if (notCompared) return { delta: DELTA.NONE, distance: null, reasons }
   if (inconsistent) return { delta: DELTA.INCONSISTENT, distance: null, reasons }
   if (unset) return { delta: DELTA.UNSET, distance: null, reasons }
@@ -635,7 +686,7 @@ export function agreementLevel(percent) {
 export function computeMetrics(
   rows,
   projectIds,
-  { overrides = {}, acceptances = {}, baseline = null, vocabulary = null, ignoredCount = 0 } = {}
+  { overrides = {}, acceptances = {}, baseline = null, vocabulary = null, ignoredCount = 0, notImportant = {} } = {}
 ) {
   const selected = projectIds || []
   const counts = {
@@ -653,6 +704,10 @@ export function computeMetrics(
     unset: 0,
     inconsistent: 0,
     accepted: 0,
+    // Rows where every remaining participant opted out via "not important for
+    // this project" (F-new) — excluded from Comparable the same way an
+    // accepted divergence is, not dropped from the count entirely like ⊙/⊖.
+    notImportant: 0,
     comparable: 0,
     matches: 0,
     // Part of `matches`, never in addition to it (F3).
@@ -672,7 +727,13 @@ export function computeMetrics(
   for (const row of rows) {
     const coverage = coverageOf(row, selected)
     const override = row.term ? overrides[row.term.id] || null : null
-    const { delta } = deltaOf(row, selected, { coverage, override, acceptances: acceptances[row.key], baseline })
+    const { delta } = deltaOf(row, selected, {
+      coverage,
+      override,
+      acceptances: acceptances[row.key],
+      baseline,
+      notImportant: notImportant[row.key]
+    })
 
     // The coverage buckets describe what the *projects* say. A reference row no
     // project produced (F7) says nothing about coverage: coverageOf reports it
@@ -704,6 +765,7 @@ export function computeMetrics(
     if (delta === DELTA.INCONSISTENT) counts.inconsistent++
     else if (delta === DELTA.UNSET) counts.unset++
     else if (delta === DELTA.ACCEPTED) counts.accepted++
+    else if (delta === DELTA.NOT_IMPORTANT) counts.notImportant++
     else if (delta === DELTA.SILENT) {
       counts.silent++
       counts.matches++
@@ -713,7 +775,7 @@ export function computeMetrics(
     else if (delta === DELTA.CRITICAL) counts.critical++
   }
 
-  counts.excluded = counts.unset + counts.inconsistent + counts.accepted
+  counts.excluded = counts.unset + counts.inconsistent + counts.accepted + counts.notImportant
   counts.comparable = counts.compared - counts.excluded
   counts.allPercent = counts.total === 0 ? 0 : Math.round((counts.all / counts.total) * 100)
   counts.agreementPercent = counts.comparable === 0 ? 0 : Math.round((counts.matches / counts.comparable) * 100)
@@ -735,7 +797,7 @@ export function computeMetrics(
  * `comparedRows` travels with the percentage everywhere it is shown. 100 % out
  * of three rows and 100 % out of three hundred are not the same statement.
  */
-export function computeBaselineAgreement(rows, projectIds, baseline, { acceptances = {} } = {}) {
+export function computeBaselineAgreement(rows, projectIds, baseline, { acceptances = {}, notImportant = {} } = {}) {
   const result = {}
 
   for (const projectId of projectIds || []) {
@@ -745,6 +807,9 @@ export function computeBaselineAgreement(rows, projectIds, baseline, { acceptanc
     for (const row of rows || []) {
       const target = statusRank(baselineStatusOf(baseline, row.key))
       if (target === -1) continue
+      // A project that opted out of this row (F-new) contributes nothing here
+      // either — the same exclusion the matrix applies.
+      if (notImportantIdsOf(notImportant[row.key], projectIds).has(projectId)) continue
 
       const applied = effectiveAcceptances(row, projectIds, acceptances[row.key])
       const rank = acceptedRankOf(row, projectId, applied)
@@ -788,7 +853,7 @@ export function computeBaselineAgreement(rows, projectIds, baseline, { acceptanc
  * 100 % out of three rows and 100 % out of three hundred are not the same
  * statement.
  */
-export function computePairwiseDivergence(rows, projectIds, { acceptances = {} } = {}) {
+export function computePairwiseDivergence(rows, projectIds, { acceptances = {}, notImportant = {} } = {}) {
   const ids = projectIds || []
   const worstDistance = STATUS_SCALE.length - 1
   const pairs = []
@@ -802,6 +867,9 @@ export function computePairwiseDivergence(rows, projectIds, { acceptances = {} }
       let total = 0
 
       for (const row of rows || []) {
+        // Either side opting out of this row (F-new) leaves no pair to measure.
+        const excluded = notImportantIdsOf(notImportant[row.key], ids)
+        if (excluded.has(a) || excluded.has(b)) continue
         const applied = effectiveAcceptances(row, ids, acceptances[row.key])
         const rankA = acceptedRankOf(row, a, applied)
         const rankB = acceptedRankOf(row, b, applied)
@@ -839,7 +907,9 @@ export const OVERRIDE_LEVELS = ['accepted', 'critical']
  */
 export function canOverride(row, delta) {
   if (!row?.resolved || !row?.term?.id) return false
-  return ![DELTA.NONE, DELTA.INCONSISTENT, DELTA.UNSET, DELTA.UNLISTED, DELTA.MISSING].includes(delta)
+  return ![DELTA.NONE, DELTA.INCONSISTENT, DELTA.UNSET, DELTA.UNLISTED, DELTA.MISSING, DELTA.NOT_IMPORTANT].includes(
+    delta
+  )
 }
 
 /**
@@ -1071,6 +1141,7 @@ export function buildComparison(
   const overrides = workspace?.comparisonOverrides || {}
   const ignored = workspace?.comparisonIgnored || {}
   const acceptances = workspace?.comparisonAcceptances || {}
+  const notImportant = workspace?.comparisonNotImportant || {}
 
   // A reference can hold a target for a term no selected project uses at all.
   // No unit produces that row, so it would simply be absent — and a target
@@ -1096,11 +1167,13 @@ export function buildComparison(
     const coverage = coverageOf(row, projectIds)
     const override = row.term ? overrides[row.term.id] || null : null
     const rowAcceptances = acceptances[row.key] || null
+    const rowNotImportant = notImportant[row.key] || null
     const { delta, distance, reasons } = deltaOf(row, projectIds, {
       coverage,
       override,
       acceptances: rowAcceptances,
-      baseline
+      baseline,
+      notImportant: rowNotImportant
     })
     const applied = effectiveAcceptances(row, projectIds, rowAcceptances)
     return {
@@ -1119,7 +1192,9 @@ export function buildComparison(
       // fits the data instead of quietly dropping it.
       acceptances: rowAcceptances,
       appliedAcceptances: applied,
-      staleAcceptances: staleAcceptanceProjectIds(row, projectIds, rowAcceptances, applied)
+      staleAcceptances: staleAcceptanceProjectIds(row, projectIds, rowAcceptances, applied),
+      // Per project "not important" marks (F-new), same shape as `acceptances`.
+      notImportant: rowNotImportant
     }
   })
 
@@ -1141,12 +1216,15 @@ export function buildComparison(
     baseline,
     // Only meaningful against a reference; an empty object otherwise, so the
     // view never has to guard for the shape.
-    baselineAgreement: baseline ? computeBaselineAgreement(measured, projectIds, baseline, { acceptances }) : {},
-    pairwiseDivergence: computePairwiseDivergence(measured, projectIds, { acceptances }),
+    baselineAgreement: baseline
+      ? computeBaselineAgreement(measured, projectIds, baseline, { acceptances, notImportant })
+      : {},
+    pairwiseDivergence: computePairwiseDivergence(measured, projectIds, { acceptances, notImportant }),
     metrics: computeMetrics(measured, projectIds, {
       overrides,
       acceptances,
       baseline,
+      notImportant,
       ignoredCount: ignoredRows.length,
       vocabulary: vocabularyCoverage(allUnits, aliasIndex)
     })
@@ -1177,6 +1255,7 @@ export const DELTA_SORT_ORDER = [
   DELTA.INCONSISTENT,
   DELTA.UNSET,
   DELTA.ACCEPTED,
+  DELTA.NOT_IMPORTANT,
   DELTA.SILENT,
   DELTA.MATCH,
   DELTA.NONE

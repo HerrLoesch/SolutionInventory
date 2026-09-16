@@ -18,6 +18,7 @@ export function createWorkspace(projects = [], questionnaires = []) {
     comparisonOverrides: {},
     comparisonIgnored: {},
     comparisonAcceptances: {},
+    comparisonNotImportant: {},
     comparisonBaselines: [],
     dismissedSuggestions: []
   }

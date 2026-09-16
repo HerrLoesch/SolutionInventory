@@ -1310,6 +1310,48 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return true
   }
 
+  // ── "Not important for this project" (F-new) ───────────────────────────────
+  //
+  // A silent acceptance says "we agree" and counts as a match. This is the
+  // opposite decision for the same situation: one project simply does not care
+  // what this term is rated at — not agreement, not disagreement, just
+  // irrelevance to that one project. Keyed by row key and project id, same
+  // shape as comparisonAcceptances, but the engine removes the marked project
+  // from the row's comparison entirely instead of folding it into agreement.
+
+  function comparisonNotImportant() {
+    if (!workspace.value.comparisonNotImportant || typeof workspace.value.comparisonNotImportant !== 'object') {
+      workspace.value.comparisonNotImportant = {}
+    }
+    return workspace.value.comparisonNotImportant
+  }
+
+  function setComparisonNotImportant(rowKey, projectId, { reason = '' } = {}) {
+    if (!rowKey || !projectId) return false
+    const all = comparisonNotImportant()
+    if (!all[rowKey]) all[rowKey] = {}
+    all[rowKey][projectId] = { reason: String(reason || ''), setAt: new Date().toISOString() }
+    return true
+  }
+
+  function clearComparisonNotImportant(rowKey, projectId) {
+    const all = comparisonNotImportant()
+    if (!all[rowKey] || !(projectId in all[rowKey])) return false
+    delete all[rowKey][projectId]
+    // An empty row entry is noise in the stored file and in every diff of it.
+    if (!Object.keys(all[rowKey]).length) delete all[rowKey]
+    return true
+  }
+
+  /** Carries every "not important" mark on one row to another row key — what a merge needs. */
+  function moveComparisonNotImportant(fromKey, toKey) {
+    const all = comparisonNotImportant()
+    if (!fromKey || !toKey || fromKey === toKey || !all[fromKey]) return false
+    all[toKey] = { ...all[fromKey], ...(all[toKey] || {}) }
+    delete all[fromKey]
+    return true
+  }
+
   // ── Reference baselines (F7) ───────────────────────────────────────────────
   //
   // A target state pulled out of the matrix and held still, so every project can
@@ -1664,6 +1706,27 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  /**
+   * Overwrites just the status of one radar blip — the write-back path from
+   * the comparison tab: a value the comparison settled on (a silent
+   * acceptance, or a reference target) becomes the project's own recorded
+   * status, overwriting whatever it held. Unlike setRadarOverride, which
+   * replaces the whole curated form, every other field on the blip
+   * (comment, link, mandatory, …) is left untouched — the comparison only
+   * ever hands over a status, never a full re-curation.
+   */
+  function setProjectRadarStatus(projectId, entryId, option, status) {
+    const project = workspace.value.projects.find((p) => p.id === projectId)
+    if (!project || !Array.isArray(project.radar)) return false
+    const norm = String(option || '')
+      .trim()
+      .toLowerCase()
+    const idx = project.radar.findIndex((r) => r.entryId === entryId && String(r.option || '').toLowerCase() === norm)
+    if (idx === -1) return false
+    project.radar.splice(idx, 1, { ...project.radar[idx], status: String(status || '') })
+    return true
+  }
+
   function setProjectRadarCategoryOrder(projectId, categoryOrder) {
     const project = workspace.value.projects.find((p) => p.id === projectId)
     if (!project) return
@@ -1902,6 +1965,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isProjectRadarRef,
     getRadarOverride,
     setRadarOverride,
+    setProjectRadarStatus,
     getComparisonOverride,
     setComparisonOverride,
     clearComparisonOverride,
@@ -1911,6 +1975,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     setComparisonAcceptance,
     clearComparisonAcceptance,
     moveComparisonAcceptances,
+    setComparisonNotImportant,
+    clearComparisonNotImportant,
+    moveComparisonNotImportant,
     createComparisonBaseline,
     renameComparisonBaseline,
     updateComparisonBaseline,
