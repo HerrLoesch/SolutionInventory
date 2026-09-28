@@ -608,6 +608,34 @@ describe('radar reference toggling', () => {
     store.setRadarOverride(projectId, 'missing', 'X', { status: 'Retire' })
     expect(store.getRadarOverride(projectId, 'missing', 'X')).toBeNull()
   })
+
+  it('setProjectRadarStatus overwrites only the status, leaving every other field untouched', () => {
+    const store = useWorkspaceStore()
+    const { projectId, questionnaireId } = seedProjectWithQuestionnaire(store)
+    store.toggleProjectRadarRef(projectId, 'arch-hlp', 'Vue', questionnaireId)
+    store.setRadarOverride(projectId, 'arch-hlp', 'Vue', {
+      status: 'Trial',
+      comment: 'keep me',
+      shortComment: 'also keep',
+      categoryOverride: 'Architecture',
+      link: 'example.com',
+      mandatory: true
+    })
+
+    expect(store.setProjectRadarStatus(projectId, 'arch-hlp', 'Vue', 'Adopt')).toBe(true)
+
+    const blip = store.getRadarOverride(projectId, 'arch-hlp', 'Vue')
+    expect(blip.status).toBe('Adopt')
+    expect(blip.description).toBe('keep me')
+    expect(blip.shortComment).toBe('also keep')
+    expect(blip.mandatory).toBe(true)
+  })
+
+  it('setProjectRadarStatus is a no-op when no ref exists yet', () => {
+    const store = useWorkspaceStore()
+    const projectId = store.addProject('P')
+    expect(store.setProjectRadarStatus(projectId, 'missing', 'X', 'Adopt')).toBe(false)
+  })
 })
 
 describe('legacy radar migration (via loadFromData)', () => {
@@ -1625,6 +1653,69 @@ describe('silent acceptances', () => {
     expect(reloaded.workspace.comparisonAcceptances['term:vue']['p-beta']).toMatchObject({
       mode: 'status',
       acceptedFrom: 'p-alpha'
+    })
+  })
+})
+
+// ── "Not important for this project" (F-new) ────────────────────────────────
+describe('not important for this project', () => {
+  it('stores a reason keyed by row and project', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonNotImportant('term:vue', 'p-beta', { reason: 'not our stack' })).toBe(true)
+    expect(store.workspace.comparisonNotImportant['term:vue']['p-beta']).toMatchObject({ reason: 'not our stack' })
+  })
+
+  it('refuses a missing row key or project id', () => {
+    const store = useWorkspaceStore()
+
+    expect(store.setComparisonNotImportant('', 'p-beta', {})).toBe(false)
+    expect(store.setComparisonNotImportant('term:vue', '', {})).toBe(false)
+    expect(store.workspace.comparisonNotImportant).toEqual({})
+  })
+
+  it('takes one project’s mark back and leaves the others alone', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonNotImportant('term:vue', 'p-beta', {})
+    store.setComparisonNotImportant('term:vue', 'p-gamma', {})
+
+    expect(store.clearComparisonNotImportant('term:vue', 'p-beta')).toBe(true)
+    expect(Object.keys(store.workspace.comparisonNotImportant['term:vue'])).toEqual(['p-gamma'])
+    expect(store.clearComparisonNotImportant('term:vue', 'p-beta')).toBe(false)
+  })
+
+  it('drops the row entry once its last mark is gone', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonNotImportant('term:vue', 'p-beta', {})
+
+    store.clearComparisonNotImportant('term:vue', 'p-beta')
+
+    expect(store.workspace.comparisonNotImportant).toEqual({})
+  })
+
+  it('carries every mark on a row to another key, keeping the target’s own', () => {
+    const store = useWorkspaceStore()
+    store.setComparisonNotImportant('raw:vue', 'p-beta', { reason: 'source' })
+    store.setComparisonNotImportant('term:vue', 'p-beta', { reason: 'target' })
+    store.setComparisonNotImportant('raw:vue', 'p-gamma', { reason: 'only here' })
+
+    expect(store.moveComparisonNotImportant('raw:vue', 'term:vue')).toBe(true)
+    expect(store.workspace.comparisonNotImportant['term:vue']['p-beta'].reason).toBe('target')
+    expect(store.workspace.comparisonNotImportant['term:vue']['p-gamma'].reason).toBe('only here')
+    expect('raw:vue' in store.workspace.comparisonNotImportant).toBe(false)
+  })
+
+  it('persists through a save/load round trip', async () => {
+    const store = useWorkspaceStore()
+    store.setComparisonNotImportant('term:vue', 'p-beta', { reason: 'not our stack' })
+    await store.persist()
+
+    setActivePinia(createPinia())
+    const reloaded = useWorkspaceStore()
+    await reloaded.initFromStorage()
+
+    expect(reloaded.workspace.comparisonNotImportant['term:vue']['p-beta']).toMatchObject({
+      reason: 'not our stack'
     })
   })
 })

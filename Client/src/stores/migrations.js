@@ -81,6 +81,9 @@ export function normalizeWorkspaceVocabularyFields(workspace) {
   if (!workspace.comparisonAcceptances || typeof workspace.comparisonAcceptances !== 'object') {
     workspace.comparisonAcceptances = {}
   }
+  if (!workspace.comparisonNotImportant || typeof workspace.comparisonNotImportant !== 'object') {
+    workspace.comparisonNotImportant = {}
+  }
   if (!Array.isArray(workspace.comparisonBaselines)) workspace.comparisonBaselines = []
   if (!Array.isArray(workspace.dismissedSuggestions)) workspace.dismissedSuggestions = []
 }

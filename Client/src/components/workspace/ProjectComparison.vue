@@ -373,7 +373,8 @@
                   <div>
                     Excluded <strong>{{ metrics.excluded }}</strong>
                     <span class="text-medium-emphasis">
-                      ⊘ {{ metrics.unset }} · ⚠ {{ metrics.inconsistent }} · ✎ {{ metrics.accepted }}
+                      ⊘ {{ metrics.unset }} · ⚠ {{ metrics.inconsistent }} · ✎ {{ metrics.accepted }} · ◇
+                      {{ metrics.notImportant }}
                     </span>
                   </div>
                   <div>
@@ -671,6 +672,50 @@
                           @click.stop="openAcceptDialog(row, project.id)"
                         >
                           ≈ accept
+                        </v-btn>
+
+                        <!-- "Not important for this project" (F-new): not
+                             agreement (≈) and not a decision for everyone (⃠
+                             on the row) — just irrelevance to this one project. -->
+                        <div v-if="notImportantFor(row, project.id)" class="cell-not-important">
+                          <span
+                            class="not-important-marker"
+                            :title="notImportantFor(row, project.id).reason || 'Marked as not important for this project'"
+                            >◇</span
+                          >
+                          <span class="text-caption text-medium-emphasis">not important here</span>
+                          <v-btn
+                            size="x-small"
+                            variant="text"
+                            class="row-action"
+                            title="Take this back into the comparison for this project"
+                            @click.stop="clearNotImportant(row, project.id)"
+                          >
+                            Undo
+                          </v-btn>
+                        </div>
+                        <v-btn
+                          v-else
+                          size="x-small"
+                          variant="text"
+                          class="row-action"
+                          title="This decision does not matter to this project — leave it out of the comparison here, without agreeing to anything"
+                          @click.stop="openNotImportantDialog(row, project.id)"
+                        >
+                          ◇ not important here
+                        </v-btn>
+
+                        <!-- Writes the comparison's value back into this
+                             project's own radar, overwriting its stored status. -->
+                        <v-btn
+                          v-if="canApplyToRadar(row, project.id)"
+                          size="x-small"
+                          variant="text"
+                          class="row-action"
+                          :title="`Write ${statusLabel(radarApplyValueFor(row, project.id))} into ${project.name}’s radar, overwriting its current status`"
+                          @click.stop="applyToRadar(row, project.id)"
+                        >
+                          → radar
                         </v-btn>
                       </td>
                       <td>{{ coverageLabel(row.coverage) }}</td>
@@ -1036,6 +1081,46 @@
             <v-spacer />
             <v-btn size="small" variant="text" @click="acceptDialog = false">Cancel</v-btn>
             <v-btn size="small" variant="tonal" :disabled="!canAccept" @click="confirmAccept">Accept</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Not important for this project: unlike ≈ accept, no agreement is
+           recorded — the project simply opts out of this one term. Unlike the
+           row-level ⃠ mark, the other projects keep comparing normally. -->
+      <v-dialog v-model="notImportantDialog" max-width="520">
+        <v-card v-if="notImportantRow">
+          <v-card-title class="text-subtitle-2">
+            {{ projectNameOf(notImportantProjectId) }} — "{{ notImportantRow.name }}" is not important
+          </v-card-title>
+          <v-card-text>
+            <p class="text-caption text-medium-emphasis">
+              {{ projectNameOf(notImportantProjectId) }} is left out of the comparison on this term — not counted as
+              agreeing, not counted as differing. The other projects are still compared against each other as before.
+              Nothing is deleted; take it back at any time.
+            </p>
+            <v-textarea
+              v-model="notImportantReason"
+              label="Reason (optional)"
+              density="compact"
+              variant="outlined"
+              rows="2"
+              hide-details
+              class="mt-3"
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-btn
+              v-if="notImportantFor(notImportantRow, notImportantProjectId)"
+              size="small"
+              variant="text"
+              @click="(clearNotImportant(notImportantRow, notImportantProjectId), (notImportantDialog = false))"
+            >
+              Remove
+            </v-btn>
+            <v-spacer />
+            <v-btn size="small" variant="text" @click="notImportantDialog = false">Cancel</v-btn>
+            <v-btn size="small" variant="tonal" @click="confirmNotImportant">Mark as not important</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -1724,6 +1809,7 @@ export default {
       inconsistent: '⚠ inconsistent',
       unset: '⊘ unset',
       accepted: '✎ accepted',
+      notImportant: '◇ not important here',
       silent: '≈ silently accepted',
       unlisted: '⊙ not in the reference',
       missing: '⊖ in the reference, unused'
@@ -1904,6 +1990,81 @@ export default {
       if (isAcceptanceStale(row, projectId)) lines.push('the situation has changed since — worth a look')
       if (acceptance.setAt) lines.push(acceptance.setAt)
       return lines.join('\n')
+    }
+
+    // ── Not important for this project (F-new) ───────────────────────────────
+    //
+    // The opposite of a silent acceptance for the same situation: not "we
+    // agree", but "this does not matter to this project". The engine removes
+    // the marked project from the row's comparison entirely — the other
+    // projects keep comparing normally.
+
+    const notImportantDialog = ref(false)
+    const notImportantRow = ref(null)
+    const notImportantProjectId = ref('')
+    const notImportantReason = ref('')
+
+    function notImportantFor(row, projectId) {
+      return row?.notImportant?.[projectId] || null
+    }
+
+    function openNotImportantDialog(row, projectId) {
+      notImportantRow.value = row
+      notImportantProjectId.value = projectId
+      notImportantReason.value = notImportantFor(row, projectId)?.reason || ''
+      notImportantDialog.value = true
+      return true
+    }
+
+    function confirmNotImportant() {
+      const row = notImportantRow.value
+      if (!row || !notImportantProjectId.value) return false
+      const saved = store.setComparisonNotImportant(row.key, notImportantProjectId.value, {
+        reason: notImportantReason.value
+      })
+      notImportantDialog.value = false
+      return saved
+    }
+
+    function clearNotImportant(row, projectId) {
+      return store.clearComparisonNotImportant(row.key, projectId)
+    }
+
+    // ── Radar write-back (F-new) ──────────────────────────────────────────────
+    //
+    // The comparison can settle on a value for a project without that project
+    // having agreed to it in its own radar — a silent acceptance of another
+    // project's status, or a reference target. This carries that value over,
+    // overwriting the project's own recorded status. Only offered in radar
+    // mode, only for a cell with exactly one take (an inconsistent cell has no
+    // single value to write back), and only when it would actually change
+    // something.
+
+    function radarApplyValueFor(row, projectId) {
+      if (dataSource.value !== 'radar') return ''
+      if (inBaselineMode.value) return row.baselineStatus || ''
+      const acceptance = acceptanceFor(row, projectId)
+      if (acceptance?.mode === 'status' && isAcceptanceApplied(row, projectId)) {
+        const sourceCell = cellFor(row, acceptance.acceptedFrom)
+        if (sourceCell?.values?.length === 1) return sourceCell.values[0].status
+      }
+      return ''
+    }
+
+    function canApplyToRadar(row, projectId) {
+      const value = radarApplyValueFor(row, projectId)
+      if (!value) return false
+      const cell = cellFor(row, projectId)
+      if (!cell || cell.values.length !== 1) return false
+      return normalize(cell.values[0].status) !== normalize(value)
+    }
+
+    function applyToRadar(row, projectId) {
+      const value = radarApplyValueFor(row, projectId)
+      const cell = cellFor(row, projectId)
+      if (!value || !cell || cell.values.length !== 1) return false
+      const origin = cell.values[0].origin
+      return store.setProjectRadarStatus(projectId, origin.entryId, origin.rawName, value)
     }
 
     // ── Rename (F2) ──────────────────────────────────────────────────────────
@@ -2315,6 +2476,7 @@ export default {
       if (!fromKey || !toKey || fromKey === toKey) return false
       store.moveComparisonIgnored(fromKey, toKey)
       store.moveComparisonAcceptances(fromKey, toKey)
+      store.moveComparisonNotImportant(fromKey, toKey)
       store.moveComparisonBaselineEntries(fromKey, toKey)
       return true
     }
@@ -2701,6 +2863,17 @@ export default {
       openAcceptDialog,
       confirmAccept,
       clearAcceptance,
+      notImportantDialog,
+      notImportantRow,
+      notImportantProjectId,
+      notImportantReason,
+      notImportantFor,
+      openNotImportantDialog,
+      confirmNotImportant,
+      clearNotImportant,
+      radarApplyValueFor,
+      canApplyToRadar,
+      applyToRadar,
       renameDialog,
       renameRow,
       renameName,
@@ -3033,6 +3206,18 @@ export default {
 
 .acceptance-marker {
   color: rgb(var(--v-theme-primary));
+  font-weight: 700;
+}
+
+.cell-not-important {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.not-important-marker {
+  color: rgb(var(--v-theme-warning));
   font-weight: 700;
 }
 

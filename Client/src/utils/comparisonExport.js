@@ -19,6 +19,7 @@ const DELTA_LABELS = {
   inconsistent: '⚠ inconsistent',
   unset: '⊘ unset',
   accepted: '✎ accepted',
+  notImportant: '◇ not important here',
   silent: '≈ silently accepted',
   unlisted: '⊙ not in the reference',
   missing: '⊖ in the reference, unused'
@@ -108,6 +109,9 @@ export function buildComparisonExport({
               needsReview: Boolean(row.staleAcceptances?.includes(projectId))
             }
           : null,
+        // "Not important for this project" (F-new): opted out of the
+        // comparison on this term without agreeing to anything.
+        notImportant: row.notImportant?.[projectId] || null,
         values: (row.cells.get(projectId)?.values || []).map((value) => ({
           // The canonical spelling for reading, the stored one for tracing the
           // value back into the project data (design F4).
@@ -305,6 +309,8 @@ export function buildComparisonHtml(exportData) {
       metrics.inconsistent +
       ' · ✎ ' +
       metrics.accepted +
+      ' · ◇ ' +
+      metrics.notImportant +
       ') = <strong>Comparable</strong> ' +
       metrics.comparable +
       '</div>',
